@@ -28,7 +28,7 @@ export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = fals
     const b = sim.ball;
     if (!Number.isFinite(b.x + b.y + b.z)) finite = false;
     if (b.owner >= 0) poss[sim.players[b.owner].team]++;
-    for (const e of sim.events) { if (e.t === 'passOk') passOk++; else if (e.t === 'passLost') passLost++; else if (e.t === 'foul') { fouls++; if (e.card) cards[e.card]++; } }
+    for (const e of sim.events) { if (e.t === 'passOk') passOk++; else if (e.t === 'passLost') passLost++; else if (e.t === 'protest') cards.blue++; else if (e.t === 'foul') { fouls++; if (e.card) cards[e.card]++; } }
     if (events) for (const e of sim.events) log.push({ time: +(steps * DT).toFixed(2), ...e });
     if (trace && steps % 6 === 0) {
       tr.push([+(steps * DT).toFixed(1), +b.x.toFixed(2), +b.z.toFixed(2), +b.y.toFixed(2),

@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick', 'gkHold']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.03, blueSeconds: 300,
+  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -558,7 +558,17 @@ export class Sim {
   // ---- rules ----
   rules() {
     if (this.state !== 'play') return;
-    const b = this.ball;
+    const b = this.ball, holder = b.owner >= 0 ? this.players[b.owner] : null;
+    if (holder?.gk) { // portiere che trattiene la palla troppo a lungo -> punizione indiretta agli avversari
+      this.gkHoldT = this.gkHoldId === holder.id ? this.gkHoldT + DT : 0; this.gkHoldId = holder.id;
+      if (this.gkHoldT > RULES.gkHoldSeconds) {
+        const pt = this.pitch; this.gkHoldT = 0; this.gkHoldId = -1;
+        this.events.push({ t: 'gkHold', team: holder.team });
+        b.owner = -1; b.kicker = -1; b.vx = b.vy = b.vz = 0;
+        this.setPiece('indirect', 1 - holder.team, Math.sign(holder.x) * Math.min(Math.abs(holder.x), pt.hx - RULES.goalAreaDepth), clamp(holder.z, -pt.hz + 1, pt.hz - 1));
+        return;
+      }
+    } else this.gkHoldId = -1;
     if (Math.abs(b.x) > this.pitch.hx) {
       if (Math.abs(b.z) < this.pitch.goalHalf && b.y < this.pitch.goalH && !this.indirect) {
         const team = b.x > 0 ? 0 : 1;
@@ -647,6 +657,10 @@ export class Sim {
     if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
     this.events.push({ t: 'foul', team: q.team, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
+    if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo
+      const mates = this.players.filter(r => r.team === q.team && !r.out && !r.gk && !r.blueUntil);
+      if (mates.length) { const m = mates[Math.floor(this.rand() * mates.length)]; this.suspend(m); this.events.push({ t: 'protest', team: m.team, player: m.id }); }
+    }
     if (penalty) this.setPiece('penalty', o.team, d * (pt.hx - pt.penaltySpot), 0);
     else this.setPiece('free', o.team, clamp(o.x, -pt.hx + 1, pt.hx - 1), clamp(o.z, -pt.hz + 1, pt.hz - 1));
   }

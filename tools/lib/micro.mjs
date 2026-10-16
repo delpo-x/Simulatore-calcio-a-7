@@ -289,6 +289,22 @@ export function backPassTrial() {
   return { violation: Number(violation), kick_to_opponents: Number(taker === 1), indirect_active: Number(!!s.indirect) };
 }
 
+/** Il portiere trattiene la palla oltre il limite: punizione indiretta agli avversari; entro il limite nessuna infrazione. */
+export function gkHoldTrial() {
+  const out = {};
+  for (const secs of [5, 7]) {
+    const s = quiet(), gk = s.players[0];
+    Object.assign(gk, { x: -23, z: 0, vx: 0, vz: 0 });
+    Object.assign(s.ball, { x: -23, z: 0, y: 0.11, vx: 0, vz: 0 }); s.giveBall(gk);
+    s.aiControl = () => ({ mx: 0, mz: 0, sprint: false }); // il portiere non rilancia
+    let fired = false;
+    for (let i = 0; i < secs / DT; i++) { gk.vx = gk.vz = 0; gk.kickCd = 99; s.ball.owner = gk.id; s.step([null, null]); if (s.events.some(e => e.t === 'gkHold')) { fired = true; break; } }
+    out[`hold_${secs}s`] = Number(fired);
+    if (fired) out.indirect_active = Number(!!s.indirect);
+  }
+  return out;
+}
+
 /** Il portiere prende la palla calciata da un avversario: nessuna infrazione. */
 export function opponentPassToKeeper() {
   const s = quiet(), k = s.players[10], gk = s.players[0];

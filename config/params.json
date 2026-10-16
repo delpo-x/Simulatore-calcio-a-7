@@ -104,8 +104,10 @@
       6,
       12
     ],
-    "fallo_azzurro_su_fallo": 0.03,
+    "fallo_azzurro_su_fallo": 0.015,
+    "azzurro_proteste_su_fallo": 0.015,
     "azzurro_secondi": 300,
+    "portiere_trattenuta_secondi": 6,
     "giocatori_minimi": 5
   },
   "formazioni": {

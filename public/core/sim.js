@@ -213,7 +213,7 @@ export class Sim {
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
-    this.lastPass = null; b.kicker = p.id; b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -236,6 +236,14 @@ export class Sim {
   }
 
   /** Con raw=true la mira non viene corretta verso la porta (tiro dell'IA, con errore di mira). */
+  /** La palla e' calciata verso il portiere della stessa squadra (a meno di 2,5 m dalla traiettoria, entro 30 m). */
+  aimedAtKeeper(p, ux, uz) {
+    const g = this.players.find(q => q.gk && q.team === p.team && !q.out);
+    if (!g || p.gk) return false;
+    const gx = g.x - p.x, gz = g.z - p.z, along = gx * ux + gz * uz, perp = Math.abs(gx * uz - gz * ux);
+    return along > 0 && along < 30 && perp < 2.5;
+  }
+
   shoot(p, aim, power, raw = false) {
     const gx = this.dir(p.team) * this.pitch.hx, onGoal = !raw && Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
     const tz = onGoal ? clamp((this.rand() - 0.5) * 2 * (this.pitch.goalHalf - 0.5), -3, 3) : null;
@@ -389,6 +397,9 @@ export class Sim {
         lane = Math.min(lane, dist(o.x, o.z, p.x + (q.x - p.x) * t, p.z + (q.z - p.z) * t));
       }
       if (lane < 1.5) continue;
+      const g = this.players.find(r => r.gk && r.team === p.team && !r.out);
+      if (g && dist(g.x, g.z, q.x, q.z) < 4) continue; // compagno attaccato al portiere: il portiere prenderebbe la palla con le mani
+      if (g) { const tt = clamp(((g.x - p.x) * (q.x - p.x) + (g.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1); if (dist(g.x, g.z, p.x + (q.x - p.x) * tt, p.z + (q.z - p.z) * tt) < 2.5) continue; } // mai attraverso il proprio portiere
       const score = ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0);
       if (score > bestScore) { bestScore = score; best = q; }
     }
@@ -528,6 +539,7 @@ export class Sim {
       for (const p of ps) {
         const reach = p.gk ? AI.keeperReach * p.k.reach : 0.9 * p.k.touch, d = dist(p.x, p.z, b.x, b.z);
         if (sp >= (p.gk ? 40 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
+        if (p.gk && sp > 2 && b.kicker >= 0 && this.players[b.kicker].team === p.team && b.vx * (p.x - b.x) + b.vz * (p.z - b.z) <= 0) continue; // la palla calciata da un compagno e che si allontana non e' un passaggio al portiere
         best = p; bd = d;
       }
       if (best && best.gk && this.backPass(best)) return;
@@ -552,7 +564,7 @@ export class Sim {
   /** Retropassaggio (regolamento a 11, ipotesi per il girone): il portiere prende con le mani una palla calciata volontariamente da un compagno -> punizione indiretta. */
   backPass(gk) {
     const b = this.ball, k = b.kicker >= 0 ? this.players[b.kicker] : null;
-    if (!k || k.team !== gk.team || k.gk || this.state !== 'play') return false;
+    if (!k || k.team !== gk.team || k.gk || !b.toGk || this.state !== 'play') return false;
     const pt = this.pitch;
     this.events.push({ t: 'backpass', team: gk.team });
     b.kicker = -1; b.owner = -1; b.vx = b.vy = b.vz = 0;

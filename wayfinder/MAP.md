@@ -97,3 +97,7 @@ Sessioni separate, in questo ordine; ognuna ha già i test di gioco nel proprio 
 | [Attributi dei giocatori](tickets/09-attributi.md) | grilling | chiuso | - |
 | [Architettura IA di squadra](tickets/07-ia-squadra.md) | grilling | chiuso | - |
 | [Formazioni parametriche 5–11](tickets/08-formazioni.md) | grilling | chiuso | - |
+
+## Vista di debug
+
+`public/debug.html` (si apre dal server `npm start`, http://localhost:8080/debug.html): partita IA contro IA con 3D, scelta di giocatori (5–11), seme, velocità fino a 30×, pausa, +60 s e contatori di falli, cartellini e retropassaggi. Verificata nel browser a 7 e a 11 giocatori (campo, aree, porte, indiretta). Il retropassaggio scatta solo se un compagno calcia verso il proprio portiere; l'IA evita quei passaggi (circa 3 casi a partita restano).

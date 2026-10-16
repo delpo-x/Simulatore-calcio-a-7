@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vista di debug</title>
+<style>
+  :root { --bg: #14181c; --fg: #e8ecef; --muted: #8a949c; --line: #2b333a; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  header label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  select, input, button { background: #1d242a; color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  #wrap { position: relative; }
+  canvas { display: block; width: 100%; height: calc(100vh - 100px); background: #000; }
+  #hud { position: absolute; top: 8px; left: 0; right: 0; text-align: center; font: bold 18px system-ui; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  #stats { padding: 6px 16px; color: var(--muted); font: 13px ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Vista di debug · IA contro IA</strong>
+  <label>giocatori <select id="n"><option>5</option><option>6</option><option selected>7</option><option>8</option><option>9</option><option>10</option><option>11</option></select></label>
+  <label>seme <input id="seed" type="number" value="1" style="width:5em"></label>
+  <label>velocità <select id="speed"><option value="1">1×</option><option value="3">3×</option><option value="10">10×</option><option value="30">30×</option></select></label>
+  <button id="restart">Riavvia</button>
+  <button id="pause">Pausa</button>
+  <button id="skip">+60 s</button>
+</header>
+<div id="wrap"><canvas id="c"></canvas><div id="hud"></div></div>
+<div id="stats"></div>
+<script type="module">
+import { Sim, DT } from './core/sim.js';
+import { Renderer } from './core/render.js';
+
+const $ = id => document.getElementById(id), canvas = $('c');
+let sim, rend, paused = false, acc = 0, last = performance.now(), cards;
+
+function start() {
+  rend?.dispose();
+  sim = new Sim({ perTeam: Number($('n').value), seed: Number($('seed').value) >>> 0, halfLength: 25 * 60 });
+  rend = new Renderer(canvas, { scale: 1 }, sim.pitch);
+  cards = { yellow: 0, blue: 0, red: 0, fouls: 0, backpass: 0, goals: 0 };
+  acc = 0;
+}
+$('restart').onclick = start;
+$('n').onchange = start;
+function advance(sec) {
+  for (let i = 0; i < sec / DT && sim.state !== 'full'; i++) {
+    sim.step([null, null]);
+    for (const e of sim.events) {
+      if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; }
+      else if (e.t === 'backpass') cards.backpass++;
+      else if (e.t === 'goal') cards.goals++;
+    }
+  }
+}
+$('skip').onclick = () => advance(60); // utile quando il browser sospende l'animazione
+window.debug = { advance, get sim() { return sim; } };
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'Riprendi' : 'Pausa'; };
+
+const pad = v => String(v).padStart(2, '0');
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!paused) {
+    acc += dt * Number($('speed').value);
+    let n = 0;
+    while (acc >= DT && n++ < 6000) {
+      sim.step([null, null]); acc -= DT;
+      for (const e of sim.events) {
+        if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; }
+        else if (e.t === 'backpass') cards.backpass++;
+        else if (e.t === 'goal') cards.goals++;
+      }
+    }
+    if (acc > 1) acc = 0;
+  }
+  rend.draw(sim, [], dt);
+  const t = Math.floor(sim.matchTime);
+  $('hud').textContent = `${sim.score[0]} - ${sim.score[1]}   ${pad(Math.floor(t / 60))}:${pad(t % 60)}${sim.indirect ? '   INDIRETTA' : ''}${sim.state === 'goal' ? '   GOL!' : sim.state === 'full' ? '   FINE' : ''}`;
+  const live = tm => sim.players.filter(p => p.team === tm && !p.out).length;
+  $('stats').textContent = `stato ${sim.state} · in campo ${live(0)}-${live(1)} · falli ${cards.fouls} · gialli ${cards.yellow} · azzurri ${cards.blue} · rossi ${cards.red} · retropassaggi ${cards.backpass} · campo ${sim.pitch.hx * 2}×${sim.pitch.hz * 2} m`;
+}
+start();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

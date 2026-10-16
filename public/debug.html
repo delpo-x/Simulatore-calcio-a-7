@@ -33,13 +33,14 @@ import { Sim, DT } from './core/sim.js';
 import { Renderer } from './core/render.js';
 
 const $ = id => document.getElementById(id), canvas = $('c');
+const count = e => { if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; } else if (e.t === 'protest') { cards.blue++; cards.protest++; } else if (e.t === 'goal') cards.goals++; else if (e.t in cards) cards[e.t]++; };
 let sim, rend, paused = false, acc = 0, last = performance.now(), cards;
 
 function start() {
   rend?.dispose();
   sim = new Sim({ perTeam: Number($('n').value), seed: Number($('seed').value) >>> 0, halfLength: 25 * 60 });
   rend = new Renderer(canvas, { scale: 1 }, sim.pitch);
-  cards = { yellow: 0, blue: 0, red: 0, fouls: 0, backpass: 0, goals: 0 };
+  cards = { yellow: 0, blue: 0, red: 0, fouls: 0, backpass: 0, goals: 0, protest: 0, obstruction: 0, dangerous: 0, gkHold: 0 };
   acc = 0;
 }
 $('restart').onclick = start;
@@ -48,9 +49,7 @@ function advance(sec) {
   for (let i = 0; i < sec / DT && sim.state !== 'full'; i++) {
     sim.step([null, null]);
     for (const e of sim.events) {
-      if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; }
-      else if (e.t === 'backpass') cards.backpass++;
-      else if (e.t === 'goal') cards.goals++;
+      count(e);
     }
   }
 }
@@ -68,9 +67,7 @@ function frame(now) {
     while (acc >= DT && n++ < 6000) {
       sim.step([null, null]); acc -= DT;
       for (const e of sim.events) {
-        if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; }
-        else if (e.t === 'backpass') cards.backpass++;
-        else if (e.t === 'goal') cards.goals++;
+        count(e);
       }
     }
     if (acc > 1) acc = 0;
@@ -79,7 +76,7 @@ function frame(now) {
   const t = Math.floor(sim.matchTime);
   $('hud').textContent = `${sim.score[0]} - ${sim.score[1]}   ${pad(Math.floor(t / 60))}:${pad(t % 60)}${sim.indirect ? '   INDIRETTA' : ''}${sim.state === 'goal' ? '   GOL!' : sim.state === 'full' ? '   FINE' : ''}`;
   const live = tm => sim.players.filter(p => p.team === tm && !p.out).length;
-  $('stats').textContent = `stato ${sim.state} · in campo ${live(0)}-${live(1)} · falli ${cards.fouls} · gialli ${cards.yellow} · azzurri ${cards.blue} · rossi ${cards.red} · retropassaggi ${cards.backpass} · campo ${sim.pitch.hx * 2}×${sim.pitch.hz * 2} m`;
+  $('stats').textContent = `stato ${sim.state} · in campo ${live(0)}-${live(1)} · falli ${cards.fouls} · gialli ${cards.yellow} · azzurri ${cards.blue} · rossi ${cards.red} · retropassaggi ${cards.backpass} · ostruzioni ${cards.obstruction} · gioco pericoloso ${cards.dangerous} · portiere trattiene ${cards.gkHold} · proteste ${cards.protest} · campo ${sim.pitch.hx * 2}×${sim.pitch.hz * 2} m`;
 }
 start();
 requestAnimationFrame(frame);

@@ -108,8 +108,9 @@
     "azzurro_proteste_su_fallo": 0.015,
     "azzurro_secondi": 300,
     "portiere_trattenuta_secondi": 6,
-    "ostruzione_tasso": 0.15,
+    "ostruzione_tasso": 0.015,
     "gioco_pericoloso_m": 1.2,
+    "gioco_pericoloso_tasso": 0.25,
     "giocatori_minimi": 5
   },
   "formazioni": {

@@ -1,0 +1,11 @@
+[
+  { "id": "attributi.velocita.differenza_40m", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "sprintAttr", "args": { "fast": 19, "slow": 11 } }, "metric": "time_diff", "expect": { "min": 0.5, "max": 1.0 }, "severity": "error" },
+  { "id": "attributi.passaggi.errore_11", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "passErrorTrials", "args": { "passing": 11 } }, "metric": "error_rate", "expect": { "value": 0.055, "abs": 0.01 }, "severity": "error" },
+  { "id": "attributi.passaggi.errore_16", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "passErrorTrials", "args": { "passing": 16 } }, "metric": "error_rate", "expect": { "value": 0.0375, "abs": 0.01 }, "severity": "error" },
+  { "id": "attributi.file.rifiuta_non_valido", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "teamValidation" }, "metric": "rejected", "expect": { "value": 1, "abs": 0 }, "severity": "error" },
+  { "id": "attributi.file.messaggio_giocatore", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "teamValidation" }, "metric": "names_player", "expect": { "value": 1, "abs": 0 }, "severity": "error" },
+  { "id": "attributi.file.messaggio_attributo", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "teamValidation" }, "metric": "names_attr", "expect": { "value": 1, "abs": 0 }, "severity": "error" },
+  { "id": "attributi.file.valido_accettato", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "teamValidation" }, "metric": "accepted_valid", "expect": { "value": 1, "abs": 0 }, "severity": "error" },
+  { "id": "attributi.deterministico", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "teamDeterminism" }, "metric": "same_hash", "expect": { "value": true }, "severity": "error" },
+  { "id": "attributi.squadre_pari", "subsystem": "attributi", "ticket": "09", "requires": ["attributes"], "scenario": { "type": "equalTeams", "args": { "games": 60 } }, "metric": "goal_diff_rel", "expect": { "max": 0.15 }, "severity": "error" }
+]

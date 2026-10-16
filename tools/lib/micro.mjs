@@ -1,5 +1,7 @@
 // Scenari controllati ("micro") per misurare un singolo comportamento del motore.
-import { Sim, DT, SCHEMES, pitchFor, layout } from '../../public/core/sim.js';
+import { Sim, DT, SCHEMES, pitchFor, layout, AI } from '../../public/core/sim.js';
+import { syntheticTeam, pickLineup, readTeam, readPlayer } from '../../public/core/team.js';
+import { runMatch } from './matches.mjs';
 
 /** Lancia la palla da ferma con velocità orizzontale e verticale date e ne misura la traiettoria. */
 export function launchBall({ speed, lift }) {
@@ -192,4 +194,61 @@ export function measureSpeed(players, simSeconds = 300) {
 export function pressingTrigger({ players }) {
   const s = new Sim({ perTeam: players, seed: 1 });
   return { trigger: s.sc(s.tac[0].press) };
+}
+
+function lineup(level, over = {}) {
+  const t = syntheticTeam('Prova', level);
+  for (const pl of t.players) Object.assign(pl.attrs, over);
+  return pickLineup(t, SCHEMES[7][0]);
+}
+
+/** Sprint su 40 m con la Velocita' data; tempo in secondi. */
+function sprint40(speed) {
+  const s = new Sim({ perTeam: 7, seed: 1, pitch: pitchFor(11), teams: [lineup(15, { Velocita: speed }), null] });
+  s.state = 'play';
+  s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
+  const p = s.players[1];
+  Object.assign(p, { x: -50, z: 0, vx: 0, vz: 0, face: 0 });
+  Object.assign(s.ball, { x: 900, z: 0, owner: -1 });
+  let t = 0;
+  while (p.x + 50 < 40 && t < 20) { s.move(p, { mx: 1, mz: 0, sprint: true }); t += DT; }
+  return t;
+}
+
+/** Differenza di tempo su 40 m tra Velocita' lenta e veloce (s). */
+export function sprintAttr({ fast, slow }) {
+  return { time_diff: sprint40(slow) - sprint40(fast) };
+}
+
+/** Frequenza d'errore del passaggio (piede forte) con l'attributo Passaggi dato. */
+export function passErrorTrials({ passing, n = 10000 }) {
+  const s = new Sim({ perTeam: 7, seed: 1, teams: [lineup(15, { Passaggi: passing }), null] });
+  const k = s.players[3].k.passErr; let err = 0;
+  for (let i = 0; i < n; i++) if (s.rand() < AI.passError * k) err++;
+  return { error_rate: err / n };
+}
+
+/** Un file squadra con un attributo mancante o fuori scala viene rifiutato con un messaggio che nomina giocatore e attributo. */
+export function teamValidation() {
+  const t = syntheticTeam('Prova', 15), raw = t.players[2];
+  const mk = scouting => ({ name: 'Mario Prova', position: 'Defender', foot: 'DX', scouting });
+  const full = {}; for (const k of Object.keys(raw.attrs)) full[k] = 15;
+  const msg = f => { try { f(); return ''; } catch (e) { return e.message; } };
+  const { Passaggi, ...noPass } = full;
+  const m1 = msg(() => readPlayer(mk(noPass))), m2 = msg(() => readPlayer(mk({ ...full, Velocita: 25 })));
+  return { rejected: Number(!!m1 && !!m2), names_player: Number(m1.includes('Mario Prova') && m2.includes('Mario Prova')),
+    names_attr: Number(m1.includes('Passaggi') && m2.includes('Velocita')), accepted_valid: Number(!msg(() => readPlayer(mk(full)))) };
+}
+
+/** Stessa partita due volte con squadre da file: stesso hash. */
+export function teamDeterminism() {
+  const run = () => runMatch({ players: 7, seed: 4, halfMinutes: 3, teams: [lineup(13), lineup(16)] }).hash;
+  return { same_hash: run() === run() };
+}
+
+/** Due squadre con tutti gli attributi a 15: differenza relativa dei gol medi. */
+export function equalTeams({ games = 60 }) {
+  let g0 = 0, g1 = 0;
+  for (let i = 0; i < games; i++) { const r = runMatch({ players: 7, seed: 100 + i, teams: [lineup(15), lineup(15)] }); g0 += r.goals[0]; g1 += r.goals[1]; }
+  return { goal_diff_rel: Math.abs(g0 - g1) / Math.max(1, (g0 + g1) / 2), goals0: g0 / games, goals1: g1 / games };
 }

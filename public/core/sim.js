@@ -9,7 +9,17 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set();
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun']);
+
+/** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
+export const MOVE = {
+  run: 6.0, sprint: 8.0, tau: 0.6,              // m/s, m/s, s (costante di accelerazione)
+  turnRate0: 8, turnRateMax: 3, turnLoss: 0.3,  // rad/s da fermo, rad/s a velocita' massima, perdita sopra 90 gradi
+  sprintSeconds: 25, recoverSeconds: 40, lowStaminaLoss: 0.15,
+  ballGap: 0.5, ballGapPerSpeed: 0.08,          // distanza palla = 0,5 m + 0,08 s * velocita'
+  tackleRadius: 1.3, tackleBase: 0.55,
+  minGap: 0.8, stunSpeed: 6, stunSeconds: 0.3,
+};
 
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
 export const BALL = {
@@ -204,20 +214,48 @@ export class Sim {
 
   // ---- physics ----
   move(p, c) {
-    const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : c.sprint ? 8.2 : 6.2;
+    if (p.stam === undefined) p.stam = 1;
+    const sprinting = c.sprint && (c.mx || c.mz) && p.stun <= 0;
+    if (sprinting) p.stam = Math.max(0, p.stam - DT / MOVE.sprintSeconds);
+    else if (Math.hypot(p.vx, p.vz) < MOVE.run + 0.5) p.stam = Math.min(1, p.stam + DT / MOVE.recoverSeconds);
+    const top = MOVE.sprint * (1 - MOVE.lowStaminaLoss * (1 - p.stam));
+    const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run;
     let tx = c.mx * max, tz = c.mz * max;
     if (p.tackleT > 0 && !c.mx && !c.mz) { tx = Math.cos(p.face) * max; tz = Math.sin(p.face) * max; }
-    const k = Math.min(1, (this.ball.owner === p.id ? 6 : 9) * DT);
+    // virata oltre 90 gradi: si perde velocita; la sterzata e' piu lenta ad alta velocita
+    const sp = Math.hypot(p.vx, p.vz);
+    if (sp > 1 && (tx || tz) && p.vx * tx + p.vz * tz < 0) { tx *= 1 - MOVE.turnLoss; tz *= 1 - MOVE.turnLoss; }
+    const k = 1 - Math.exp(-DT / MOVE.tau);
     p.vx += (tx - p.vx) * k; p.vz += (tz - p.vz) * k;
     p.x = clamp(p.x + p.vx * DT, -PITCH.hx - 3, PITCH.hx + 3); p.z = clamp(p.z + p.vz * DT, -PITCH.hz - 3, PITCH.hz + 3);
-    if (Math.hypot(p.vx, p.vz) > 0.8) { const a = Math.atan2(p.vz, p.vx); let da = Math.atan2(Math.sin(a - p.face), Math.cos(a - p.face)); p.face += clamp(da, -12 * DT, 12 * DT); }
+    if (Math.hypot(p.vx, p.vz) > 0.8) {
+      const a = Math.atan2(p.vz, p.vx), da = Math.atan2(Math.sin(a - p.face), Math.cos(a - p.face));
+      const rate = MOVE.turnRate0 - (MOVE.turnRate0 - MOVE.turnRateMax) * clamp(sp / MOVE.sprint, 0, 1);
+      p.face += clamp(da, -rate * DT, rate * DT);
+    }
+  }
+
+  /** Esito di un contrasto di q su o: base 55%, piu' alto di lato o da dietro, piu' basso se o sprinta. */
+  tackleChance(q, o) {
+    const dx = q.x - o.x, dz = q.z - o.z, l = Math.hypot(dx, dz) || 1;
+    const front = (dx * Math.cos(o.face) + dz * Math.sin(o.face)) / l; // 1 = q davanti a o, -1 = dietro
+    let c = MOVE.tackleBase + (front < 0.3 ? (front < -0.3 ? 0.2 : 0.1) : 0);
+    if (Math.hypot(o.vx, o.vz) > MOVE.run + 0.5) c -= 0.1;
+    return clamp(c, 0.05, 0.95);
   }
 
   separate() {
     const ps = this.players;
     for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
       const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
-      if (d > 0 && d < 0.8) { const push = (0.8 - d) / 2 / d; a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push; }
+      if (d > 0 && d < MOVE.minGap) {
+        // urto forte: stordisce per 0,3 s chi viene colpito da dietro (l'altro e' dietro di lui)
+        if (Math.hypot(a.vx - b.vx, a.vz - b.vz) > MOVE.stunSpeed) {
+          if (a.stun <= 0 && dx * Math.cos(a.face) + dz * Math.sin(a.face) < 0) a.stun = MOVE.stunSeconds;
+          if (b.stun <= 0 && -dx * Math.cos(b.face) - dz * Math.sin(b.face) < 0) b.stun = MOVE.stunSeconds;
+        }
+        const push = (MOVE.minGap - d) / 2 / d; a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push;
+      }
     }
   }
 
@@ -226,13 +264,17 @@ export class Sim {
     if (b.owner >= 0) {
       const o = ps[b.owner];
       // tackle: opponent in reach with an active tackle takes the ball
-      for (const q of ps) if (q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < 1.3 && q.kickCd === 0) {
-        o.stun = 0.5; o.kickCd = 0.4; b.owner = -1; this.giveBall(q); q.tackleT = 0; break;
+      for (const q of ps) if (q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < MOVE.tackleRadius && q.kickCd === 0) {
+        q.tackleT = 0; // un solo tentativo per contrasto
+        if (this.rand() < this.tackleChance(q, o)) { o.stun = 0.5; o.kickCd = 0.4; b.owner = -1; this.giveBall(q); }
+        else q.kickCd = 0.4;
+        break;
       }
     }
     if (b.owner >= 0) {
       const o = ps[b.owner];
-      b.x = o.x + Math.cos(o.face) * 0.6; b.z = o.z + Math.sin(o.face) * 0.6; b.y = 0.11;
+      const gap = MOVE.ballGap + MOVE.ballGapPerSpeed * Math.hypot(o.vx, o.vz);
+      b.x = o.x + Math.cos(o.face) * gap; b.z = o.z + Math.sin(o.face) * gap; b.y = 0.11;
       b.vx = o.vx; b.vz = o.vz; b.vy = 0; b.last = o.id;
       return;
     }

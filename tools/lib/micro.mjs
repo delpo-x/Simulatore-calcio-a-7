@@ -55,6 +55,50 @@ export function sprintRun() {
   return out;
 }
 
+function isolated(n = 7) {
+  const s = new Sim({ perTeam: n, seed: 1 });
+  s.state = 'play';
+  s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
+  Object.assign(s.ball, { x: 900, z: 0, owner: -1 });
+  return s;
+}
+
+/** Sprint continuo di 30 s: calo della velocita' finale rispetto allo sprint a serbatoio pieno. */
+export function staminaRun(seconds = 30) {
+  const s = isolated(), p = s.players[1];
+  Object.assign(p, { x: -50, z: 0, vx: 0, vz: 0, face: 0 });
+  for (let i = 0; i < seconds / DT; i++) { s.move(p, { mx: 1, mz: 0, sprint: true }); p.x = -50; }
+  return { speed_drop: 1 - Math.hypot(p.vx, p.vz) / 8.0, stamina: p.stam };
+}
+
+/** Frequenza di successo di un contrasto frontale contro un portatore che cammina. */
+export function tackleTrials(n = 10000) {
+  const s = isolated(), o = s.players[1], q = s.players[8];
+  Object.assign(o, { x: 0, z: 0, vx: 1.5, vz: 0, face: 0 });
+  Object.assign(q, { x: 1.0, z: 0, vx: 0, vz: 0, face: Math.PI });
+  let ok = 0;
+  for (let i = 0; i < n; i++) if (s.rand() < s.tackleChance(q, o)) ok++;
+  return { success_rate: ok / n };
+}
+
+/** Urto da dietro: stordimento (s) del giocatore colpito, data la velocita' relativa. */
+export function collisionTrial({ relSpeed }) {
+  const s = isolated(), a = s.players[1], b = s.players[2];
+  Object.assign(a, { x: 0, z: 0, vx: relSpeed, vz: 0, face: 0, stun: 0 });
+  Object.assign(b, { x: 0.6, z: 0, vx: 0, vz: 0, face: 0, stun: 0 });
+  s.separate();
+  return { stun_seconds: b.stun, gap: Math.hypot(a.x - b.x, a.z - b.z) };
+}
+
+/** Distanza palla-portatore dopo 3 s di sprint. */
+export function carryGap() {
+  const s = isolated(), p = s.players[1];
+  Object.assign(p, { x: -40, z: 0, vx: 0, vz: 0, face: 0 });
+  s.giveBall(p);
+  for (let i = 0; i < 3 / DT; i++) { s.move(p, { mx: 1, mz: 0, sprint: true }); s.stepBall(); }
+  return { gap: Math.hypot(s.ball.x - p.x, s.ball.z - p.z) };
+}
+
 /** Disposizione iniziale dei giocatori per un dato numero di giocatori per squadra. */
 export function formationLayout(players) {
   const s = new Sim({ perTeam: players, seed: 1 });

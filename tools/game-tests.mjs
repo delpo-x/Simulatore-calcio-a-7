@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
-import { launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed } from './lib/micro.mjs';
+import { staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -24,6 +24,10 @@ const scenarios = {
   launchBall: a => launchBall(a),
   shotSpeed: a => shotSpeed(a),
   sprintRun: () => sprintRun(),
+  staminaRun: () => staminaRun(),
+  tackleTrials: () => tackleTrials(),
+  collisionTrial: a => collisionTrial(a),
+  carryGap: () => carryGap(),
   formationLayout: a => formationLayout(a.players),
   measureSpeed: a => measureSpeed(a.players, a.simSeconds),
   matches: a => {

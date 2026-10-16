@@ -2,8 +2,9 @@
 import { Sim, DT } from '../../public/core/sim.js';
 
 /** Gioca una partita intera e ne restituisce le statistiche (e, a richiesta, eventi e traccia a 10 Hz). */
-export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = false, events = false, teams } = {}) {
+export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = false, events = false, teams, noForm = false } = {}) {
   const sim = new Sim({ perTeam: players, seed, halfLength: halfMinutes * 60, teams });
+  if (noForm) sim.form = [0, 0]; // senza forma di giornata (confronti tra squadre)
   const shots = [0, 0], onTarget = [0, 0], passes = [0, 0], poss = [0, 0];
   const shoot = sim.shoot.bind(sim), pass = sim.pass.bind(sim);
   sim.shoot = (p, ...a) => {

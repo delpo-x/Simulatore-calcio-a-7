@@ -250,7 +250,7 @@ export function teamDeterminism() {
 /** Due squadre con tutti gli attributi a 15: differenza relativa dei gol medi. */
 export function equalTeams({ games = 60 }) {
   let g0 = 0, g1 = 0;
-  for (let i = 0; i < games; i++) { const r = runMatch({ players: 7, seed: 100 + i, teams: [lineup(15), lineup(15)] }); g0 += r.goals[0]; g1 += r.goals[1]; }
+  for (let i = 0; i < games; i++) { const r = runMatch({ players: 7, seed: 100 + i, teams: [lineup(15), lineup(15)], noForm: true }); g0 += r.goals[0]; g1 += r.goals[1]; }
   return { goal_diff_rel: Math.abs(g0 - g1) / Math.max(1, (g0 + g1) / 2), goals0: g0 / games, goals1: g1 / games };
 }
 
@@ -267,5 +267,52 @@ export function sendOffTrial() {
   let t = 0, back = null;
   while (t < 400 && back === null) { s.state = 'play'; s.stateT = 0; s.step([null, null]); t += DT; if (live(s, 0) === 7) back = s.matchTime; }
   out.blue_minutes = back === null ? -1 : back / 60;
+  return out;
+}
+
+function quiet(n = 7) {
+  const s = new Sim({ perTeam: n, seed: 1, halfLength: 1e6 });
+  s.state = 'play'; s.form = [0, 0];
+  s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; q.kickCd = 99; });
+  return s;
+}
+
+/** Retropassaggio: un compagno calcia al portiere, che prende la palla con le mani -> punizione indiretta agli avversari. */
+export function backPassTrial() {
+  const s = quiet(), k = s.players[3], gk = s.players[0];
+  Object.assign(k, { x: -10, z: 0 }); Object.assign(gk, { x: -23, z: 0, kickCd: 0 });
+  Object.assign(s.ball, { x: -10, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 });
+  s.kick(k, -1, 0, 12, 0);
+  let violation = false, taker = -1;
+  for (let i = 0; i < 4 / DT; i++) { s.step([null, null]); if (s.events.some(e => e.t === 'backpass')) { violation = true; break; } }
+  if (violation) taker = s.players[s.ball.owner]?.team ?? -1;
+  return { violation: Number(violation), kick_to_opponents: Number(taker === 1), indirect_active: Number(!!s.indirect) };
+}
+
+/** Il portiere prende la palla calciata da un avversario: nessuna infrazione. */
+export function opponentPassToKeeper() {
+  const s = quiet(), k = s.players[10], gk = s.players[0];
+  Object.assign(k, { x: -10, z: 0 }); Object.assign(gk, { x: -23, z: 0, kickCd: 0 });
+  Object.assign(s.ball, { x: -10, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 });
+  s.kick(k, -1, 0, 12, 0);
+  let violation = false, had = false;
+  for (let i = 0; i < 4 / DT; i++) { s.step([null, null]); if (s.events.some(e => e.t === 'backpass')) violation = true; if (s.ball.owner === 0) had = true; }
+  return { violation: Number(violation), keeper_has_ball: Number(had) };
+}
+
+/** Punizione indiretta: tiro diretto in porta senza secondo tocco -> niente gol; con un secondo tocco -> gol. */
+export function indirectKickTrial() {
+  const out = {};
+  for (const touch of [false, true]) {
+    const s = quiet();
+    const a = s.players[3], b2 = s.players[4];
+    Object.assign(a, { x: 12, z: 0, face: 0 }); Object.assign(b2, { x: 11, z: 3 });
+    Object.assign(s.ball, { x: 12, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 });
+    s.indirect = { team: 0, taker: a.id };
+    s.kick(a, 1, 0, 25, 0);
+    if (touch) { s.indirect = null; } // un secondo giocatore tocca la palla
+    for (let i = 0; i < 3 / DT && s.score[0] === 0 && s.state === 'play'; i++) s.step([null, null]);
+    out[touch ? 'goal_after_second_touch' : 'goal_direct'] = s.score[0];
+  }
   return out;
 }

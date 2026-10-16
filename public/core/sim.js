@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
   shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 8, formSpread: 0.35, formSpeed: 0, formTackle: 1,
+  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, formSpread: 0.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
 
@@ -83,7 +83,7 @@ export function layout(n, scheme, pitch) {
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
   foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.03, blueSeconds: 300,
-  minPlayers: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
+  minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
 import { NEUTRAL, deriveSkill } from './team.js';
@@ -98,7 +98,7 @@ export class Sim {
     this.prev = [0, 0]; this.charge = [0, 0]; this.active = [0, 0];
     this.players = [];
     this.pitch = pitch ?? pitchFor(perTeam);
-    this.sentOff = [0, 0];
+    this.sentOff = [0, 0]; this.indirect = null;
     this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
     this.possTeam = 0; this.possT = 0; this.lastPass = null;
     this.form = [0, 1].map(() => (this.rand() - 0.5) * 2 * AI.formSpread); // forma di giornata: sposta la probabilita' di vincere i contrasti
@@ -145,7 +145,8 @@ export class Sim {
   giveBall(p) {
     const lp = this.lastPass;
     if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost' }); }
-    this.ball.owner = p.id; this.ball.last = p.id; p.kickCd = 0;
+    this.ball.owner = p.id; this.ball.last = p.id; this.ball.kicker = -1; p.kickCd = 0;
+    if (this.indirect && p.id !== this.indirect.taker) this.indirect = null; // secondo tocco: la punizione indiretta e' valida
   }
 
   /** inputs: array(2) of button bitmasks (or null = AI) for team 0 and team 1. */
@@ -212,7 +213,7 @@ export class Sim {
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
-    this.lastPass = null; b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.kicker = p.id; b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -346,7 +347,7 @@ export class Sim {
     const opps = this.players.filter(q => q.team !== p.team && !q.out);
     const po = Math.min(...opps.map(q => dist(q.x, q.z, p.x, p.z)));
     const hold = { tx: p.x, tz: p.z, sprint: false }, range = this.sc(AI.shootRange);
-    if (dg < range && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
+    if (dg < range && !this.indirect && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
       const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, dg < this.sc(16) ? p.k.shotNear : p.k.shotFar) * Math.PI / 180;
       this.shoot(p, Math.atan2(-p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
       return hold;
@@ -380,7 +381,7 @@ export class Sim {
     for (const q of this.players) {
       if (q.team !== p.team || q === p || q.out) continue;
       const dd = dist(p.x, p.z, q.x, q.z);
-      if (dd < 3) continue;
+      if (dd < 3 || q.gk) continue; // mai al portiere con i piedi del compagno: sarebbe retropassaggio
       let open = 8, lane = 6;
       for (const o of opps) {
         open = Math.min(open, dist(o.x, o.z, q.x, q.z));
@@ -529,6 +530,7 @@ export class Sim {
         if (sp >= (p.gk ? 40 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
         best = p; bd = d;
       }
+      if (best && best.gk && this.backPass(best)) return;
       if (best) { b.vx = b.vy = b.vz = 0; this.giveBall(best); }
     }
   }
@@ -538,13 +540,24 @@ export class Sim {
     if (this.state !== 'play') return;
     const b = this.ball;
     if (Math.abs(b.x) > this.pitch.hx) {
-      if (Math.abs(b.z) < this.pitch.goalHalf && b.y < this.pitch.goalH) {
+      if (Math.abs(b.z) < this.pitch.goalHalf && b.y < this.pitch.goalH && !this.indirect) {
         const team = b.x > 0 ? 0 : 1;
         this.score[team]++; this.state = 'goal'; this.stateT = 2.5; this.kickTeam = 1 - team; this.events.push({ t: 'goal', team });
         return;
       }
       this.restart(b.x > 0 ? 1 : -1, 0);
     } else if (Math.abs(b.z) > this.pitch.hz) this.restart(0, b.z > 0 ? 1 : -1);
+  }
+
+  /** Retropassaggio (regolamento a 11, ipotesi per il girone): il portiere prende con le mani una palla calciata volontariamente da un compagno -> punizione indiretta. */
+  backPass(gk) {
+    const b = this.ball, k = b.kicker >= 0 ? this.players[b.kicker] : null;
+    if (!k || k.team !== gk.team || k.gk || this.state !== 'play') return false;
+    const pt = this.pitch;
+    this.events.push({ t: 'backpass', team: gk.team });
+    b.kicker = -1; b.owner = -1; b.vx = b.vy = b.vz = 0;
+    this.setPiece('indirect', 1 - gk.team, Math.sign(gk.x) * Math.min(Math.abs(gk.x), pt.hx - RULES.goalAreaDepth), clamp(gk.z, -pt.hz + 1, pt.hz - 1));
+    return true;
   }
 
   /** Palla uscita: rimessa laterale, rinvio dal fondo o calcio d'angolo secondo chi l'ha toccata per ultimo. */
@@ -572,7 +585,8 @@ export class Sim {
       : Math.atan2(-z, this.dir(team) * pt.hx - x);
     Object.assign(b, { x, z, vx: 0, vz: 0, vy: 0, y: 0.11 });
     this.giveBall(taker);
-    const R = kind === 'free' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : 0, end = Math.sign(x);
+    this.indirect = kind === 'indirect' ? { team, taker: taker.id } : null;
+    const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : 0, end = Math.sign(x);
     for (const p of this.players) {
       if (p === taker || p.out) continue;
       if (R && p.team !== team) this.keepAway(p, x, z, R);

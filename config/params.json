@@ -75,7 +75,7 @@
     }
   },
   "portiere": {
-    "raggio_parata_m": 2.05,
+    "raggio_parata_m": 2.3,
     "distanza_uscita_m": 9,
     "errore_bisettrice_m": 0.5,
     "piazzamento_dalla_linea_m": [
@@ -200,14 +200,14 @@
     "rimbalzo": 0.5
   },
   "ia_taratura": {
-    "shootRange": 26,
-    "shootEager": 0.08,
+    "shootRange": 14,
+    "shootEager": 0.05,
     "shotAngle": 3,
     "shotAnglePerM": 1,
     "tackleEager": 0.3,
     "markWeight": 0.7,
     "containDist": 5,
-    "forceShot": 7,
+    "forceShot": 5,
     "laneWidth": 1.2,
     "tackleDist": 1.6,
     "sprintFree": 12,
@@ -217,6 +217,7 @@
     "passMin": 0.35,
     "pressedDist": 4,
     "attackDepth": 14,
-    "blockDepth": 0.3
+    "blockDepth": 1,
+    "pressedErrMul": 6
   }
 }

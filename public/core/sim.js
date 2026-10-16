@@ -26,9 +26,9 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
-  shootRange: 26, shootEager: 0.08, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 7, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4,
-  attackDepth: 14, blockDepth: 0.3, keeperReach: 2.05, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
+  shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6,
+  attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
 
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
@@ -83,7 +83,7 @@ export function layout(n, scheme, pitch) {
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
   foulProb: 0.15, yellowShare: 0.10, redShare: 0.01,
-  wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
+  minPlayers: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
 import { NEUTRAL, deriveSkill } from './team.js';
@@ -182,6 +182,7 @@ export class Sim {
     const owner = b.owner >= 0 ? this.players[b.owner] : null;
     if (owner && owner.team === team && !owner.gk) { this.active[team] = owner.id; return; }
     const cur = this.players[this.active[team]];
+    if (!mine.length) return;
     let best = mine[0];
     for (const p of mine) if (dist(p.x, p.z, b.x, b.z) < dist(best.x, best.z, b.x, b.z)) best = p;
     if (!cur || cur.team !== team || cur.gk || dist(cur.x, cur.z, b.x, b.z) > dist(best.x, best.z, b.x, b.z) + 2.5) this.active[team] = best.id;
@@ -348,7 +349,7 @@ export class Sim {
     }
     const best = this.bestPass(p), pressed = po < AI.pressedDist;
     if (best && this.rand() < (AI.passBase * t.tempo + (pressed ? AI.passPressed : 0))) {
-      this.passTo(p, best, this.rand() < AI.passError * this.errMul(p, p.k.passErr));
+      this.passTo(p, best, this.rand() < AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1)); // sotto pressione si sbaglia di piu'
       return hold;
     }
     let tz = clamp(p.z * 0.5, -pt.hz * 0.3, pt.hz * 0.3);
@@ -600,7 +601,7 @@ export class Sim {
     const pt = this.pitch, d = this.dir(o.team);
     let card = foul.card;
     if (card === 'yellow' && ++q.yellow >= 2) card = 'red'; // seconda ammonizione
-    if (card === 'red') this.sendOff(q);
+    if (card === 'red' && this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
     this.events.push({ t: 'foul', team: q.team, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
     if (penalty) this.setPiece('penalty', o.team, d * (pt.hx - pt.penaltySpot), 0);

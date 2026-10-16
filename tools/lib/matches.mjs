@@ -4,9 +4,14 @@ import { Sim, DT } from '../../public/core/sim.js';
 /** Gioca una partita intera e ne restituisce le statistiche (e, a richiesta, eventi e traccia a 10 Hz). */
 export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = false, events = false, teams } = {}) {
   const sim = new Sim({ perTeam: players, seed, halfLength: halfMinutes * 60, teams });
-  const shots = [0, 0], passes = [0, 0], poss = [0, 0];
+  const shots = [0, 0], onTarget = [0, 0], passes = [0, 0], poss = [0, 0];
   const shoot = sim.shoot.bind(sim), pass = sim.pass.bind(sim);
-  sim.shoot = (p, ...a) => { shots[p.team]++; return shoot(p, ...a); };
+  sim.shoot = (p, ...a) => {
+    shots[p.team]++; const r = shoot(p, ...a), b = sim.ball, gx = sim.dir(p.team) * sim.pitch.hx;
+    const t = (gx - b.x) / (b.vx || 1e-9); // tiro in porta: la traiettoria (senza resistenza) entra tra i pali sotto la traversa
+    if (t > 0 && Math.abs(b.z + b.vz * t) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) onTarget[p.team]++; }
+    return r;
+  };
   sim.pass = (p, ...a) => { passes[p.team]++; return pass(p, ...a); };
   const passTo = sim.passTo.bind(sim);
   sim.passTo = (p, ...a) => { passes[p.team]++; return passTo(p, ...a); };
@@ -32,7 +37,7 @@ export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = fals
   return {
     seed, players, finished: sim.state === 'full', finite,
     simSeconds: +(steps * DT).toFixed(1), wallMs: Math.round(performance.now() - t0),
-    goals: [...sim.score], shots, passes, passOk, passLost, fouls,
+    goals: [...sim.score], shots, onTarget, passes, passOk, passLost, fouls,
     passAccuracy: passOk / ((passOk + passLost) || 1),
     possession: [poss[0] / owned, poss[1] / owned],
     hash: sim.hash(),
@@ -54,6 +59,7 @@ export function summarize(runs) {
     games: runs.length,
     goals_total: stats(col(r => r.goals[0] + r.goals[1])),
     shots_total: stats(col(r => r.shots[0] + r.shots[1])),
+    shots_on_target_total: stats(col(r => r.onTarget[0] + r.onTarget[1])),
     passes_total: stats(col(r => r.passes[0] + r.passes[1])),
     pass_accuracy: stats(col(r => r.passAccuracy)),
     fouls: stats(col(r => r.fouls)),

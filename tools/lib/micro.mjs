@@ -1,5 +1,5 @@
 // Scenari controllati ("micro") per misurare un singolo comportamento del motore.
-import { Sim, DT, SCHEMES, pitchFor, layout, AI, RULES } from '../../public/core/sim.js';
+import { Sim, DT, SCHEMES, pitchFor, layout, AI, RULES, MOVE } from '../../public/core/sim.js';
 import { syntheticTeam, pickLineup, readTeam, readPlayer } from '../../public/core/team.js';
 import { runMatch } from './matches.mjs';
 
@@ -287,6 +287,21 @@ export function backPassTrial() {
   for (let i = 0; i < 4 / DT; i++) { s.step([null, null]); if (s.events.some(e => e.t === 'backpass')) { violation = true; break; } }
   if (violation) taker = s.players[s.ball.owner]?.team ?? -1;
   return { violation: Number(violation), kick_to_opponents: Number(taker === 1), indirect_active: Number(!!s.indirect) };
+}
+
+/** Virata a pieno sprint: velocita' obiettivo (rispetto alla massima) subito dopo l'inversione di 180 gradi e dopo una virata a 90 gradi. */
+export function turnTrial() {
+  const out = {};
+  for (const [tag, c] of [['u180', { mx: -1, mz: 0 }], ['u90', { mx: 0, mz: 1 }]]) {
+    const s = quiet(); s.aiControl = () => ({ mx: 0, mz: 0, sprint: false });
+    const p = s.players[1]; Object.assign(p, { x: 0, z: 0, vx: 0, vz: 0, face: 0 }); Object.assign(s.ball, { x: 900, z: 0, owner: -1 });
+    for (let i = 0; i < 6 / DT; i++) s.move(p, { mx: 1, mz: 0, sprint: true });
+    const top = Math.hypot(p.vx, p.vz), vx = p.vx, vz = p.vz;
+    s.move(p, { ...c, sprint: true });
+    const k = 1 - Math.exp(-DT * p.k.acc / MOVE.tau), tx = vx + (p.vx - vx) / k, tz = vz + (p.vz - vz) / k;
+    out[`${tag}_target_ratio`] = Math.hypot(tx, tz) / top;
+  }
+  return out;
 }
 
 /** Il portiere trattiene la palla oltre il limite: punizione indiretta agli avversari; entro il limite nessuna infrazione. */

@@ -7,5 +7,7 @@
   { "id": "movimento.contrasto.successo", "subsystem": "movimento", "ticket": "04", "requires": ["tackleProbability"], "scenario": { "type": "tackleTrials" }, "metric": "success_rate", "expect": { "min": 0.5, "max": 0.6 }, "severity": "error" },
   { "id": "movimento.urti.stordimento_forte", "subsystem": "movimento", "ticket": "04", "requires": ["collisionStun"], "scenario": { "type": "collisionTrial", "args": { "relSpeed": 8 } }, "metric": "stun_seconds", "expect": { "value": 0.3, "tol": 0.03 }, "severity": "error" },
   { "id": "movimento.urti.nessuno_stordimento_lento", "subsystem": "movimento", "ticket": "04", "requires": ["collisionStun"], "scenario": { "type": "collisionTrial", "args": { "relSpeed": 4 } }, "metric": "stun_seconds", "expect": { "max": 0 }, "severity": "error" },
-  { "id": "movimento.urti.distanza_minima", "subsystem": "movimento", "ticket": "04", "requires": ["collisionStun"], "scenario": { "type": "collisionTrial", "args": { "relSpeed": 4 } }, "metric": "gap", "expect": { "min": 0.79 }, "severity": "error" }
+  { "id": "movimento.urti.distanza_minima", "subsystem": "movimento", "ticket": "04", "requires": ["collisionStun"], "scenario": { "type": "collisionTrial", "args": { "relSpeed": 4 } }, "metric": "gap", "expect": { "min": 0.79 }, "severity": "error" },
+  { "id": "movimento.virata.inversione_180", "subsystem": "movimento", "ticket": "04", "scenario": { "type": "turnTrial" }, "metric": "u180_target_ratio", "expect": { "value": 0.7, "tol": 0.03 }, "severity": "error" },
+  { "id": "movimento.virata.virata_90_senza_perdita", "subsystem": "movimento", "ticket": "04", "scenario": { "type": "turnTrial" }, "metric": "u90_target_ratio", "expect": { "value": 1.0, "tol": 0.03 }, "severity": "error" }
 ]

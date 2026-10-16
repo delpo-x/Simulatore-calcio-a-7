@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runMatch, summarize } from './lib/matches.mjs';
+import './lib/config.mjs'; // applica config/params.json al motore
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 

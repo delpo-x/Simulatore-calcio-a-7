@@ -1,28 +1,61 @@
 {
   "version": "0.1.0",
-  "nota": "Valori iniziali dai ticket chiusi della mappa wayfinder. Il motore non li legge ancora: verranno collegati nelle sessioni 2-6 della roadmap.",
+  "nota": "Fonte unica dei valori di taratura. Gli strumenti Node (npm run test:game, npm run matches) li applicano al motore all'avvio tramite public/core/params.js; i valori di sim.js sono i predefiniti per il browser e il test 'config.allineato' segnala ogni differenza.",
   "palla": {
     "passaggio_rasoterra_v0_m_s": 18,
     "passaggio_rasoterra_tempo_20m_s": 1.3,
     "passaggio_rasoterra_velocita_arrivo_20m_m_s": 12,
-    "tiro_pieno_velocita_a_30m_m_s": [25, 32],
-    "rotolamento_decelerazione_m_s2": [1, 2],
-    "lob_atterraggio_m": [20, 30],
-    "lob_tempo_volo_s": [1.2, 1.6],
+    "tiro_pieno_velocita_a_30m_m_s": [
+      25,
+      32
+    ],
+    "rotolamento_decelerazione_m_s2": [
+      1,
+      2
+    ],
+    "lob_atterraggio_m": [
+      20,
+      30
+    ],
+    "lob_tempo_volo_s": [
+      1.2,
+      1.6
+    ],
     "lob_rimbalzi_max": 1
   },
   "movimento": {
-    "corsa_m_s": 6.0,
-    "sprint_m_s": 8.0,
+    "corsa_m_s": 6,
+    "sprint_m_s": 8,
     "accelerazione_costante_tempo_s": 0.6,
     "sterzata_rad_s_da_fermo": 8,
     "sterzata_rad_s_a_velocita_max": 3,
     "virata_oltre_90_gradi_perdita_velocita": 0.3,
-    "stamina": { "sprint_durata_s": 25, "recupero_s": 40, "riduzione_velocita_max_a_serbatoio_basso": 0.15 },
-    "controllo_palla": { "distanza_base_m": 0.5, "distanza_per_velocita_s": 0.08 },
-    "contrasto": { "raggio_m": 1.3, "successo_base": 0.55 },
-    "raccolta": { "raggio_m": 0.9, "raggio_portiere_m": 1.7, "altezza_max_m": 1.1, "velocita_max_m_s": 16, "velocita_max_portiere_m_s": 30 },
-    "urti": { "distanza_minima_m": 0.8, "velocita_relativa_stordimento_m_s": 6, "stordimento_s": 0.3 }
+    "stamina": {
+      "sprint_durata_s": 25,
+      "recupero_s": 40,
+      "riduzione_velocita_max_a_serbatoio_basso": 0.15
+    },
+    "controllo_palla": {
+      "distanza_base_m": 0.5,
+      "distanza_per_velocita_s": 0.08
+    },
+    "contrasto": {
+      "raggio_m": 1.3,
+      "successo_base": 0.55
+    },
+    "raccolta": {
+      "raggio_m": 0.9,
+      "raggio_portiere_m": 1.7,
+      "altezza_max_m": 1.1,
+      "velocita_max_m_s": 16,
+      "velocita_max_portiere_m_s": 30
+    },
+    "urti": {
+      "distanza_minima_m": 0.8,
+      "velocita_relativa_stordimento_m_s": 6,
+      "stordimento_s": 0.3
+    },
+    "velocita_con_palla_fattore": 0.85
   },
   "ia": {
     "decisioni_hz": 10,
@@ -35,19 +68,30 @@
     "propensione_rischio": 0.6,
     "distanza_minima_scalata_m": 3,
     "riferimento_lunghezza_campo_m": 105,
-    "parametri_tattici": { "altezza_linea_difensiva": 0.25, "ampiezza": 1.0, "ritmo": 1.0 }
+    "parametri_tattici": {
+      "altezza_linea_difensiva": 0.25,
+      "ampiezza": 1,
+      "ritmo": 1
+    }
   },
   "portiere": {
-    "raggio_parata_m": 1.7,
+    "raggio_parata_m": 2.05,
     "distanza_uscita_m": 9,
     "errore_bisettrice_m": 0.5,
-    "piazzamento_dalla_linea_m": [1.5, 3]
+    "piazzamento_dalla_linea_m": [
+      1.5,
+      3
+    ],
+    "piazzamento_max_m": 3
   },
   "regole": {
     "durata_tempo_min": 25,
     "tempi": 2,
     "distanza_barriera_m": 6,
-    "distanza_angolo_m": [5, 6],
+    "distanza_angolo_m": [
+      5,
+      6
+    ],
     "distanza_calcio_inizio_m": 6,
     "distanza_rigore_m": 8,
     "rimessa_laterale_m": 15,
@@ -56,22 +100,123 @@
     "fallo_rosso_su_fallo": 0.01,
     "azzurro_minuti": 5,
     "fuorigioco_attivo": false,
-    "area_piccola_m": [6, 12]
+    "area_piccola_m": [
+      6,
+      12
+    ]
   },
   "formazioni": {
-    "predefinita": { "5": "1-2-1", "6": "2-2-1", "7": "2-3-1", "8": "3-3-1", "9": "3-3-2", "11": "4-4-2" },
-    "campo_m": { "5": [35, 20], "7": [50, 30], "8": [65, 45], "9": [65, 45], "11": [105, 68] },
-    "porta_m": { "5": [3, 2], "7": [6, 2], "8": [6, 2], "9": [6, 2], "11": [7.32, 2.44] },
-    "area_rigore_7_m": [10, 20],
-    "linee_frazione_lunghezza": { "difesa": 0.25, "centrocampo": 0.5, "attacco": 0.75 },
-    "campo_piccolo": { "lunghezza_sotto_m": 40, "pressing_mod": 0.04, "larghezza_sotto_m": 30, "falli_mod": 0.08, "griglia_zone": [3, 2] }
+    "predefinita": {
+      "5": "1-2-1",
+      "6": "2-2-1",
+      "7": "2-3-1",
+      "8": "3-3-1",
+      "9": "3-3-2",
+      "11": "4-4-2"
+    },
+    "campo_m": {
+      "5": [
+        35,
+        20
+      ],
+      "7": [
+        50,
+        30
+      ],
+      "8": [
+        65,
+        45
+      ],
+      "9": [
+        65,
+        45
+      ],
+      "11": [
+        105,
+        68
+      ]
+    },
+    "porta_m": {
+      "5": [
+        3,
+        2
+      ],
+      "7": [
+        6,
+        2
+      ],
+      "8": [
+        6,
+        2
+      ],
+      "9": [
+        6,
+        2
+      ],
+      "11": [
+        7.32,
+        2.44
+      ]
+    },
+    "area_rigore_7_m": [
+      10,
+      20
+    ],
+    "linee_frazione_lunghezza": {
+      "difesa": 0.25,
+      "centrocampo": 0.5,
+      "attacco": 0.75
+    },
+    "campo_piccolo": {
+      "lunghezza_sotto_m": 40,
+      "pressing_mod": 0.04,
+      "larghezza_sotto_m": 30,
+      "falli_mod": 0.08,
+      "griglia_zone": [
+        3,
+        2
+      ]
+    }
   },
   "attributi": {
-    "scala_f": { "base_a_10": 0.9, "pendenza": 0.015, "origine": 10 },
-    "scala_n": { "pendenza": 0.02, "origine": 15 },
+    "scala_f": {
+      "base_a_10": 0.9,
+      "pendenza": 0.015,
+      "origine": 10
+    },
+    "scala_n": {
+      "pendenza": 0.02,
+      "origine": 15
+    },
     "tiro_errore_angolare_gradi": 4,
     "piede_debole_errore_moltiplicatore": 1.5,
     "piede_debole_quota": 0.3,
     "fuori_ruolo_moltiplicatore_tecnico": 0.95
+  },
+  "palla_modello": {
+    "resistenza_aria_1_s": 0.15,
+    "rotolamento_decel_m_s2": 1.5,
+    "rotolamento_quadratico_1_m": 0.0111,
+    "rimbalzo": 0.5
+  },
+  "ia_taratura": {
+    "shootRange": 26,
+    "shootEager": 0.08,
+    "shotAngle": 3,
+    "shotAnglePerM": 1,
+    "tackleEager": 0.3,
+    "markWeight": 0.7,
+    "containDist": 5,
+    "forceShot": 7,
+    "laneWidth": 1.2,
+    "tackleDist": 1.6,
+    "sprintFree": 12,
+    "defenderLimit": -0.1,
+    "passBase": 0.06,
+    "passPressed": 0.4,
+    "passMin": 0.35,
+    "pressedDist": 4,
+    "attackDepth": 14,
+    "blockDepth": 0.3
   }
 }

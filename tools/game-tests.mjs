@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
+import { configSync } from './lib/config.mjs';
 import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, teamValidation, teamDeterminism, equalTeams } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,6 +36,7 @@ const scenarios = {
   foulTrials: () => foulTrials(),
   setPieceDistances: () => setPieceDistances(),
   anyPlayerCounts: () => anyPlayerCounts(),
+  configSync: () => configSync(),
   pressingTrigger: a => pressingTrigger(a),
   sprintAttr: a => sprintAttr(a),
   passErrorTrials: a => passErrorTrials(a),

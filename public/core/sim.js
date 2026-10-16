@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -19,6 +19,16 @@ export const MOVE = {
   ballGap: 0.5, ballGapPerSpeed: 0.08,          // distanza palla = 0,5 m + 0,08 s * velocita'
   tackleRadius: 1.3, tackleBase: 0.55,
   minGap: 0.8, stunSpeed: 6, stunSeconds: 0.3,
+  carryFactor: 0.85,                            // con la palla si scatta all'85% (parametro di taratura, non nel ticket 04)
+};
+
+/** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
+export const AI = {
+  hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
+  pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
+  shootRange: 26, shootEager: 0.08, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 7, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4,
+  attackDepth: 14, blockDepth: 0.3, keeperReach: 2.05, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
 
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
@@ -77,7 +87,7 @@ export const RULES = {
 };
 
 export class Sim {
-  constructor({ perTeam = 7, seed = 1, halfLength = 90, schemes, pitch } = {}) {
+  constructor({ perTeam = 7, seed = 1, halfLength = 90, schemes, pitch, tactics } = {}) {
     this.rand = rng(seed);
     this.time = 0; this.matchTime = 0; this.halfLength = halfLength;
     this.score = [0, 0]; this.state = 'kickoff'; this.stateT = 1.0; this.kickTeam = 0; this.events = [];
@@ -86,11 +96,13 @@ export class Sim {
     this.players = [];
     this.pitch = pitch ?? pitchFor(perTeam);
     this.sentOff = [0, 0];
+    this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
+    this.possTeam = 0; this.possT = 0; this.lastPass = null;
     const names = Array.isArray(schemes) ? schemes : [schemes, schemes];
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
       id: this.players.length, team, gk: !!f.gk, home: f, x: 0, z: 0, vx: 0, vz: 0, face: team === 0 ? 0 : Math.PI,
-      kickCd: 0, tackleT: 0, stun: 0, aiT: 0, yellow: 0, out: false,
+      kickCd: 0, tackleT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false,
     }));
     this.ball = { x: 0, y: 0.11, z: 0, vx: 0, vy: 0, vz: 0, owner: -1, last: -1 };
     this.resetPositions(0);
@@ -122,7 +134,11 @@ export class Sim {
     }
   }
 
-  giveBall(p) { this.ball.owner = p.id; this.ball.last = p.id; p.kickCd = 0; }
+  giveBall(p) {
+    const lp = this.lastPass;
+    if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost' }); }
+    this.ball.owner = p.id; this.ball.last = p.id; p.kickCd = 0;
+  }
 
   /** inputs: array(2) of button bitmasks (or null = AI) for team 0 and team 1. */
   step(inputs = [null, null]) {
@@ -137,6 +153,8 @@ export class Sim {
       if (this.matchTime >= this.halfLength * 2) { this.state = 'full'; ev.push({ t: 'full' }); return; }
     }
     const frozen = this.state === 'goal';
+    const ow = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
+    if (ow && ow.team !== this.possTeam) { this.possTeam = ow.team; this.possT = 0; } else this.possT += DT;
     for (let t = 0; t < 2; t++) this.pickActive(t);
     for (const p of this.players) {
       if (p.out) continue;
@@ -182,7 +200,7 @@ export class Sim {
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
-    b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -201,57 +219,206 @@ export class Sim {
     if (!best) return this.kick(p, Math.cos(aim), Math.sin(aim), 14, 0);
     const d = dist(p.x, p.z, best.x, best.z), sp = clamp(8 + d * 0.5, 10, 24), t = d / sp;
     this.kick(p, best.x + best.vx * t * 0.8 - p.x, best.z + best.vz * t * 0.8 - p.z, sp, 0);
+    this.lastPass = { team: p.team, id: p.id };
   }
 
-  shoot(p, aim, power) {
-    const gx = this.dir(p.team) * this.pitch.hx, onGoal = Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
+  /** Con raw=true la mira non viene corretta verso la porta (tiro dell'IA, con errore di mira). */
+  shoot(p, aim, power, raw = false) {
+    const gx = this.dir(p.team) * this.pitch.hx, onGoal = !raw && Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
     const tz = onGoal ? clamp((this.rand() - 0.5) * 2 * (this.pitch.goalHalf - 0.5), -3, 3) : null;
     const dx = onGoal ? gx - p.x : Math.cos(aim), dz = onGoal ? tz - p.z : Math.sin(aim);
     this.kick(p, dx, dz, 22 + power * 10, 1 + power * 3.2);
   }
 
   // ---- AI ----
+  /** Distanza dell'IA scalata sulla lunghezza del campo (riferimento 105 m), con un minimo di 3 m (ticket 08). */
+  sc(d) { return Math.max(AI.minScaled, d * this.pitch.hx * 2 / AI.refLength); }
+
+  /** Decisioni a 10 Hz; tra una decisione e l'altra il giocatore insegue l'ultimo obiettivo scelto. */
   aiControl(p) {
-    const b = this.ball, d = this.dir(p.team), owner = b.owner >= 0 ? this.players[b.owner] : null;
-    const has = b.owner === p.id, teamHas = owner && owner.team === p.team;
-    if (p.gk) return this.aiKeeper(p, has);
-    if (has) return this.aiCarrier(p);
-    const mates = this.players.filter(q => q.team === p.team && !q.gk && !q.out);
-    const nearest = mates.reduce((m, q) => dist(q.x, q.z, b.x, b.z) < dist(m.x, m.z, b.x, b.z) ? q : m);
-    if (!teamHas && nearest.id === p.id) {
-      const tx = b.x + b.vx * 0.3, tz = b.z + b.vz * 0.3;
-      if (owner && dist(p.x, p.z, owner.x, owner.z) < 1.6 && p.kickCd === 0 && p.tackleT === 0 && this.rand() < 0.03) p.tackleT = 0.35;
-      return this.toward(p, tx, tz, true);
-    }
-    const h = this.homePos(p), push = teamHas ? 10 : 0;
-    return this.toward(p, clamp(h.x + d * push + b.x * 0.4, -this.pitch.hx + 4, this.pitch.hx - 4), h.z + b.z * 0.3, false);
-  }
-
-  aiKeeper(p, has) {
-    const b = this.ball, d = this.dir(p.team), gx = -d * (this.pitch.hx - 1.5);
-    if (has) {
-      p.aiT += DT;
-      if (p.aiT > 0.6) { p.aiT = 0; const t = this.players.find(q => q.team === p.team && !q.gk && !q.out && Math.abs(q.x - p.x) > 20); if (t) this.kick(p, t.x - p.x, t.z - p.z, 20, 2); else this.kick(p, d, 0, 20, 2); }
-      return { mx: 0, mz: 0, sprint: false };
-    }
-    const owner = b.owner >= 0 ? this.players[b.owner] : null;
-    const danger = Math.abs(b.x - gx) < 9 && (!owner || owner.team !== p.team);
-    if (danger && b.owner < 0 && dist(p.x, p.z, b.x, b.z) < 7) return this.toward(p, b.x, b.z, true);
-    return this.toward(p, gx + d * clamp(Math.abs(b.x - gx) * 0.1, 0, 3), clamp(b.z * 0.4, -this.pitch.goalHalf, this.pitch.goalHalf), false);
-  }
-
-  aiCarrier(p) {
-    const d = this.dir(p.team), gx = d * this.pitch.hx, dg = dist(p.x, p.z, gx, 0);
     p.aiT += DT;
-    const pressed = this.players.some(q => !q.out && q.team !== p.team && dist(q.x, q.z, p.x, p.z) < 3);
-    if (p.aiT > 0.4) {
-      if (dg < 22 && this.rand() < 0.004) { this.shoot(p, Math.atan2(-p.z, gx - p.x), 0.6 + this.rand() * 0.4); p.aiT = 0; return { mx: 0, mz: 0, sprint: false }; }
-      if (pressed && this.rand() < 0.02) { this.pass(p, Math.atan2(-p.z, d), false); p.aiT = 0; return { mx: 0, mz: 0, sprint: false }; }
+    if (!p.plan || p.aiT >= 1 / AI.hz) { p.aiT = 0; p.plan = this.aiDecide(p); }
+    return this.toward(p, p.plan.tx, p.plan.tz, p.plan.sprint);
+  }
+
+  aiDecide(p) {
+    const owner = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
+    if (p.gk) return this.aiKeeper(p, owner);
+    if (owner === p) return this.aiCarrier(p);
+    if (owner && owner.team === p.team) return this.aiSupport(p, owner);
+    return this.aiDefend(p, owner);
+  }
+
+  /** Dista dai compagni almeno mateGap (scalato): spinta di allontanamento da sommare all'obiettivo. */
+  spread(p, tx, tz) {
+    const gap = this.sc(AI.mateGap);
+    for (const q of this.players) {
+      if (q === p || q.team !== p.team || q.out || q.gk) continue;
+      const dd = dist(p.x, p.z, q.x, q.z);
+      if (dd < gap && dd > 0.01) { tx += (p.x - q.x) / dd * (gap - dd); tz += (p.z - q.z) / dd * (gap - dd); }
     }
-    // dribble towards goal, veering away from the nearest opponent
-    let tx = gx, tz = clamp(p.z * 0.5, -10, 10);
-    for (const q of this.players) if (!q.out && q.team !== p.team && dist(q.x, q.z, p.x, p.z) < 6) tz += (p.z - q.z) * 1.5;
-    return this.toward(p, tx, clamp(tz, -this.pitch.hz + 3, this.pitch.hz - 3), true);
+    return [tx, tz];
+  }
+
+  /** Fase di possesso, giocatore senza palla: appoggio vicino al portatore, gli altri in ampiezza e profondita'. */
+  aiSupport(p, carrier) {
+    const d = this.dir(p.team), t = this.tac[p.team], pt = this.pitch, L = pt.hx * 2, h = this.homePos(p);
+    const mates = this.players.filter(q => q.team === p.team && !q.gk && !q.out && q !== carrier);
+    const near = mates.reduce((m, q) => dist(q.x, q.z, carrier.x, carrier.z) < dist(m.x, m.z, carrier.x, carrier.z) ? q : m, mates[0]);
+    const counter = this.possTeam === p.team && this.possT < 1.5; // transizione: palla appena recuperata
+    let tx, tz;
+    if (near === p) { tx = carrier.x + d * this.sc(8); tz = carrier.z + (carrier.z > 0 ? -1 : 1) * this.sc(8); }
+    else {
+      tx = h.x + d * (this.sc(10) + (t.line - 0.25) * L) + (carrier.x - h.x) * 0.3 + (counter && h.x * d > 0 ? d * this.sc(8) : 0);
+      tz = h.z * t.width + (carrier.z - h.z) * 0.2;
+    }
+    if (h.x * d < -0.1 * L) tx = d * Math.min(d * tx, AI.defenderLimit * L); // i difensori non oltrepassano la meta' campo
+    [tx, tz] = this.spread(p, tx, tz);
+    const lim = pt.hx - this.sc(AI.attackDepth); // gli attaccanti non si piazzano sulla linea di porta
+    return { tx: clamp(tx, d > 0 ? -pt.hx + 2 : -lim, d > 0 ? lim : pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: counter };
+  }
+
+  /** Fase di non possesso: pressing del piu' vicino, copertura del secondo, gli altri in blocco. */
+  aiDefend(p, owner) {
+    const d = this.dir(p.team), t = this.tac[p.team], pt = this.pitch, L = pt.hx * 2, b = this.ball, h = this.homePos(p);
+    const mates = this.players.filter(q => q.team === p.team && !q.gk && !q.out);
+    const ranked = [...mates].sort((a, c) => dist(a.x, a.z, b.x, b.z) - dist(c.x, c.z, b.x, b.z) || a.id - c.id);
+    const rank = ranked.indexOf(p), db = dist(p.x, p.z, b.x, b.z);
+    if (owner && owner.gk) { // portiere in possesso: gli avversari restano fuori dall'area finche' non rilancia
+      const lim = d * (pt.hx - pt.areaDepth - 1), tx = d > 0 ? Math.min(p.x, lim) : Math.max(p.x, lim);
+      return { tx, tz: p.z, sprint: Math.abs(p.x - lim) > 3 && (d > 0 ? p.x > lim : p.x < lim) };
+    }
+    const lost = this.possTeam !== p.team && this.possT < 1.5; // transizione: palla appena persa
+    const trig = this.sc(t.press) * (lost ? 1.4 : 1) * (owner ? 1 : 1.6);
+    if (owner && db < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35; // chiunque sia a tiro contrasta
+    if (rank === 0 && db < trig) {
+      const lead = clamp(db / MOVE.sprint, 0, 1.2); // intercetta il punto dove sara' la palla
+      return { tx: b.x + b.vx * lead, tz: b.z + b.vz * lead, sprint: true };
+    }
+    if (rank === 1 && owner && db < this.sc(AI.secondPress)) {
+      const gx = -d * pt.hx, dx = gx - b.x, dz = -b.z, l = Math.hypot(dx, dz) || 1, c = this.sc(3);
+      return { tx: b.x + dx / l * c, tz: b.z + dz / l * c, sprint: true };
+    }
+    const top = mates.reduce((m, q) => q.home.x > m.home.x ? q : m, mates[0]);
+    let tx, tz;
+    const deepest = mates.filter(q => q !== top && ranked.indexOf(q) > 0).sort((a, c) => a.home.x - c.home.x || a.id - c.id)[0];
+    if (owner && p === deepest) { // ultimo difensore: si mette tra il portatore e la porta e lo contiene
+      const gx = -d * pt.hx, dx = gx - owner.x, dz = -owner.z, l = Math.hypot(dx, dz) || 1, m = Math.min(this.sc(AI.containDist), l);
+      if (dist(p.x, p.z, owner.x, owner.z) < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35;
+      return { tx: owner.x + dx / l * m, tz: owner.z + dz / l * m, sprint: true };
+    }
+    if (p === top) { tx = h.x * 0.6; tz = h.z; } // un attaccante resta alto per il contropiede
+    else {
+      tx = h.x + d * (t.line - 0.25 - AI.blockDepth) * L + (b.x - h.x) * 0.35;
+      tz = h.z * t.width + (b.z - h.z) * 0.3;
+      // marcatura a zona: ogni difensore libero si mette tra un avversario pericoloso e la propria porta
+      const gx = -d * pt.hx, cover = mates.filter(q => q !== top && ranked.indexOf(q) > 1).sort((a, c) => a.home.x - c.home.x || a.id - c.id);
+      const threats = this.players.filter(q => q.team !== p.team && !q.gk && !q.out && q !== owner)
+        .sort((a, c) => Math.abs(a.x - gx) - Math.abs(c.x - gx) || a.id - c.id);
+      const opp = threats[cover.indexOf(p)];
+      if (opp) {
+        const dx = gx - opp.x, dz = -opp.z, l = Math.hypot(dx, dz) || 1, m = this.sc(3);
+        tx = tx * (1 - AI.markWeight) + (opp.x + dx / l * m) * AI.markWeight; tz = tz * (1 - AI.markWeight) + (opp.z + dz / l * m) * AI.markWeight;
+      }
+    }
+    [tx, tz] = this.spread(p, tx, tz);
+    return { tx: clamp(tx, -pt.hx + 2, pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: dist(p.x, p.z, tx, tz) > this.sc(15) };
+  }
+
+  /** Portatore: tiro, passaggio o conduzione, scelti con probabilita' per decisione. */
+  aiCarrier(p) {
+    const d = this.dir(p.team), pt = this.pitch, t = this.tac[p.team], gx = d * pt.hx, dg = dist(p.x, p.z, gx, 0);
+    const opps = this.players.filter(q => q.team !== p.team && !q.out);
+    const po = Math.min(...opps.map(q => dist(q.x, q.z, p.x, p.z)));
+    const hold = { tx: p.x, tz: p.z, sprint: false }, range = this.sc(AI.shootRange);
+    if (dg < range && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
+      const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * Math.PI / 180;
+      this.shoot(p, Math.atan2(-p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
+      return hold;
+    }
+    const best = this.bestPass(p), pressed = po < AI.pressedDist;
+    if (best && this.rand() < (AI.passBase * t.tempo + (pressed ? AI.passPressed : 0))) {
+      this.passTo(p, best, this.rand() < AI.passError);
+      return hold;
+    }
+    let tz = clamp(p.z * 0.5, -pt.hz * 0.3, pt.hz * 0.3);
+    for (const q of opps) if (dist(q.x, q.z, p.x, p.z) < 6) tz += (p.z - q.z) * 1.5;
+    return { tx: gx, tz: clamp(tz, -pt.hz + 3, pt.hz - 3), sprint: po > this.sc(AI.sprintFree) }; // scatta solo con spazio libero davanti
+  }
+
+  /** Nessun avversario (portiere escluso) vicino alla linea di tiro verso la porta. */
+  laneClear(p, gx) {
+    const dx = gx - p.x, dz = -p.z, l2 = dx * dx + dz * dz || 1;
+    for (const o of this.players) {
+      if (o.team === p.team || o.gk || o.out) continue;
+      const t = ((o.x - p.x) * dx + (o.z - p.z) * dz) / l2;
+      if (t > 0 && t < 1 && dist(o.x, o.z, p.x + dx * t, p.z + dz * t) < AI.laneWidth) return false;
+    }
+    return true;
+  }
+
+  /** Miglior compagno da servire: avanzamento, spazio libero attorno e corsia libera, meno la distanza. */
+  bestPass(p) {
+    const d = this.dir(p.team), L = this.pitch.hx * 2;
+    const opps = this.players.filter(q => q.team !== p.team && !q.out);
+    let best = null, bestScore = AI.passMin;
+    for (const q of this.players) {
+      if (q.team !== p.team || q === p || q.out) continue;
+      const dd = dist(p.x, p.z, q.x, q.z);
+      if (dd < 3) continue;
+      let open = 8, lane = 6;
+      for (const o of opps) {
+        open = Math.min(open, dist(o.x, o.z, q.x, q.z));
+        const t = clamp(((o.x - p.x) * (q.x - p.x) + (o.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1);
+        lane = Math.min(lane, dist(o.x, o.z, p.x + (q.x - p.x) * t, p.z + (q.z - p.z) * t));
+      }
+      if (lane < 1.5) continue;
+      const score = ((q.x - p.x) * d / L) * 2 * AI.risk + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0);
+      if (score > bestScore) { bestScore = score; best = q; }
+    }
+    return best;
+  }
+
+  /** Passaggio mirato a un compagno; con 'miss' la direzione sbaglia. */
+  passTo(p, q, miss) {
+    const dd = dist(p.x, p.z, q.x, q.z), sp = clamp(8 + dd * 0.5, 10, 24), t = dd / sp;
+    let dx = q.x + q.vx * t * 0.8 - p.x, dz = q.z + q.vz * t * 0.8 - p.z;
+    if (miss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.2, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
+    this.kick(p, dx, dz, sp, 0);
+    this.lastPass = { team: p.team, id: p.id };
+  }
+
+  /** Portiere: bisettrice a 1,5-3 m dalla linea, intercetto dei tiri, uscita sulle palle libere vicine, rinvio al compagno piu' libero. */
+  aiKeeper(p, owner) {
+    const b = this.ball, d = this.dir(p.team), pt = this.pitch, goalX = -d * pt.hx;
+    if (owner === p) {
+      p.holdT = (p.holdT || 0) + 1 / AI.hz;
+      if (p.holdT > 0.6) {
+        p.holdT = 0;
+        const opps = this.players.filter(q => q.team !== p.team && !q.out);
+        let pick = null, pv = -1e9;
+        for (const q of this.players) {
+          if (q.team !== p.team || q.gk || q.out) continue;
+          const open = Math.min(8, ...opps.map(o => dist(o.x, o.z, q.x, q.z))) - dist(p.x, p.z, q.x, q.z) * 0.15; // compagno libero e vicino
+          if (open > pv) { pv = open; pick = q; }
+        }
+        if (pick) this.passTo(p, pick, this.rand() < AI.passError); else this.kick(p, d, 0, 20, 2);
+      }
+      return { tx: p.x, tz: p.z, sprint: false };
+    }
+    p.holdT = 0;
+    const sp = Math.hypot(b.vx, b.vz);
+    if (sp > 8 && b.vx * (goalX - b.x) > 0) {
+      const zi = b.z + b.vz * ((goalX - b.x) / b.vx);
+      if (Math.abs(zi) < pt.goalHalf + 1.5) return { tx: goalX + d, tz: clamp(zi + (this.rand() - 0.5) * 2 * AI.keeperError, -pt.goalHalf, pt.goalHalf), sprint: true };
+    }
+    const db = dist(p.x, p.z, b.x, b.z);
+    if (!owner && db < this.sc(AI.keeperExit)) {
+      const rival = this.players.some(q => q.team !== p.team && !q.out && dist(q.x, q.z, b.x, b.z) < db);
+      if (!rival) return { tx: b.x, tz: b.z, sprint: true };
+    }
+    const dgx = Math.abs(b.x - goalX), stand = clamp(1.5 + (1 - clamp(dgx / this.sc(40), 0, 1)) * (AI.keeperStand - 1.5), 1.5, AI.keeperStand);
+    return { tx: goalX + d * stand, tz: clamp(b.z * stand / Math.max(dgx, stand), -pt.goalHalf + 0.3, pt.goalHalf - 0.3), sprint: false };
   }
 
   toward(p, tx, tz, sprint) {
@@ -266,7 +433,7 @@ export class Sim {
     const sprinting = c.sprint && (c.mx || c.mz) && p.stun <= 0;
     if (sprinting) p.stam = Math.max(0, p.stam - DT / MOVE.sprintSeconds);
     else if (Math.hypot(p.vx, p.vz) < MOVE.run + 0.5) p.stam = Math.min(1, p.stam + DT / MOVE.recoverSeconds);
-    const top = MOVE.sprint * (1 - MOVE.lowStaminaLoss * (1 - p.stam));
+    const top = MOVE.sprint * (1 - MOVE.lowStaminaLoss * (1 - p.stam)) * (this.ball.owner === p.id ? MOVE.carryFactor : 1);
     const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run;
     let tx = c.mx * max, tz = c.mz * max;
     if (p.tackleT > 0 && !c.mx && !c.mz) { tx = Math.cos(p.face) * max; tz = Math.sin(p.face) * max; }
@@ -311,8 +478,8 @@ export class Sim {
     const b = this.ball, ps = this.players;
     if (b.owner >= 0) {
       const o = ps[b.owner];
-      // tackle: opponent in reach with an active tackle takes the ball
-      for (const q of ps) if (!q.out && q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < MOVE.tackleRadius && q.kickCd === 0) {
+      // tackle: opponent in reach with an active tackle takes the ball (al portiere in possesso non si puo' togliere la palla)
+      for (const q of ps) if (!o.gk && !q.out && q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < MOVE.tackleRadius && q.kickCd === 0) {
         q.tackleT = 0; q.kickCd = 0.4; // un solo tentativo per contrasto
         const won = this.rand() < this.tackleChance(q, o);
         const foul = !won || this.tackleFront(q, o) < -0.3 ? this.foulRoll() : null; // contrasto da dietro o fallito
@@ -339,8 +506,8 @@ export class Sim {
     if (b.y < (sp > 16 ? 2.4 : 1.1)) {
       let best = null, bd = 99;
       for (const p of ps) {
-        const reach = p.gk ? 1.7 : 0.9, d = dist(p.x, p.z, b.x, b.z);
-        if (sp >= (p.gk ? 30 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
+        const reach = p.gk ? AI.keeperReach : 0.9, d = dist(p.x, p.z, b.x, b.z);
+        if (sp >= (p.gk ? 40 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
         best = p; bd = d;
       }
       if (best) { b.vx = b.vy = b.vz = 0; this.giveBall(best); }
@@ -379,6 +546,11 @@ export class Sim {
     const pool = kind === 'goalkick' ? own.filter(p => p.gk) : own.filter(p => !p.gk);
     const taker = pool.reduce((m, p) => dist(p.x, p.z, x, z) < dist(m.x, m.z, x, z) ? p : m);
     taker.x = x; taker.z = z; taker.vx = taker.vz = 0;
+    // il battitore guarda verso il campo, altrimenti la palla esce subito di nuovo
+    taker.face = kind === 'throwin' ? (z > 0 ? -Math.PI / 2 : Math.PI / 2)
+      : kind === 'corner' ? Math.atan2(-z, -x)
+      : kind === 'goalkick' ? (team === 0 ? 0 : Math.PI)
+      : Math.atan2(-z, this.dir(team) * pt.hx - x);
     Object.assign(b, { x, z, vx: 0, vz: 0, vy: 0, y: 0.11 });
     this.giveBall(taker);
     const R = kind === 'free' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : 0, end = Math.sign(x);

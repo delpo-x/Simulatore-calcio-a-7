@@ -187,3 +187,9 @@ export function measureSpeed(players, simSeconds = 300) {
   const wall = (performance.now() - t0) / 1000;
   return { realtime_factor: simSeconds / wall, steps_per_s: n / wall };
 }
+
+/** Distanza di pressing dell'IA (m) per un campo con il numero di giocatori dato: 14 m a 105 m di lunghezza, scalata. */
+export function pressingTrigger({ players }) {
+  const s = new Sim({ perTeam: players, seed: 1 });
+  return { trigger: s.sc(s.tac[0].press) };
+}

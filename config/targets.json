@@ -1,0 +1,10 @@
+{
+  "nota": "Bersagli statistici per partite IA contro IA. Segnaposto finché 'provvisorio' è true: sostituire con i dati reali del girone (o di calibration.ts) e mettere 'provvisorio' a false per trasformare gli avvisi in errori.",
+  "provvisorio": true,
+  "giocatori": 7,
+  "durata_minuti": 50,
+  "gol_totali": [7, 10],
+  "tiri_totali": [40, 55],
+  "precisione_passaggi": [0.7, 0.82],
+  "possesso_squadra": [0.4, 0.6]
+}

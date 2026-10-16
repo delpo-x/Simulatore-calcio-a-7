@@ -1,0 +1,8 @@
+[
+  { "id": "formazioni.7.giocatori", "subsystem": "formazioni", "ticket": "08", "scenario": { "type": "formationLayout", "args": { "players": 7 } }, "metric": "players_per_team", "expect": { "value": 7, "abs": 0 }, "severity": "error" },
+  { "id": "formazioni.7.nel_campo", "subsystem": "formazioni", "ticket": "08", "scenario": { "type": "formationLayout", "args": { "players": 7 } }, "metric": "out_of_bounds", "expect": { "value": 0, "abs": 0 }, "severity": "error" },
+  { "id": "formazioni.7.distanza_minima", "subsystem": "formazioni", "ticket": "08", "scenario": { "type": "formationLayout", "args": { "players": 7 } }, "metric": "min_pair_distance", "expect": { "min": 3 }, "severity": "error" },
+  { "id": "formazioni.11.nel_campo", "subsystem": "formazioni", "ticket": "08", "scenario": { "type": "formationLayout", "args": { "players": 11 } }, "metric": "out_of_bounds", "expect": { "value": 0, "abs": 0 }, "severity": "error" },
+  { "id": "formazioni.7.campo_50x30", "subsystem": "formazioni", "ticket": "08", "requires": ["configurablePitch"], "scenario": { "type": "pitchSize", "args": { "players": 7 } }, "metric": "length", "expect": { "value": 50, "abs": 0 }, "severity": "error" },
+  { "id": "formazioni.7.schema_2-3-1", "subsystem": "formazioni", "ticket": "08", "requires": ["schemes"], "scenario": { "type": "schemeLines", "args": { "players": 7 } }, "metric": "lines", "expect": { "value": 6, "abs": 0 }, "severity": "error" }
+]

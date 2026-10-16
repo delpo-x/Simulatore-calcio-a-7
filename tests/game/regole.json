@@ -1,0 +1,7 @@
+[
+  { "id": "regole.falli.quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "foul_rate", "expect": { "value": 0.15, "abs": 0.01 }, "severity": "error" },
+  { "id": "regole.falli.giallo", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "yellow_rate", "expect": { "value": 0.10, "abs": 0.01 }, "severity": "error" },
+  { "id": "regole.falli.rosso", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "red_rate", "expect": { "value": 0.01, "abs": 0.01 }, "severity": "error" },
+  { "id": "regole.riprese.barriera", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "wall_distance", "expect": { "value": 6, "tol": 0.03 }, "severity": "error" },
+  { "id": "regole.riprese.rigore", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "penalty_distance", "expect": { "value": 8, "tol": 0.03 }, "severity": "error" }
+]

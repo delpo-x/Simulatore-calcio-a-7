@@ -1,0 +1,17 @@
+{
+  "name": "pes-web-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend shell (launcher, settings, controls, saves, rooms) and WebSocket relay server. Bring your own game core.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/relay.js",
+    "test": "node server/relay.test.js",
+    "test:game": "node tools/game-tests.mjs",
+    "matches": "node tools/run-matches.mjs"
+  },
+  "dependencies": {
+    "three": "^0.170.0",
+    "ws": "^8.18.0"
+  }
+}

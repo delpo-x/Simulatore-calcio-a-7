@@ -224,6 +224,7 @@
     "pressedErrMul": 6,
     "formSpread": 0.35,
     "formSpeed": 0,
-    "formTackle": 1
+    "formTackle": 1,
+    "decisionNoise": 1
   }
 }

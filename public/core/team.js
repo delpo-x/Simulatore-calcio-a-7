@@ -3,8 +3,9 @@
 /** Attributi che il motore usa davvero, per i giocatori di movimento e per i portieri. */
 export const ATTRS_COMMON = ['Velocita', 'Accelerazione', 'Agilita', 'Resistenza'];
 export const ATTRS_OUT = [...ATTRS_COMMON, 'Equilibrio', 'IntegritaFisica', 'Contrasti', 'Dribbling', 'Forza', 'Aggressivita',
-  'Passaggi', 'VisioneGioco', 'Finalizzazione', 'TiriLontano', 'Concentrazione', 'PrimoTocco'];
-export const ATTRS_GK = [...ATTRS_COMMON, 'Riflessi', 'Uscite', 'Posizione', 'Concentrazione'];
+  'Passaggi', 'VisioneGioco', 'Finalizzazione', 'TiriLontano', 'Concentrazione', 'PrimoTocco',
+  'Decisioni', 'SenzaPalla', 'Posizionamento', 'CalciPunizione', 'Rigori'];
+export const ATTRS_GK = [...ATTRS_COMMON, 'Riflessi', 'Uscite', 'Posizione', 'Concentrazione', 'Presa', 'UnoControUno'];
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /** Scala per velocita': 0,90 a 10, 1,05 a 20. */
@@ -67,19 +68,22 @@ export function syntheticTeam(name = 'Squadra', level = 15, perTeam = 7) {
 }
 
 /** Moltiplicatori derivati dagli attributi. Senza attributi tutti valgono 1 (giocatore neutro, valori base). */
-export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: false });
+export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, decNoise: 0, offBall: 1, placeErr: 0, freeKickErr: 1, penaltyErr: 1, hold: 1, oneOnOne: 1, rated: false });
 
 export function deriveSkill(pl) {
   const a = pl.attrs, o = pl.position !== 'Goalkeeper';
   const off = pl.offRole ? 1 / 0.95 : 1; // fuori ruolo: i moltiplicatori tecnici si riducono del 5% (errore piu' alto)
   const k = {
     speed: fScale(a.Velocita), acc: fScale(a.Accelerazione), agi: fScale(a.Agilita), stamina: a.Resistenza / 15,
-    react: 15 / a.Concentrazione, balance: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: true,
+    react: 15 / a.Concentrazione, balance: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1,
+    decNoise: 0, offBall: 1, placeErr: 0, freeKickErr: 1, penaltyErr: 1, hold: 1, oneOnOne: 1, rated: true,
   };
   if (o) Object.assign(k, {
     balance: 15 / a.Equilibrio, stun: 15 / a.IntegritaFisica, passErr: 15 / a.Passaggi * off, shotNear: 15 / a.Finalizzazione * off, shotFar: 15 / a.TiriLontano * off,
     press: nScale(a.Aggressivita), foul: nScale(a.Aggressivita), vision: 1 + 0.03 * (a.VisioneGioco - 15), touch: nScale(a.PrimoTocco),
+    decNoise: 1 - clamp(0.75 + 0.01 * (a.Decisioni - 10), 0, 1), // quota di scelte non ottimali: 0,25 a 10, 0,15 a 20
+    offBall: nScale(a.SenzaPalla), placeErr: 0.8 * 15 / a.Posizionamento, freeKickErr: 15 / a.CalciPunizione, penaltyErr: 15 / a.Rigori,
   });
-  else Object.assign(k, { reach: nScale(a.Riflessi), exit: nScale(a.Uscite), posErr: 15 / a.Posizione });
+  else Object.assign(k, { reach: nScale(a.Riflessi), exit: nScale(a.Uscite), posErr: 15 / a.Posizione, hold: clamp(0.70 + 0.02 * (a.Presa - 15), 0, 1), oneOnOne: nScale(a.UnoControUno) });
   return k;
 }

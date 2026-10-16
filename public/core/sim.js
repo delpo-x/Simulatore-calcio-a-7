@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
   shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, formSpread: 0.35, formSpeed: 0, formTackle: 1,
+  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
 
@@ -111,6 +111,7 @@ export class Sim {
     teams.forEach((lineup, team) => lineup?.forEach((pl, i) => {
       const p = this.players.filter(q => q.team === team)[i];
       p.k = deriveSkill(pl); p.attr = pl.attrs; p.foot = pl.foot; p.name = pl.name;
+      p.posOff = [(this.rand() - 0.5) * 2 * p.k.placeErr, (this.rand() - 0.5) * 2 * p.k.placeErr]; // errore fisso di posizionamento (m)
     }));
     this.ball = { x: 0, y: 0.11, z: 0, vx: 0, vy: 0, vz: 0, owner: -1, last: -1 };
     this.resetPositions(0);
@@ -146,6 +147,7 @@ export class Sim {
     const lp = this.lastPass;
     if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost' }); }
     this.ball.owner = p.id; this.ball.last = p.id; this.ball.kicker = -1; p.kickCd = 0;
+    if (this.setKind && p.id !== this.setKind.taker) this.setKind = null;
     if (this.indirect && p.id !== this.indirect.taker) this.indirect = null; // secondo tocco: la punizione indiretta e' valida
   }
 
@@ -213,7 +215,7 @@ export class Sim {
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
-    this.lastPass = null; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -293,11 +295,12 @@ export class Sim {
     let tx, tz;
     if (near === p) { tx = carrier.x + d * this.sc(8); tz = carrier.z + (carrier.z > 0 ? -1 : 1) * this.sc(8); }
     else {
-      tx = h.x + d * (this.sc(10) + (t.line - 0.25) * L) + (carrier.x - h.x) * 0.3 + (counter && h.x * d > 0 ? d * this.sc(8) : 0);
+      tx = h.x + d * (this.sc(10) * p.k.offBall + (t.line - 0.25) * L) + (carrier.x - h.x) * 0.3 + (counter && h.x * d > 0 ? d * this.sc(8) : 0);
       tz = h.z * t.width + (carrier.z - h.z) * 0.2;
     }
     if (h.x * d < -0.1 * L) tx = d * Math.min(d * tx, AI.defenderLimit * L); // i difensori non oltrepassano la meta' campo
     [tx, tz] = this.spread(p, tx, tz);
+    if (p.posOff) { tx += p.posOff[0]; tz += p.posOff[1]; }
     const lim = pt.hx - this.sc(AI.attackDepth); // gli attaccanti non si piazzano sulla linea di porta
     return { tx: clamp(tx, d > 0 ? -pt.hx + 2 : -lim, d > 0 ? lim : pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: counter };
   }
@@ -346,6 +349,7 @@ export class Sim {
       }
     }
     [tx, tz] = this.spread(p, tx, tz);
+    if (p.posOff) { tx += p.posOff[0]; tz += p.posOff[1]; }
     return { tx: clamp(tx, -pt.hx + 2, pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: dist(p.x, p.z, tx, tz) > this.sc(15) };
   }
 
@@ -356,7 +360,7 @@ export class Sim {
     const po = Math.min(...opps.map(q => dist(q.x, q.z, p.x, p.z)));
     const hold = { tx: p.x, tz: p.z, sprint: false }, range = this.sc(AI.shootRange);
     if (dg < range && !this.indirect && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
-      const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, dg < this.sc(16) ? p.k.shotNear : p.k.shotFar) * Math.PI / 180;
+      const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, (this.setKind?.taker === p.id && this.setKind.kind === 'penalty' ? p.k.penaltyErr : this.setKind?.taker === p.id && this.setKind.kind === 'free' ? p.k.freeKickErr : dg < this.sc(16) ? p.k.shotNear : p.k.shotFar)) * Math.PI / 180;
       this.shoot(p, Math.atan2(-p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
       return hold;
     }
@@ -400,7 +404,7 @@ export class Sim {
       const g = this.players.find(r => r.gk && r.team === p.team && !r.out);
       if (g && dist(g.x, g.z, q.x, q.z) < 4) continue; // compagno attaccato al portiere: il portiere prenderebbe la palla con le mani
       if (g) { const tt = clamp(((g.x - p.x) * (q.x - p.x) + (g.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1); if (dist(g.x, g.z, p.x + (q.x - p.x) * tt, p.z + (q.z - p.z) * tt) < 2.5) continue; } // mai attraverso il proprio portiere
-      const score = ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0);
+      const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0);
       if (score > bestScore) { bestScore = score; best = q; }
     }
     return best;
@@ -537,12 +541,16 @@ export class Sim {
     if (b.y < (sp > 16 ? 2.4 : 1.1)) {
       let best = null, bd = 99;
       for (const p of ps) {
-        const reach = p.gk ? AI.keeperReach * p.k.reach : 0.9 * p.k.touch, d = dist(p.x, p.z, b.x, b.z);
+        const reach = p.gk ? AI.keeperReach * p.k.reach * (b.kickDist < this.sc(10) ? p.k.oneOnOne : 1) : 0.9 * p.k.touch, d = dist(p.x, p.z, b.x, b.z);
         if (sp >= (p.gk ? 40 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
         if (p.gk && sp > 2 && b.kicker >= 0 && this.players[b.kicker].team === p.team && b.vx * (p.x - b.x) + b.vz * (p.z - b.z) <= 0) continue; // la palla calciata da un compagno e che si allontana non e' un passaggio al portiere
         best = p; bd = d;
       }
       if (best && best.gk && this.backPass(best)) return;
+      if (best && best.gk && sp > 12 && best.attr && this.rand() > best.k.hold) { // respinta invece di presa: la palla sparisce lontano dalla porta
+        const a = Math.atan2(b.z - best.z, b.x - best.x) + (this.rand() - 0.5) * 1.2;
+        b.vx = Math.cos(a) * sp * 0.4; b.vz = Math.sin(a) * sp * 0.4; best.kickCd = 0.4; return;
+      }
       if (best) { b.vx = b.vy = b.vz = 0; this.giveBall(best); }
     }
   }
@@ -598,6 +606,7 @@ export class Sim {
     Object.assign(b, { x, z, vx: 0, vz: 0, vy: 0, y: 0.11 });
     this.giveBall(taker);
     this.indirect = kind === 'indirect' ? { team, taker: taker.id } : null;
+    this.setKind = { kind, taker: taker.id };
     const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : 0, end = Math.sign(x);
     for (const p of this.players) {
       if (p === taker || p.out) continue;

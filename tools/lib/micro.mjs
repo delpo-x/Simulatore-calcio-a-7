@@ -316,3 +316,9 @@ export function indirectKickTrial() {
   }
   return out;
 }
+
+/** Moltiplicatori derivati dagli attributi nuovi, per giocatore di movimento (indice 3) e portiere (indice 0). */
+export function skillFormula({ attrs }) {
+  const s = new Sim({ perTeam: 7, seed: 1, teams: [lineup(15, attrs), null] });
+  return { ...s.players[3].k, gk: { ...s.players[0].k } };
+}

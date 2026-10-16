@@ -1,5 +1,5 @@
 // Scenari controllati ("micro") per misurare un singolo comportamento del motore.
-import { Sim, DT, SCHEMES, pitchFor, layout, AI } from '../../public/core/sim.js';
+import { Sim, DT, SCHEMES, pitchFor, layout, AI, RULES } from '../../public/core/sim.js';
 import { syntheticTeam, pickLineup, readTeam, readPlayer } from '../../public/core/team.js';
 import { runMatch } from './matches.mjs';
 
@@ -302,6 +302,22 @@ export function gkHoldTrial() {
     out[`hold_${secs}s`] = Number(fired);
     if (fired) out.indirect_active = Number(!!s.indirect);
   }
+  return out;
+}
+
+/** Gioco pericoloso (avversario addosso al portiere in possesso) e ostruzione (contatto senza palla): punizione indiretta; contatto vicino alla palla: nessuna infrazione. */
+export function indirectInfractionTrial() {
+  const out = {}, run = (setup, tag) => {
+    const s = quiet(); s.aiControl = () => ({ mx: 0, mz: 0, sprint: false }); setup(s);
+    let ev = null;
+    for (let i = 0; i < 3 / DT && !ev; i++) { s.step([null, null]); ev = s.events.find(e => e.t === 'dangerous' || e.t === 'obstruction') ?? null; }
+    out[tag] = ev ? ev.t : 'none'; out[`${tag}_indirect`] = Number(!!s.indirect);
+  };
+  const saved = RULES.obstructRate; RULES.obstructRate = 1e6; // un contatto basta
+  run(s => { const gk = s.players[0], q = s.players[10]; Object.assign(gk, { x: -23, z: 0 }); Object.assign(q, { x: -22.3, z: 0 }); Object.assign(s.ball, { x: -23, z: 0, y: 0.11 }); s.giveBall(gk); }, 'danger');
+  run(s => { const a = s.players[3], b = s.players[10]; Object.assign(a, { x: 0, z: 0 }); Object.assign(b, { x: 0.5, z: 0 }); Object.assign(s.ball, { x: 6, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 }); }, 'obstruct');
+  run(s => { const a = s.players[3], b = s.players[10]; Object.assign(a, { x: 0, z: 0 }); Object.assign(b, { x: 0.5, z: 0 }); Object.assign(s.ball, { x: 0.2, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 }); }, 'near_ball');
+  RULES.obstructRate = saved;
   return out;
 }
 

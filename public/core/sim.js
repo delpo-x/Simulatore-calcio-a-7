@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick', 'gkHold']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick', 'gkHold', 'obstruction', 'dangerousPlay']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6,
+  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.15, dangerDist: 1.2,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -498,6 +498,7 @@ export class Sim {
     for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
       const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
       if (a.out || b.out) continue;
+      if (this.state === 'play' && a.team !== b.team && this.indirectInfraction(a, b, d)) return;
       if (d > 0 && d < MOVE.minGap) {
         // urto forte: stordisce per 0,3 s chi viene colpito da dietro (l'altro e' dietro di lui)
         if (Math.hypot(a.vx - b.vx, a.vz - b.vz) > MOVE.stunSpeed) {
@@ -507,6 +508,26 @@ export class Sim {
         const push = (MOVE.minGap - d) / 2 / d; a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push;
       }
     }
+  }
+
+  /** Infrazioni da indiretta tra avversari a contatto (regole a 11): gioco pericoloso (si avvicina al portiere in possesso) e ostruzione (ostacola senza giocare la palla). Vero se fischiata. */
+  indirectInfraction(a, b, d) {
+    const bl = this.ball, pt = this.pitch, owner = bl.owner >= 0 ? this.players[bl.owner] : null;
+    const gk = owner?.gk ? owner : null, other = gk ? (a === gk ? b : b === gk ? a : null) : null;
+    if (gk && other && d < RULES.dangerDist) { // gioco pericoloso: avvicinarsi al portiere che ha la palla
+      this.events.push({ t: 'dangerous', team: other.team });
+      bl.owner = -1; bl.kicker = -1; bl.vx = bl.vy = bl.vz = 0;
+      this.setPiece('indirect', gk.team, clamp(gk.x, -pt.hx + 1, pt.hx - 1), clamp(gk.z, -pt.hz + 1, pt.hz - 1));
+      return true;
+    }
+    if (owner || d >= MOVE.minGap || a.gk || b.gk) return false;
+    const da = dist(a.x, a.z, bl.x, bl.z), db = dist(b.x, b.z, bl.x, bl.z);
+    if (Math.min(da, db) < 1.5 || Math.max(da, db) > 12) return false; // uno dei due gioca la palla, oppure la palla e' lontana
+    if (this.rand() >= RULES.obstructRate * DT) return false;
+    const foul = da < db ? a : b, victim = foul === a ? b : a; // ostruisce chi sta tra la palla e l'avversario
+    this.events.push({ t: 'obstruction', team: foul.team });
+    this.setPiece('indirect', victim.team, clamp(victim.x, -pt.hx + 1, pt.hx - 1), clamp(victim.z, -pt.hz + 1, pt.hz - 1));
+    return true;
   }
 
   stepBall() {

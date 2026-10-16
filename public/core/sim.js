@@ -11,6 +11,14 @@ export const DT = 1 / 60;
  */
 export const FEATURES = new Set();
 
+/** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
+export const BALL = {
+  airDrag: 0.15,     // 1/s, resistenza in volo
+  rollDecel: 1.5,    // m/s², attrito di rotolamento (palla lenta: 1-2 m/s²)
+  rollQuad: 0.0111,  // 1/m, resistenza a terra ~v²: un passaggio da 18 m/s copre 20 m in ~1,3 s
+  restitution: 0.5,  // rimbalzo: un lob fa al massimo un rimbalzo significativo
+};
+
 const BTN = { up: 1, down: 2, left: 4, right: 8, cross: 16, circle: 32, square: 64, triangle: 128, l: 256, r: 512 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
@@ -133,7 +141,7 @@ export class Sim {
       if (score > bestScore) { bestScore = score; best = q; }
     }
     if (!best) return this.kick(p, Math.cos(aim), Math.sin(aim), 14, 0);
-    const d = dist(p.x, p.z, best.x, best.z), sp = clamp(7 + d * 0.8, 9, 24), t = d / sp;
+    const d = dist(p.x, p.z, best.x, best.z), sp = clamp(8 + d * 0.5, 10, 24), t = d / sp;
     this.kick(p, best.x + best.vx * t * 0.8 - p.x, best.z + best.vz * t * 0.8 - p.z, sp, 0);
   }
 
@@ -141,7 +149,7 @@ export class Sim {
     const gx = this.dir(p.team) * PITCH.hx, onGoal = Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
     const tz = onGoal ? clamp((this.rand() - 0.5) * 2 * (PITCH.goalHalf - 0.5), -3, 3) : null;
     const dx = onGoal ? gx - p.x : Math.cos(aim), dz = onGoal ? tz - p.z : Math.sin(aim);
-    this.kick(p, dx, dz, 14 + power * 18, 1 + power * 3.2);
+    this.kick(p, dx, dz, 22 + power * 10, 1 + power * 3.2);
   }
 
   // ---- AI ----
@@ -230,12 +238,10 @@ export class Sim {
     }
     b.vy -= 9.8 * DT;
     const air = b.y > 0.12;
-    const drag = air ? 0.15 : 0.9;
-    const f = Math.max(0, 1 - drag * DT);
-    b.vx *= f; b.vz *= f;
-    if (!air) { const s = Math.hypot(b.vx, b.vz), dec = 1.5 * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
+    if (air) { const f = Math.max(0, 1 - BALL.airDrag * DT); b.vx *= f; b.vz *= f; }
+    if (!air) { const s = Math.hypot(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
-    if (b.y < 0.11) { b.y = 0.11; b.vy = Math.abs(b.vy) > 1.5 ? -b.vy * 0.6 : 0; }
+    if (b.y < 0.11) { b.y = 0.11; b.vy = Math.abs(b.vy) > 1.5 ? -b.vy * BALL.restitution : 0; }
     // pickup
     const sp = Math.hypot(b.vx, b.vz);
     if (b.y < (sp > 16 ? 2.4 : 1.1)) {

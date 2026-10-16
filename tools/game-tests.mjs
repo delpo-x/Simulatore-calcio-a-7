@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
-import { launchBall, sprintRun, formationLayout, measureSpeed } from './lib/micro.mjs';
+import { launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -22,6 +22,7 @@ const tests = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()
 
 const scenarios = {
   launchBall: a => launchBall(a),
+  shotSpeed: a => shotSpeed(a),
   sprintRun: () => sprintRun(),
   formationLayout: a => formationLayout(a.players),
   measureSpeed: a => measureSpeed(a.players, a.simSeconds),

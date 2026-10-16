@@ -25,6 +25,16 @@ export function launchBall({ speed, lift }) {
   return out;
 }
 
+/** Velocità orizzontale della palla subito dopo un tiro con la potenza data (0..1). */
+export function shotSpeed({ power }) {
+  const s = new Sim({ perTeam: 7, seed: 1 });
+  s.state = 'play';
+  const p = s.players[1];
+  Object.assign(p, { x: 20, z: 0 });
+  s.shoot(p, 0, power);
+  return { speed: Math.hypot(s.ball.vx, s.ball.vz) };
+}
+
 /** Un giocatore parte da fermo e corre in sprint in linea retta per 10 secondi. */
 export function sprintRun() {
   const s = new Sim({ perTeam: 7, seed: 1 });

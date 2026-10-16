@@ -1,25 +1,25 @@
 import * as THREE from '../vendor/three.module.min.js';
-import { PITCH } from './sim.js';
 
 const TEAM_COLORS = [0xd8372f, 0x2f6fd8];
 
-function pitchTexture() {
-  const c = document.createElement('canvas'); c.width = 1050; c.height = 680;
-  const g = c.getContext('2d'), s = 10; // 10 px per metre
-  for (let i = 0; i < 21; i++) { g.fillStyle = i % 2 ? '#2f8f3a' : '#2a8434'; g.fillRect(i * 50, 0, 50, 680); }
+function pitchTexture(P) {
+  const s = 10, W = P.hx * 2 * s, H = P.hz * 2 * s, cx = W / 2, cz = H / 2; // 10 px per metre
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), n = Math.max(8, Math.round(P.hx * 2 / 5));
+  for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#2f8f3a' : '#2a8434'; g.fillRect(i * W / n, 0, W / n + 1, H); }
   g.strokeStyle = '#fff'; g.lineWidth = 3;
-  const R = (x, z, w, h) => g.strokeRect(525 + x * s, 340 + z * s, w * s, h * s);
-  R(-52.5, -34, 105, 68);
-  g.beginPath(); g.moveTo(525, 0); g.lineTo(525, 680); g.stroke();
-  g.beginPath(); g.arc(525, 340, 9.15 * s, 0, 7); g.stroke();
+  const R = (x, z, w, h) => g.strokeRect(cx + x * s, cz + z * s, w * s, h * s);
+  R(-P.hx, -P.hz, P.hx * 2, P.hz * 2);
+  g.beginPath(); g.moveTo(cx, 0); g.lineTo(cx, H); g.stroke();
+  g.beginPath(); g.arc(cx, cz, Math.min(9.15, P.hz * 0.3) * s, 0, 7); g.stroke();
   for (const d of [-1, 1]) {
-    R(d < 0 ? -52.5 : 52.5 - 16.5, -20.16, 16.5, 40.32);
-    R(d < 0 ? -52.5 : 52.5 - 5.5, -9.16, 5.5, 18.32);
+    R(d < 0 ? -P.hx : P.hx - P.areaDepth, -P.areaWidth / 2, P.areaDepth, P.areaWidth);
+    g.beginPath(); g.arc(cx + d * (P.hx - P.penaltySpot) * s, cz, 3, 0, 7); g.stroke();
   }
   const t = new THREE.CanvasTexture(c); t.anisotropy = 4; t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-function goal(dir) {
+function goal(dir, PITCH) {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff }), grp = new THREE.Group();
   const post = (z) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, PITCH.goalH, 8), m); p.position.set(0, PITCH.goalH / 2, z); return p; };
   const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, PITCH.goalHalf * 2, 8), m);
@@ -32,7 +32,7 @@ function goal(dir) {
 }
 
 export class Renderer {
-  constructor(canvas, settings) {
+  constructor(canvas, settings, PITCH) {
     this.canvas = canvas;
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.setScale(Number(settings.scale) || 1);
@@ -48,11 +48,12 @@ export class Renderer {
     sun.shadow.mapSize.set(1024, 1024);
     scene.add(sun);
 
-    const pitch = new THREE.Mesh(new THREE.PlaneGeometry(105, 68), new THREE.MeshStandardMaterial({ map: pitchTexture(), roughness: 1 }));
+    const pitch = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.hx * 2, PITCH.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(PITCH), roughness: 1 }));
     pitch.rotation.x = -Math.PI / 2; pitch.receiveShadow = true; scene.add(pitch);
     const out = new THREE.Mesh(new THREE.PlaneGeometry(400, 300), new THREE.MeshStandardMaterial({ color: 0x24692d }));
     out.rotation.x = -Math.PI / 2; out.position.y = -0.02; scene.add(out);
-    scene.add(goal(1), goal(-1));
+    scene.add(goal(1, PITCH), goal(-1, PITCH));
+    this.pitch = PITCH;
 
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 14), new THREE.MeshStandardMaterial({ color: 0xffffff }));
     this.ball.castShadow = true; scene.add(this.ball);
@@ -91,7 +92,7 @@ export class Renderer {
     const b = sim.ball; this.ball.position.set(b.x, b.y, b.z);
     // broadcast-style camera: side view following the ball, damped
     const k = 1 - Math.exp(-3 * dt);
-    this.focus.x += (clamp(b.x, -38, 38) - this.focus.x) * k;
+    this.focus.x += (clamp(b.x, -this.pitch.hx + 14, this.pitch.hx - 14) - this.focus.x) * k;
     this.focus.z += (b.z * 0.4 - this.focus.z) * k;
     this.cam.position.set(this.focus.x, 24, this.focus.z + 42);
     this.cam.lookAt(this.focus.x, 0, this.focus.z - 2);

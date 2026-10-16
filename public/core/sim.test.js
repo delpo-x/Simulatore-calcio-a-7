@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Sim, PITCH, DT } from './sim.js';
+import { Sim, PITCH, DT, pitchFor } from './sim.js';
 
 function run(seed, seconds) {
   const s = new Sim({ perTeam: 7, seed, halfLength: seconds });
@@ -24,7 +24,7 @@ console.log('AI-vs-AI:', JSON.stringify(a), 'goals across 5 seeds:', total);
 assert.ok(total > 0, 'goals happen');
 
 // human shoot at goal from the edge of the box scores sometimes / ball moves
-const s = new Sim({ seed: 3 });
+const s = new Sim({ seed: 3, pitch: pitchFor(11) });
 s.state = 'play';
 const p = s.players.find(q => q.team === 0 && !q.gk);
 p.x = 36; p.z = 0; p.face = 0; s.giveBall(p); s.active[0] = p.id;

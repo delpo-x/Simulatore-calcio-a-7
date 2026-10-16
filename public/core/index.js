@@ -8,7 +8,7 @@ export default class FootballCore {
   async start() {
     const { canvas, settings, input, log } = this.h;
     const sim = this.sim = new Sim({ perTeam: 7, seed: (Math.random() * 2 ** 32) >>> 0, halfLength: 90 });
-    const rend = this.rend = new Renderer(canvas, settings);
+    const rend = this.rend = new Renderer(canvas, settings, sim.pitch);
     const hud = this.hud = document.createElement('div');
     Object.assign(hud.style, { position: 'absolute', top: '6px', left: '0', right: '0', textAlign: 'center', color: '#fff', font: 'bold 16px system-ui', textShadow: '0 1px 3px #000', pointerEvents: 'none' });
     canvas.parentElement.append(hud);

@@ -1,5 +1,6 @@
 [
   { "id": "macro.deterministico", "subsystem": "ia", "ticket": "05", "scenario": { "type": "determinism" }, "metric": "same_hash", "expect": { "value": true }, "severity": "error" },
+  { "id": "macro.formati_5_6_8_9_10_11", "subsystem": "formazioni", "ticket": "08", "scenario": { "type": "anyPlayerCounts" }, "metric": "all_ok", "expect": { "value": true }, "severity": "error" },
   { "id": "macro.concluse", "subsystem": "ia", "ticket": "05", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "finished_all", "expect": { "value": true }, "severity": "error" },
   { "id": "macro.stato_finito", "subsystem": "ia", "ticket": "05", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "finite_all", "expect": { "value": true }, "severity": "error" },
   { "id": "macro.gol_totali", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "goals_total.mean", "expect": { "fromTarget": "gol_totali" }, "provisional": true },

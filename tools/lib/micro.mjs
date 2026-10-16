@@ -1,5 +1,5 @@
 // Scenari controllati ("micro") per misurare un singolo comportamento del motore.
-import { Sim, DT } from '../../public/core/sim.js';
+import { Sim, DT, SCHEMES, pitchFor, layout } from '../../public/core/sim.js';
 
 /** Lancia la palla da ferma con velocità orizzontale e verticale date e ne misura la traiettoria. */
 export function launchBall({ speed, lift }) {
@@ -37,7 +37,7 @@ export function shotSpeed({ power }) {
 
 /** Un giocatore parte da fermo e corre in sprint in linea retta per 10 secondi. */
 export function sprintRun() {
-  const s = new Sim({ perTeam: 7, seed: 1 });
+  const s = new Sim({ perTeam: 7, seed: 1, pitch: pitchFor(11) });
   s.state = 'play';
   s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
   const p = s.players[1];
@@ -56,7 +56,7 @@ export function sprintRun() {
 }
 
 function isolated(n = 7) {
-  const s = new Sim({ perTeam: n, seed: 1 });
+  const s = new Sim({ perTeam: n, seed: 1, pitch: pitchFor(11) });
   s.state = 'play';
   s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
   Object.assign(s.ball, { x: 900, z: 0, owner: -1 });
@@ -101,14 +101,82 @@ export function carryGap() {
 
 /** Disposizione iniziale dei giocatori per un dato numero di giocatori per squadra. */
 export function formationLayout(players) {
-  const s = new Sim({ perTeam: players, seed: 1 });
-  const hx = 52.5, hz = 34;
-  let minPair = Infinity, outOfBounds = 0;
-  s.players.forEach((a, i) => {
-    if (Math.abs(a.x) > hx || Math.abs(a.z) > hz) outOfBounds++;
-    for (let j = i + 1; j < s.players.length; j++) minPair = Math.min(minPair, Math.hypot(a.x - s.players[j].x, a.z - s.players[j].z));
+  let minPair = Infinity, outOfBounds = 0, invalid = 0, perTeam = 0, wrongHalf = 0;
+  for (const scheme of SCHEMES[players] ?? []) {
+    let s;
+    try { s = new Sim({ perTeam: players, seed: 1, schemes: scheme }); } catch { invalid++; continue; }
+    const { hx, hz } = s.pitch;
+    perTeam = s.players.filter(p => p.team === 0).length;
+    s.players.forEach((a, i) => {
+      if (Math.abs(a.x) > hx || Math.abs(a.z) > hz) outOfBounds++;
+      if (a.team === 0 ? a.x > 0 : a.x < 0) wrongHalf++;
+      for (let j = i + 1; j < s.players.length; j++) minPair = Math.min(minPair, Math.hypot(a.x - s.players[j].x, a.z - s.players[j].z));
+    });
+  }
+  return { players_per_team: perTeam, min_pair_distance: minPair, out_of_bounds: outOfBounds, invalid_schemes: invalid, wrong_half: wrongHalf };
+}
+
+/** Dimensioni del campo e delle aree. */
+export function pitchSize(players) {
+  const p = pitchFor(players);
+  return { length: p.hx * 2, width: p.hz * 2, goal_width: p.goalHalf * 2, area_depth: p.areaDepth, area_width: p.areaWidth,
+    penalty_spot: p.penaltySpot, spot_inside_area: p.penaltySpot < p.areaDepth ? 1 : 0 };
+}
+
+/** Somma delle linee dello schema predefinito (deve valere giocatori - 1). */
+export function schemeLines(players) {
+  return { lines: SCHEMES[players][0].split('-').reduce((a, b) => a + Number(b), 0) };
+}
+
+/** Differenza massima tra le posizioni base normalizzate dello stesso schema su due campi diversi. */
+export function scaleDiff() {
+  const a = layout(7, '2-3-1', pitchFor(7)), b = layout(7, '2-3-1', pitchFor(11));
+  const na = pitchFor(7), nb = pitchFor(11);
+  let worst = 0;
+  a.forEach((p, i) => { worst = Math.max(worst, Math.abs(p.x / (na.hx * 2) - b[i].x / (nb.hx * 2)), Math.abs(p.z / (na.hz * 2) - b[i].z / (nb.hz * 2))); });
+  return { max_diff: worst };
+}
+
+/** Quota di falli, gialli e rossi su n contrasti a rischio. */
+export function foulTrials(n = 10000) {
+  const s = new Sim({ perTeam: 7, seed: 1 });
+  let fouls = 0, yellow = 0, red = 0;
+  for (let i = 0; i < n; i++) { const f = s.foulRoll(); if (f) { fouls++; if (f.card === 'yellow') yellow++; if (f.card === 'red') red++; } }
+  return { foul_rate: fouls / n, yellow_rate: yellow / fouls, red_rate: red / fouls };
+}
+
+/** Distanze regolamentari delle riprese da fermo. */
+export function setPieceDistances() {
+  const out = {};
+  const near = (s, x, z) => { const o = s.players.find(p => p.team === 1 && !p.gk); o.x = x; o.z = z; };
+  const minOpp = (s, team) => Math.min(...s.players.filter(p => p.team !== team && !p.out).map(p => Math.hypot(p.x - s.ball.x, p.z - s.ball.z)));
+  let s = new Sim({ perTeam: 7, seed: 1 });
+  near(s, 11, 5); s.setPiece('free', 0, 10, 5); out.wall_distance = minOpp(s, 0);
+  s = new Sim({ perTeam: 7, seed: 1 });
+  const { hx, hz, penaltySpot, areaDepth, areaWidth } = s.pitch;
+  near(s, hx - 1, hz - 1); s.setPiece('corner', 0, hx - 0.3, hz - 0.3); out.corner_distance = minOpp(s, 0);
+  s = new Sim({ perTeam: 7, seed: 1 });
+  s.players.forEach(p => { if (!p.gk) { p.x = hx - 3; p.z = (p.id % 5 - 2) * 3; } });
+  s.setPiece('penalty', 0, hx - penaltySpot, 0);
+  out.penalty_distance = hx - s.ball.x;
+  const inArea = p => Math.abs(p.x) > hx - areaDepth && Math.sign(p.x) === 1 && Math.abs(p.z) < areaWidth / 2;
+  out.penalty_intruders = s.players.filter(p => !p.out && p.id !== s.ball.owner && !(p.gk && p.team === 1) && inArea(p)).length;
+  s = new Sim({ perTeam: 7, seed: 1 });
+  s.players.forEach(p => { if (p.team === 1 && !p.gk) { p.x = hx - 3; p.z = (p.id % 5 - 2) * 3; } });
+  s.setPiece('goalkick', 0, hx - 6, 0);
+  out.goalkick_intruders = s.players.filter(p => p.team === 1 && inArea(p)).length;
+  return out;
+}
+
+/** Partite brevi con 5, 6, 8, 9, 10 e 11 giocatori: devono partire e finire senza errori. */
+export function anyPlayerCounts() {
+  const s5 = [5, 6, 8, 9, 10, 11].map(n => {
+    const x = new Sim({ perTeam: n, seed: 1, halfLength: 60 });
+    let finite = true;
+    for (let i = 0; i < 600 / DT && x.state !== 'full'; i++) { x.step([null, null]); if (!Number.isFinite(x.ball.x + x.ball.z)) finite = false; }
+    return finite && x.state === 'full';
   });
-  return { players_per_team: s.players.filter(p => p.team === 0).length, min_pair_distance: minPair, out_of_bounds: outOfBounds };
+  return { all_ok: s5.every(Boolean) };
 }
 
 /** Velocità di simulazione: secondi simulati per secondo reale. */

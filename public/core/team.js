@@ -67,18 +67,18 @@ export function syntheticTeam(name = 'Squadra', level = 15, perTeam = 7) {
 }
 
 /** Moltiplicatori derivati dagli attributi. Senza attributi tutti valgono 1 (giocatore neutro, valori base). */
-export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: false });
+export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: false });
 
 export function deriveSkill(pl) {
   const a = pl.attrs, o = pl.position !== 'Goalkeeper';
   const off = pl.offRole ? 1 / 0.95 : 1; // fuori ruolo: i moltiplicatori tecnici si riducono del 5% (errore piu' alto)
   const k = {
     speed: fScale(a.Velocita), acc: fScale(a.Accelerazione), agi: fScale(a.Agilita), stamina: a.Resistenza / 15,
-    react: 15 / a.Concentrazione, balance: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, press: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: true,
+    react: 15 / a.Concentrazione, balance: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, rated: true,
   };
   if (o) Object.assign(k, {
     balance: 15 / a.Equilibrio, stun: 15 / a.IntegritaFisica, passErr: 15 / a.Passaggi * off, shotNear: 15 / a.Finalizzazione * off, shotFar: 15 / a.TiriLontano * off,
-    press: nScale(a.Aggressivita), vision: 1 + 0.03 * (a.VisioneGioco - 15), touch: nScale(a.PrimoTocco),
+    press: nScale(a.Aggressivita), foul: nScale(a.Aggressivita), vision: 1 + 0.03 * (a.VisioneGioco - 15), touch: nScale(a.PrimoTocco),
   });
   else Object.assign(k, { reach: nScale(a.Riflessi), exit: nScale(a.Uscite), posErr: 15 / a.Posizione });
   return k;

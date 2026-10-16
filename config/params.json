@@ -95,15 +95,18 @@
     "distanza_calcio_inizio_m": 6,
     "distanza_rigore_m": 8,
     "rimessa_laterale_m": 15,
-    "fallo_probabilita": 0.15,
-    "fallo_giallo_su_fallo": 0.1,
+    "fallo_probabilita": 0.023,
+    "fallo_giallo_su_fallo": 0.125,
     "fallo_rosso_su_fallo": 0.01,
     "azzurro_minuti": 5,
     "fuorigioco_attivo": false,
     "area_piccola_m": [
       6,
       12
-    ]
+    ],
+    "fallo_azzurro_su_fallo": 0.03,
+    "azzurro_secondi": 300,
+    "giocatori_minimi": 5
   },
   "formazioni": {
     "predefinita": {
@@ -218,6 +221,9 @@
     "pressedDist": 4,
     "attackDepth": 14,
     "blockDepth": 1,
-    "pressedErrMul": 6
+    "pressedErrMul": 8,
+    "formSpread": 0.35,
+    "formSpeed": 0,
+    "formTackle": 1
   }
 }

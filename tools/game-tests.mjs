@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
 import { configSync } from './lib/config.mjs';
-import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, teamValidation, teamDeterminism, equalTeams } from './lib/micro.mjs';
+import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, teamValidation, teamDeterminism, equalTeams, sendOffTrial } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -19,7 +19,8 @@ const only = oi >= 0 ? args[oi + 1] : null;
 const targets = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'targets.json'), 'utf8'));
 const dir = path.join(ROOT, 'tests', 'game');
 const tests = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()
-  .flatMap(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
+  .flatMap(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))
+  .sort((a, b) => (b.subsystem === 'prestazioni') - (a.subsystem === 'prestazioni')); // la velocita' si misura a motore "freddo", prima delle partite
 
 const scenarios = {
   launchBall: a => launchBall(a),
@@ -37,6 +38,7 @@ const scenarios = {
   setPieceDistances: () => setPieceDistances(),
   anyPlayerCounts: () => anyPlayerCounts(),
   configSync: () => configSync(),
+  sendOffTrial: () => sendOffTrial(),
   pressingTrigger: a => pressingTrigger(a),
   sprintAttr: a => sprintAttr(a),
   passErrorTrials: a => passErrorTrials(a),

@@ -62,6 +62,7 @@ function isolated(n = 7) {
   s.state = 'play';
   s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
   Object.assign(s.ball, { x: 900, z: 0, owner: -1 });
+  s.form = [0, 0]; // le prove su un singolo comportamento non dipendono dalla forma di giornata
   return s;
 }
 
@@ -140,11 +141,11 @@ export function scaleDiff() {
 }
 
 /** Quota di falli, gialli e rossi su n contrasti a rischio. */
-export function foulTrials(n = 10000) {
+export function foulTrials(n = 400000) {
   const s = new Sim({ perTeam: 7, seed: 1 });
-  let fouls = 0, yellow = 0, red = 0;
-  for (let i = 0; i < n; i++) { const f = s.foulRoll(); if (f) { fouls++; if (f.card === 'yellow') yellow++; if (f.card === 'red') red++; } }
-  return { foul_rate: fouls / n, yellow_rate: yellow / fouls, red_rate: red / fouls };
+  let fouls = 0, yellow = 0, red = 0, blue = 0;
+  for (let i = 0; i < n; i++) { const f = s.foulRoll(); if (f) { fouls++; if (f.card === 'yellow') yellow++; if (f.card === 'red') red++; if (f.card === 'blue') blue++; } }
+  return { foul_rate: fouls / n, yellow_rate: yellow / fouls, red_rate: red / fouls, blue_rate: blue / fouls };
 }
 
 /** Distanze regolamentari delle riprese da fermo. */
@@ -251,4 +252,20 @@ export function equalTeams({ games = 60 }) {
   let g0 = 0, g1 = 0;
   for (let i = 0; i < games; i++) { const r = runMatch({ players: 7, seed: 100 + i, teams: [lineup(15), lineup(15)] }); g0 += r.goals[0]; g1 += r.goals[1]; }
   return { goal_diff_rel: Math.abs(g0 - g1) / Math.max(1, (g0 + g1) / 2), goals0: g0 / games, goals1: g1 / games };
+}
+
+/** Cartellini a squadra ridotta: rosso (resta fuori) e azzurro (rientra dopo blueSeconds di gioco). */
+export function sendOffTrial() {
+  const mk = () => { const s = new Sim({ perTeam: 7, seed: 1, halfLength: 1e6 }); s.state = 'play'; return s; };
+  const live = (s, t) => s.players.filter(p => p.team === t && !p.out).length;
+  let s = mk(), q = s.players[3], o = s.players[10];
+  s.callFoul(q, o, { card: 'red' }); s.state = 'play';
+  const out = { players_on_field: live(s, 0) };
+  s = mk(); q = s.players[3]; o = s.players[10];
+  s.callFoul(q, o, { card: 'blue' }); s.state = 'play';
+  out.blue_on_field = live(s, 0);
+  let t = 0, back = null;
+  while (t < 400 && back === null) { s.state = 'play'; s.stateT = 0; s.step([null, null]); t += DT; if (live(s, 0) === 7) back = s.matchTime; }
+  out.blue_minutes = back === null ? -1 : back / 60;
+  return out;
 }

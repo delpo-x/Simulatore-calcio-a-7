@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
   shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6,
+  passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 8, formSpread: 0.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
 
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.15, yellowShare: 0.10, redShare: 0.01,
+  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.03, blueSeconds: 300,
   minPlayers: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -101,6 +101,7 @@ export class Sim {
     this.sentOff = [0, 0];
     this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
     this.possTeam = 0; this.possT = 0; this.lastPass = null;
+    this.form = [0, 1].map(() => (this.rand() - 0.5) * 2 * AI.formSpread); // forma di giornata: sposta la probabilita' di vincere i contrasti
     const names = Array.isArray(schemes) ? schemes : [schemes, schemes];
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
@@ -169,6 +170,9 @@ export class Sim {
       const human = this.active[p.team] === p.id && inputs[p.team] != null;
       let c = frozen ? { mx: 0, mz: 0, sprint: false } : human ? this.humanControl(p, inputs[p.team]) : this.aiControl(p);
       this.move(p, c);
+    }
+    for (const p of this.players) if (p.blueUntil && this.matchTime >= p.blueUntil && this.state === 'play') { // fine sospensione
+      p.blueUntil = 0; p.out = false; const h = this.homePos(p); p.x = h.x; p.z = Math.sign(h.z || 1) * this.pitch.hz; p.vx = p.vz = 0; this.events.push({ t: 'blueEnd', team: p.team });
     }
     this.separate();
     this.stepBall();
@@ -349,7 +353,7 @@ export class Sim {
     }
     const best = this.bestPass(p), pressed = po < AI.pressedDist;
     if (best && this.rand() < (AI.passBase * t.tempo + (pressed ? AI.passPressed : 0))) {
-      this.passTo(p, best, this.rand() < AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1)); // sotto pressione si sbaglia di piu'
+      this.passTo(p, best, this.rand() < AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1) * (1 - 2 * this.form[p.team])); // sotto pressione si sbaglia di piu'
       return hold;
     }
     let tz = clamp(p.z * 0.5, -pt.hz * 0.3, pt.hz * 0.3);
@@ -442,11 +446,11 @@ export class Sim {
   move(p, c) {
     if (p.stam === undefined) p.stam = 1;
     const sprinting = c.sprint && (c.mx || c.mz) && p.stun <= 0;
-    const kk = p.k;
+    const kk = p.k, fm = 1 + this.form[p.team] * AI.formSpeed; // forma di giornata
     if (sprinting) p.stam = Math.max(0, p.stam - DT / (MOVE.sprintSeconds * kk.stamina));
     else if (Math.hypot(p.vx, p.vz) < MOVE.run * kk.speed + 0.5) p.stam = Math.min(1, p.stam + DT * kk.stamina / MOVE.recoverSeconds);
-    const top = MOVE.sprint * kk.speed * (1 - MOVE.lowStaminaLoss * (1 - p.stam)) * (this.ball.owner === p.id ? MOVE.carryFactor : 1);
-    const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run * kk.speed;
+    const top = MOVE.sprint * kk.speed * fm * (1 - MOVE.lowStaminaLoss * (1 - p.stam)) * (this.ball.owner === p.id ? MOVE.carryFactor : 1);
+    const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run * kk.speed * fm;
     let tx = c.mx * max, tz = c.mz * max;
     if (p.tackleT > 0 && !c.mx && !c.mz) { tx = Math.cos(p.face) * max; tz = Math.sin(p.face) * max; }
     // virata oltre 90 gradi: si perde velocita; la sterzata e' piu lenta ad alta velocita
@@ -469,6 +473,7 @@ export class Sim {
     let c = MOVE.tackleBase + (front < 0.3 ? (front < -0.3 ? 0.2 : 0.1) : 0);
     if (Math.hypot(o.vx, o.vz) > MOVE.run + 0.5) c -= 0.1;
     if (q.attr?.Contrasti && o.attr?.Dribbling) c += 0.015 * (q.attr.Contrasti - 14) - 0.015 * (o.attr.Dribbling - 13) + 0.005 * (q.attr.Forza - o.attr.Forza);
+    c += (this.form[q.team] - this.form[o.team]) * AI.formTackle;
     return clamp(c, 0.05, 0.95);
   }
 
@@ -496,7 +501,7 @@ export class Sim {
       for (const q of ps) if (!o.gk && !q.out && q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < MOVE.tackleRadius && q.kickCd === 0) {
         q.tackleT = 0; q.kickCd = 0.4; // un solo tentativo per contrasto
         const won = this.rand() < this.tackleChance(q, o);
-        const foul = !won || this.tackleFront(q, o) < -0.3 ? this.foulRoll() : null; // contrasto da dietro o fallito
+        const foul = !won || this.tackleFront(q, o) < -0.3 ? this.foulRoll(q) : null; // contrasto da dietro o fallito
         if (foul) this.callFoul(q, o, foul);
         else if (won) { o.stun = 0.5; o.kickCd = 0.4; b.owner = -1; this.giveBall(q); }
         break;
@@ -585,10 +590,11 @@ export class Sim {
   }
 
   /** Esito del rischio di fallo su un contrasto: null, oppure { card: null | 'yellow' | 'red' }. */
-  foulRoll() {
-    if (this.rand() >= RULES.foulProb) return null;
-    const r = this.rand();
-    return { card: r < RULES.redShare ? 'red' : r < RULES.redShare + RULES.yellowShare ? 'yellow' : null };
+  /** Esito di un contrasto a rischio commesso da q: fallo (piu' probabile se aggressivo) ed eventuale cartellino; l'azzurro e' per proteste o reazione. */
+  foulRoll(q) {
+    if (this.rand() >= RULES.foulProb * (q ? q.k.foul : 1)) return null;
+    const r = this.rand(), R = RULES;
+    return { card: r < R.redShare ? 'red' : r < R.redShare + R.yellowShare ? 'yellow' : r < R.redShare + R.yellowShare + R.blueShare ? 'blue' : null };
   }
 
   tackleFront(q, o) {
@@ -601,11 +607,19 @@ export class Sim {
     const pt = this.pitch, d = this.dir(o.team);
     let card = foul.card;
     if (card === 'yellow' && ++q.yellow >= 2) card = 'red'; // seconda ammonizione
-    if (card === 'red' && this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
+    const full = this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers;
+    if (card === 'blue' && full) this.suspend(q);
+    if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
     this.events.push({ t: 'foul', team: q.team, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
     if (penalty) this.setPiece('penalty', o.team, d * (pt.hx - pt.penaltySpot), 0);
     else this.setPiece('free', o.team, clamp(o.x, -pt.hx + 1, pt.hx - 1), clamp(o.z, -pt.hz + 1, pt.hz - 1));
+  }
+
+  /** Cartellino azzurro: fuori per RULES.blueSeconds di gioco, poi rientra dalla linea laterale. */
+  suspend(p) {
+    this.sendOff(p); this.sentOff[p.team]--; this.suspended = (this.suspended ?? 0) + 1;
+    p.blueUntil = this.matchTime + RULES.blueSeconds;
   }
 
   sendOff(p) {

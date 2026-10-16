@@ -24,9 +24,10 @@ export const PARAM_MAP = [
   ['portiere.errore_bisettrice_m', AI, 'keeperError'], ['portiere.piazzamento_max_m', AI, 'keeperStand'],
   ['regole.fallo_probabilita', RULES, 'foulProb'], ['regole.fallo_giallo_su_fallo', RULES, 'yellowShare'],
   ['regole.fallo_rosso_su_fallo', RULES, 'redShare'], ['regole.distanza_barriera_m', RULES, 'wallDistance'],
-  ['regole.distanza_calcio_inizio_m', RULES, 'kickoffDistance'],
+  ['regole.distanza_calcio_inizio_m', RULES, 'kickoffDistance'], ['regole.fallo_azzurro_su_fallo', RULES, 'blueShare'],
+  ['regole.azzurro_secondi', RULES, 'blueSeconds'], ['regole.giocatori_minimi', RULES, 'minPlayers'],
   ...Object.keys({ shootRange: 0, shootEager: 0, shotAngle: 0, shotAnglePerM: 0, tackleEager: 0, markWeight: 0, containDist: 0, forceShot: 0, laneWidth: 0, tackleDist: 0,
-    sprintFree: 0, defenderLimit: 0, passBase: 0, passPressed: 0, passMin: 0, pressedDist: 0, pressedErrMul: 0, attackDepth: 0, blockDepth: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
+    sprintFree: 0, defenderLimit: 0, passBase: 0, passPressed: 0, passMin: 0, pressedDist: 0, pressedErrMul: 0, formSpread: 0, formSpeed: 0, formTackle: 0, attackDepth: 0, blockDepth: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
 ];
 
 const DEFAULTS = PARAM_MAP.map(([, obj, key]) => obj[key]); // valori del motore all'importazione, prima di applyParams

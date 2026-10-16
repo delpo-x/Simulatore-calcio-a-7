@@ -1,11 +1,14 @@
 [
-  { "id": "regole.falli.quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "foul_rate", "expect": { "min": 0.13, "max": 0.17 }, "severity": "error" },
-  { "id": "regole.falli.giallo", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "yellow_rate", "expect": { "value": 0.10, "abs": 0.025 }, "severity": "error" },
+  { "id": "regole.falli.quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "foul_rate", "expect": { "min": 0.019, "max": 0.027 }, "severity": "error" },
+  { "id": "regole.falli.giallo", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "yellow_rate", "expect": { "value": 0.125, "abs": 0.04 }, "severity": "error" },
   { "id": "regole.falli.rosso", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "red_rate", "expect": { "value": 0.01, "abs": 0.01 }, "severity": "error" },
   { "id": "regole.riprese.barriera", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "wall_distance", "expect": { "min": 5.999, "max": 6.2 }, "severity": "error" },
   { "id": "regole.riprese.angolo", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "corner_distance", "expect": { "min": 5, "max": 6 }, "severity": "error" },
   { "id": "regole.riprese.rigore_distanza", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "penalty_distance", "expect": { "value": 8, "tol": 0.03 }, "severity": "error" },
   { "id": "regole.riprese.rigore_area_libera", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "penalty_intruders", "expect": { "value": 0, "abs": 0 }, "severity": "error" },
   { "id": "regole.riprese.rinvio_area_libera", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "goalkick_intruders", "expect": { "value": 0, "abs": 0 }, "severity": "error" },
-  { "id": "regole.sanzioni.inferiorita", "subsystem": "regole", "ticket": "06", "requires": ["cardsDuration"], "scenario": { "type": "sendOffTrial" }, "metric": "players_on_field", "expect": { "value": 6, "abs": 0 }, "severity": "error" }
+  { "id": "regole.sanzioni.inferiorita", "subsystem": "regole", "ticket": "06", "requires": ["cardsDuration"], "scenario": { "type": "sendOffTrial" }, "metric": "players_on_field", "expect": { "value": 6, "abs": 0 }, "severity": "error" },
+  { "id": "regole.falli.azzurro_quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "blue_rate", "expect": { "value": 0.03, "abs": 0.015 }, "severity": "error" },
+  { "id": "regole.sanzioni.azzurro_inferiorita", "subsystem": "regole", "ticket": "06", "requires": ["cardsDuration"], "scenario": { "type": "sendOffTrial" }, "metric": "blue_on_field", "expect": { "value": 6, "abs": 0 }, "severity": "error" },
+  { "id": "regole.sanzioni.azzurro_durata", "subsystem": "regole", "ticket": "06", "requires": ["cardsDuration"], "scenario": { "type": "sendOffTrial" }, "metric": "blue_minutes", "expect": { "min": 4.99, "max": 5.2 }, "severity": "error" }
 ]

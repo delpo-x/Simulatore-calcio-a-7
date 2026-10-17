@@ -98,7 +98,7 @@ export class Sim {
     this.prev = [0, 0]; this.charge = [0, 0]; this.active = [0, 0];
     this.players = [];
     this.pitch = pitch ?? pitchFor(perTeam);
-    this.sentOff = [0, 0]; this.indirect = null; this.offsideMark = null;
+    this.sentOff = [0, 0]; this.indirect = null; this.offsideMark = null; this.tickN = 0;
     this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
     this.possTeam = 0; this.possT = 0; this.lastPass = null;
     this.form = [0, 1].map(() => (this.rand() - 0.5) * 2 * AI.formSpread); // forma di giornata: sposta la probabilita' di vincere i contrasti
@@ -167,9 +167,12 @@ export class Sim {
   }
 
   /** inputs: array(2) of button bitmasks (or null = AI) for team 0 and team 1. */
+  /** Giocatori in ordine alternato a ogni passo: chi viene aggiornato per secondo vede le posizioni gia' aggiornate, e un ordine fisso favorirebbe sempre una squadra. */
+  ordered() { return this.tickN & 1 ? [...this.players].reverse() : this.players; }
+
   step(inputs = [null, null]) {
     const ev = this.events = [];
-    this.time += DT;
+    this.time += DT; this.tickN++;
     if (this.state === 'full') return;
     if (this.state !== 'play') {
       this.stateT -= DT;
@@ -182,7 +185,7 @@ export class Sim {
     const ow = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
     if (ow && ow.team !== this.possTeam) { this.possTeam = ow.team; this.possT = 0; } else this.possT += DT;
     for (let t = 0; t < 2; t++) this.pickActive(t);
-    for (const p of this.players) {
+    for (const p of this.ordered()) {
       if (p.out) continue;
       p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.stun = Math.max(0, p.stun - DT);
       const human = this.active[p.team] === p.id && inputs[p.team] != null;

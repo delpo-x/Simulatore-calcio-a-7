@@ -1,11 +1,58 @@
-# pes-web-shell
+# Simulatore calcio a 7
 
-Generic browser shell + relay server. No game included: bring your own core.
+Simulatore di partite di calcio a 7 (clean-room, originale): due squadre IA si affrontano, senza controllo umano. Si osserva la partita in una vista 3D di debug e si misura il comportamento con test numerici.
 
-- `npm install && npm start` -> http://localhost:8080 (static + WebSocket relay at /ws)
-- `npm test` -> relay tests
-- Football core (original, clean-room): `public/core/`; `node public/core/sim.test.js` -> simulation tests
-- Game tests (declarative, `tests/game/*.json`; targets in `config/`): `npm run test:game [-- --full]` -> `reports/test-game.md`; `npm run matches -- --games 200 --players 7` -> AI-vs-AI match recorder
-- Planning map for the engine: `wayfinder/MAP.md` (glossary: `CONTEXT.md`)
-- Core contract: see `public/js/core.js`. Set a module URL in the launcher ("Ruta del núcleo").
-- Relay protocol: JSON control messages (nick, list, create, join, leave, chat); binary frames are forwarded to the other room members with a 1-byte sender-slot prefix. Empty rooms are deleted after 15 min, max 4 players.
+Sotto c'è una shell browser con relay WebSocket (`pes-web-shell`), lasciata com'è: non fa parte del simulatore.
+
+## Avvio
+
+```bash
+npm install
+npm start
+```
+
+Poi apri http://localhost:8080/debug.html.
+
+## Vista di debug
+
+Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5–11, il 7 è il caso principale), seme, velocità (1×, 3×, 10×, 30×), Riavvia, Pausa, +60 s. In basso i contatori: falli, gialli, azzurri, rossi, retropassaggi, ostruzioni, gioco pericoloso, trattenuta del portiere, proteste, fuorigioco. In alto il punteggio e il tempo; compare INDIRETTA quando la punizione è indiretta.
+
+## Comandi
+
+| Comando | Cosa fa |
+|---|---|
+| `npm run test:game` | Test di gioco (micro e macro). Scrive `reports/test-game.md`. Richiede alcuni minuti. Opzione `-- --full` per la versione completa. |
+| `npm run matches -- --games 200 --players 7` | Registratore: gioca partite IA contro IA e stampa le statistiche (gol, tiri, passaggi, possesso, falli, cartellini). |
+| `node public/core/sim.test.js` | Test della simulazione. |
+| `npm test` | Test del relay. |
+
+## Regole modellate (calcio a 7)
+
+Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti, senza sostituzioni.
+
+- Falli, ammonizione, espulsione, rigore, punizione, angolo, rinvio, rimessa.
+- Cartellino azzurro: 5 minuti fuori, poi rientro. Nasce da un fallo o da proteste.
+- Punizione indiretta per: retropassaggio al portiere, portiere che trattiene la palla oltre 6 s, gioco pericoloso (avversario addosso al portiere in possesso), ostruzione, fuorigioco.
+- Fuorigioco solo nell'area piccola avversaria (6 × 12 m): valore scelto dal progetto, non verificato su un regolamento ufficiale. Si disattiva con `regole.fuorigioco_attivo` = 0.
+
+Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropassaggio e rinvio nell'area seguono le scelte del progetto.
+
+## Parametri e taratura
+
+Tutti i valori regolabili stanno in `config/params.json` (letti da `npm run test:game` e `npm run matches`; i valori in `public/core/sim.js` sono i predefiniti del browser). I bersagli statistici sono in `config/targets.json`: gol 4–6, tiri in porta 9–13, passaggi 67–73%, possesso ~50%, ~8 falli e ~1 giallo a partita.
+
+## Squadre e attributi
+
+Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, ecc.), ruoli e piede. File squadra: vedi `public/core/team.js` (`readTeam`). Senza file, i giocatori sono neutri.
+
+## Struttura
+
+- `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
+- `public/debug.html`: vista di debug.
+- `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
+- `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).
+- `server/`, `public/js/`: shell e relay (non usati dal simulatore).
+
+## Relay (shell)
+
+JSON per i messaggi di controllo (nick, list, create, join, leave, chat); i frame binari sono inoltrati agli altri membri della stanza con un prefisso di 1 byte per lo slot del mittente. Stanze vuote eliminate dopo 15 minuti, massimo 4 giocatori.

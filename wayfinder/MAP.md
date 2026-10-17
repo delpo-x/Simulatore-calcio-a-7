@@ -79,6 +79,10 @@ Sessioni separate, in questo ordine; ognuna ha già i test di gioco nel proprio 
 
 Attivo di default (`regole.fuorigioco_attivo` = 1), solo nell'area piccola avversaria (6 × 12 m, ipotesi confermata dall'utente come valore da usare): chi è nell'area piccola quando un compagno calcia e tocca per primo la palla è in fuorigioco → indiretta agli avversari. Esenti angolo, rinvio e rimessa. Misurato: ~0,2 fuorigiochi a partita. Test `regole.fuorigioco.*`.
 
+## Bias tra le squadre (risolto)
+
+Su 600 partite neutre la squadra 1 vinceva 277 volte contro 217 e tirava il 24% di più (gol +0,26, z ≈ −2,9), anche prima delle regole nuove. Causa: ordine fisso di aggiornamento dei giocatori in `step()`; la squadra aggiornata per seconda vedeva già le posizioni nuove dell'altra. Invertendo l'ordine il vantaggio passava alla squadra 0. Ora l'ordine alterna a ogni passo (`ordered()`): tiri 6,720 contro 6,717 su 300 partite, gol entro 1σ su altre 300. Restano ordini fissi nei contrasti e nei recuperi in `stepBall()`: nessun effetto misurabile, da ricontrollare se compare un nuovo scarto.
+
 ## Out of scope
 
 - Codice, asset, nomi, loghi, squadre e giocatori Konami o reali. Protetti; non rientra nella destinazione clean-room.

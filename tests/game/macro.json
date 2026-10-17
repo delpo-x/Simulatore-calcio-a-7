@@ -5,6 +5,7 @@
   { "id": "macro.stato_finito", "subsystem": "ia", "ticket": "05", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "finite_all", "expect": { "value": true }, "severity": "error" },
   { "id": "macro.gol_totali", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "goals_total.mean", "expect": { "fromTarget": "gol_totali" } },
   { "id": "macro.tiri_porta", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "shots_on_target_total.mean", "expect": { "fromTarget": "tiri_porta_totali" }, "severity": "warn" },
+  { "id": "macro.tiri_totali", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "shots_total.mean", "expect": { "fromTarget": "tiri_totali" }, "severity": "warn" },
   { "id": "macro.passaggi_precisione", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "pass_accuracy.mean", "expect": { "fromTarget": "precisione_passaggi" } },
   { "id": "macro.possesso", "subsystem": "ia", "ticket": "07", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "possession_team0.mean", "expect": { "fromTarget": "possesso_squadra" } },
   { "id": "macro.falli", "subsystem": "ia", "ticket": "06", "scenario": { "type": "matches", "args": { "players": 7 } }, "metric": "fouls.mean", "expect": { "fromTarget": "falli_totali" } },

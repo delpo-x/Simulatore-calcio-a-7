@@ -91,6 +91,10 @@ Su 600 partite neutre la squadra 1 vinceva 277 volte contro 217 e tirava il 24% 
 
 Con l'ordine di aggiornamento alternato i tiri in porta erano 14,4 a partita (bersaglio 9–13). `shootEager`, `shootRange` e `forceShot` non incidono (il tiro forzato scatta entro `minScaled` = 3 m e domina). `laneWidth` sì: 1,2 → 1,6 m dà su 40 partite gol 4,97 e tiri in porta 11,6; 2,0 e 2,5 scendono a ~10,9 e gol ~4,7.
 
+## Tiri fuori dallo specchio
+
+Prima l'IA mirava al centro della porta con un errore piccolo (3° + 1°/m) e quasi tutti i tiri erano da 3–5 m: 11,6 tiri e 11,55 in porta a partita. Ora mira a un palo (`shotMargin` 0,5 m dentro, quello lontano dal portiere nel 70% dei casi, `shotFarPost`), errore base 7° (`shotAngle`) e più tiri da fuori (`shootEager` 0,2). Su 40 partite: gol 4,63, tiri 14,7, in porta 10,7 (73%). Il bersaglio dei tiri totali (12–20) è un'ipotesi mia, non un dato del girone. Senza più tiri da fuori i tiri in porta scendevano sotto 9; con tiri da fuori ancora più frequenti i gol scendevano sotto 4 (il tiro sostituisce l'azione che arrivava a tu per tu).
+
 ## Calcio d'inizio
 
 Prima il battitore partiva palla al piede verso la porta: 6 gol su 213 (2,8%) entro 10 s dall'inizio o dalla ripresa, 2 entro 6 s. Ora `resetPositions` segna `setKind` = `kickoff` e l'IA del battitore passa a un compagno (miglior passaggio, altrimenti il più vicino). Su 40 partite (semi 9000+): 0 gol entro 10 s, gol 5,15, tiri in porta 12,7, passaggi 71%, possesso 50%. Test `regole.calcio_inizio.passaggio`.

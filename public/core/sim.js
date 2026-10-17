@@ -26,7 +26,7 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
-  shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.6, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  shootRange: 14, shootEager: 0.2, shotAngle: 7, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
@@ -391,7 +391,10 @@ export class Sim {
     }
     if (dg < range && !this.indirect && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
       const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, (this.setKind?.taker === p.id && this.setKind.kind === 'penalty' ? p.k.penaltyErr : this.setKind?.taker === p.id && this.setKind.kind === 'free' ? p.k.freeKickErr : dg < this.sc(16) ? p.k.shotNear : p.k.shotFar)) * Math.PI / 180;
-      this.shoot(p, Math.atan2(-p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
+      // mira a un palo (di solito quello lontano dal portiere), un po' dentro: con l'errore di mira una parte dei tiri esce
+      const g = opps.find(q => q.gk), away = g ? (g.z > 0 ? -1 : 1) : 1, side = this.rand() < AI.shotFarPost ? away : -away;
+      const tz = side * Math.max(0, pt.goalHalf - AI.shotMargin);
+      this.shoot(p, Math.atan2(tz - p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
       return hold;
     }
     const best = this.bestPass(p), pressed = po < AI.pressedDist;

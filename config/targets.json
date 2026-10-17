@@ -1,5 +1,5 @@
 {
-  "nota": "Bersagli statistici per partite IA contro IA, dai dati del girone forniti dall'utente (medie per partita a 7: gol 5, tiri 11, passaggi 70%). Ipotesi da confermare: i 'tiri' del girone sono tiri in porta (nel motore: tiri la cui traiettoria entra tra i pali). Il possesso non e' stato fornito: resta segnaposto (test con provisional). Gli intervalli attorno ai valori forniti sono scelta dell'assistente. Aggiunti (utente): falli ~8 a partita con varianza legata all'aggressivita', 1 giallo a partita, 1 azzurro ogni 4 partite (proteste o reazione), 1 rosso ogni 5; possesso medio 50% con varianza alta. Intervalli scelti dall'assistente. Gli intervalli di azzurri e rossi sono larghi perche' sono eventi rari (media 0,25 e 0,2 a partita): con 40 partite la media campionaria ha deviazione ~0,07.",
+  "nota": "Bersagli statistici per partite IA contro IA, dai dati del girone forniti dall'utente (medie per partita a 7: gol 5, tiri 11, passaggi 70%). Ipotesi da confermare: i 'tiri' del girone sono tiri in porta (nel motore: tiri la cui traiettoria entra tra i pali). Il possesso non e' stato fornito: resta segnaposto (test con provisional). Gli intervalli attorno ai valori forniti sono scelta dell'assistente. Aggiunti (utente): falli ~8 a partita con varianza legata all'aggressivita', 1 giallo a partita, 1 azzurro ogni 4 partite (proteste o reazione), 1 rosso ogni 5; possesso medio 50% con varianza alta. Intervalli scelti dall'assistente. Gli intervalli di azzurri e rossi sono larghi perche' sono eventi rari (media 0,25 e 0,2 a partita): con 40 partite la media campionaria ha deviazione ~0,07. Tiri totali 12-20: ipotesi dell'assistente, non dato del girone (porta piccola e tiri da vicino: circa 2 tiri su 3 in porta).",
   "provvisorio": false,
   "giocatori": 7,
   "durata_minuti": 50,
@@ -19,9 +19,9 @@
     0.4,
     0.6
   ],
-  "tiri_totali_riferimento": [
-    40,
-    55
+  "tiri_totali": [
+    12,
+    20
   ],
   "falli_totali": [
     6,

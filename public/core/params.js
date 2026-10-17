@@ -26,7 +26,7 @@ export const PARAM_MAP = [
   ['regole.fallo_rosso_su_fallo', RULES, 'redShare'], ['regole.distanza_barriera_m', RULES, 'wallDistance'],
   ['regole.distanza_calcio_inizio_m', RULES, 'kickoffDistance'], ['regole.fallo_azzurro_su_fallo', RULES, 'blueShare'], ['regole.azzurro_proteste_su_fallo', RULES, 'protestShare'],
   ['regole.azzurro_secondi', RULES, 'blueSeconds'], ['regole.portiere_trattenuta_secondi', RULES, 'gkHoldSeconds'], ['regole.ostruzione_tasso', RULES, 'obstructRate'], ['regole.gioco_pericoloso_m', RULES, 'dangerDist'], ['regole.fuorigioco_attivo', RULES, 'offside'], ['regole.area_piccola_profondita_m', RULES, 'smallAreaDepth'], ['regole.area_piccola_larghezza_m', RULES, 'smallAreaWidth'], ['regole.gioco_pericoloso_tasso', RULES, 'dangerRate'], ['regole.giocatori_minimi', RULES, 'minPlayers'],
-  ...Object.keys({ shootRange: 0, shootEager: 0, shotAngle: 0, shotAnglePerM: 0, tackleEager: 0, markWeight: 0, containDist: 0, forceShot: 0, laneWidth: 0, tackleDist: 0,
+  ...Object.keys({ shootRange: 0, shootEager: 0, shotAngle: 0, shotAnglePerM: 0, tackleEager: 0, markWeight: 0, containDist: 0, forceShot: 0, laneWidth: 0, shotMargin: 0, shotFarPost: 0, tackleDist: 0,
     sprintFree: 0, defenderLimit: 0, passBase: 0, passPressed: 0, passMin: 0, pressedDist: 0, pressedErrMul: 0, decisionNoise: 0, formSpread: 0, formSpeed: 0, formTackle: 0, attackDepth: 0, blockDepth: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
 ];
 

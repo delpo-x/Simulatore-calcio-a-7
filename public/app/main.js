@@ -7,6 +7,7 @@ import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
 import { MatchAudio } from './audio.js';
 import { Commentary } from './commentary.js';
+import { shotMap, ratingsTable, fmtVote, voteClass } from './views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -212,7 +213,7 @@ function onItems(items) {
     else if (it.t === 'full') { showBanner(`<div class="b-kicker">Fischio finale</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div>`, -1, 2.5); }
   }
   if (items.some(i => i.t === 'full')) { G.ended = true; updateControls(); if (!G.skipping) setTimeout(() => G?.ended && !G.replay && showEnd(), 2600); }
-  if ($('#panel').classList.contains('open') && !$('[data-body=stats]').hidden) renderStats();
+  refreshPanel();
   if (items.some(i => ['yellow', 'red', 'blue'].includes(i.t))) renderLineups();
 }
 
@@ -242,7 +243,19 @@ function renderStats() {
   $('#stats').innerHTML = head + G.stats.rows().map(([l, a, b, u = '']) => {
     const t = a + b || 1;
     return `<div class="st-row"><div class="st-vals"><b>${a}${u}</b><span>${l}</span><b>${b}${u}</b></div><div class="st-bar"><i style="width:${100 * a / t}%;background:${G.kits[0].shirt}"></i><i style="width:${100 * b / t}%;background:${G.kits[1].shirt}"></i></div></div>`;
-  }).join('');
+  }).join('') + `<h4 class="st-sub">Mappa dei tiri <small>${esc(G.defs[0].name)} attacca a destra</small></h4>${shotMap(G.stats.shotList, G.sim.pitch, G.kits.map(k => k.shirt))}`;
+}
+
+/** Righe delle pagelle di una squadra (voti calcolati sul momento: durante la partita sono provvisori). */
+function playerRows(t) {
+  return G.sim.players.filter(p => p.team === t).map(p => ({ id: p.id, num: G.info[p.id].num, name: playerName(p.id), gk: p.gk, rating: G.stats.rating(p.id), ...G.stats.ps[p.id] }));
+}
+
+function renderRatings() {
+  if (!G) return;
+  const best = G.ended ? G.stats.best() : -1;
+  $('#ratings').innerHTML = `<p class="note rt-note">${G.ended ? '★ migliore in campo.' : 'Voti provvisori: cambiano fino al fischio finale.'} Base 6; contano gol, assist, tiri in porta, passaggi, recuperi, parate, gol subiti, falli, cartellini e risultato.</p>`
+    + [0, 1].map(t => ratingsTable(playerRows(t), { head: esc(G.defs[t].name), color: G.kits[t].shirt, best })).join('');
 }
 
 function renderLineups() {
@@ -295,7 +308,7 @@ function skipSeconds(sec) {
   G.skipping = true;
   const target = Math.min(G.sim.matchTime + sec, G.sim.halfLength * 2);
   for (let i = 0; i < sec * 120 && G.sim.matchTime < target && G.sim.state !== 'full'; i++) tick();
-  G.skipping = false; R.snap = true; renderStats(); renderLineups();
+  G.skipping = false; R.snap = true; refreshPanel(); renderLineups();
   if (G.ended) setTimeout(showEnd, 300);
 }
 
@@ -308,7 +321,7 @@ function runToEnd() {
     while (g.sim.state !== 'full' && performance.now() - t0 < 30) for (let i = 0; i < 300; i++) tick();
     $('#busy .rp-bar i').style.width = `${100 * g.sim.matchTime / total}%`;
     if (g.sim.state !== 'full') return setTimeout(chunk, 0);
-    g.skipping = false; $('#busy').hidden = true; R.snap = true; renderStats(); renderLineups(); showEnd();
+    g.skipping = false; $('#busy').hidden = true; R.snap = true; refreshPanel(); renderLineups(); showEnd();
   };
   chunk();
 }
@@ -324,6 +337,11 @@ function showEnd() {
   $('.end-scorers').innerHTML = [0, 1].map(t => `<div>${scorers(t) || '&nbsp;'}</div>`).join('');
   const keep = ['Possesso', 'Tiri', 'Tiri in porta', 'Precisione passaggi', 'Falli', 'Ammonizioni'];
   $('.end-stats').innerHTML = G.stats.rows().filter(r => keep.includes(r[0])).map(([l, a, b, u = '']) => `<div><b>${a}${u}</b><span>${l}</span><b>${b}${u}</b></div>`).join('');
+  const bid = G.stats.best(), bp = s.players[bid], bx = G.stats.ps[bid], bv = G.stats.rating(bid);
+  const facts = [bx.goals && `${bx.goals} gol`, bx.assists && `${bx.assists} assist`, bp.gk && `${bx.saves} parat${bx.saves === 1 ? 'a' : 'e'}`, !bp.gk && bx.recoveries && `${bx.recoveries} palloni recuperati`].filter(Boolean).slice(0, 3).join(' · ');
+  $('.end-motm').innerHTML = `<span class="motm-label">Migliore in campo</span><span class="num" style="background:${bp.gk ? G.kits[bp.team].gk : G.kits[bp.team].shirt};color:${contrast(bp.gk ? G.kits[bp.team].gk : G.kits[bp.team].shirt)}">${G.info[bid].num}</span>`
+    + `<span class="motm-name">${esc(playerName(bid))}<small>${esc(G.defs[bp.team].name)}${facts ? ` · ${facts}` : ''}</small></span><span class="vote ${voteClass(bv)}">${fmtVote(bv)}</span>`;
+  $('.end-map').innerHTML = shotMap(G.stats.shotList, s.pitch, G.kits.map(k => k.shirt));
   $('.end-seed').textContent = `Seme ${G.seed} · ${G.schemes[0]} contro ${G.schemes[1]}`;
   $('#e-replays').hidden = !G.rec.clips.length;
   $('#end').hidden = false;
@@ -341,7 +359,18 @@ function updateControls() {
 }
 function setSpeed(i) { G.speed = SPEEDS[i]; updateControls(); }
 function cycleCam() { G.cam = (G.cam + 1) % CAMS.length; if (!G.replay) R.setCamera(CAMS[G.cam][0]); updateControls(); }
-function setPanel(open) { $('#panel').classList.toggle('open', open); $('#match').classList.toggle('with-panel', open); if (open) { renderStats(); renderLineups(); } }
+function setPanel(open) { $('#panel').classList.toggle('open', open); $('#match').classList.toggle('with-panel', open); if (open) { refreshPanel(); renderLineups(); } }
+/** Ridisegna la scheda aperta del pannello che cambia durante la partita. */
+function refreshPanel() {
+  if (!G || !$('#panel').classList.contains('open')) return;
+  const tab = $('#panel [data-tab].on')?.dataset.tab;
+  if (tab === 'stats') renderStats(); else if (tab === 'ratings') renderRatings();
+}
+function showTab(name) {
+  $$('#panel [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
+  $$('#panel [data-body]').forEach(x => { x.hidden = x.dataset.body !== name; });
+  if (name === 'lineups') renderLineups(); else refreshPanel();
+}
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
 function toMenu() { A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = false; if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
 
@@ -359,17 +388,14 @@ function initControls() {
   $('#c-audio').onclick = () => { A.start(); A.setMuted(!A.muted); updateControls(); };
   $('#c-menu').onclick = toMenu;
   $('#rp-skip').onclick = () => { G.queue = []; endReplay(); };
-  $$('#panel [data-tab]').forEach(b => b.onclick = () => {
-    $$('#panel [data-tab]').forEach(x => x.classList.toggle('on', x === b));
-    $$('#panel [data-body]').forEach(x => { x.hidden = x.dataset.body !== b.dataset.tab; });
-    if (b.dataset.tab === 'stats') renderStats(); if (b.dataset.tab === 'lineups') renderLineups();
-  });
+  $$('#panel [data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   const cmOpt = () => { $('#feed').classList.toggle('no-cm', !cfg.commentary); if (!cfg.captions) $('#caption').hidden = true; saveMenu(); };
   $('#opt-cm').checked = cfg.commentary; $('#opt-cap').checked = cfg.captions; cmOpt();
   $('#opt-cm').onchange = e => { cfg.commentary = e.target.checked; cmOpt(); };
   $('#opt-cap').onchange = e => { cfg.captions = e.target.checked; cmOpt(); };
   $('#e-replays').onclick = () => playClips(G.rec.clips);
   $('#e-view').onclick = () => { $('#end').hidden = true; };
+  $('#e-ratings').onclick = () => { $('#end').hidden = true; setPanel(true); showTab('ratings'); };
   $('#e-again').onclick = () => startMatch(cfg.seed ? +cfg.seed : undefined);
   $('#e-menu').onclick = toMenu;
   $$('[data-open]').forEach(b => b.onclick = () => $(`#${b.dataset.open}`).showModal());
@@ -413,7 +439,7 @@ function frame(now) {
     if (bannerT > 0 && (bannerT -= dt) <= 0) $('#banner').hidden = true;
     if (lowerT > 0 && (lowerT -= dt) <= 0) $('#lower').hidden = true;
     if (captionT > 0 && ((captionT -= dt) <= 0 || G.replay)) { captionT = 0; $('#caption').hidden = true; }
-    if ((G.panelT += dt) > 1 && $('#panel').classList.contains('open')) { G.panelT = 0; if (!$('[data-body=stats]').hidden) renderStats(); }
+    if ((G.panelT += dt) > 1) { G.panelT = 0; refreshPanel(); }
     if ((G.crowdT = (G.crowdT ?? 0) + dt) > 0.25) { G.crowdT = 0; A.setCrowd(crowdLevel()); }
   }
   requestAnimationFrame(frame);

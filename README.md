@@ -30,13 +30,15 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | +1′ | | avanza di un minuto di gioco |
 | Fine | | simula il resto della partita |
 | TV / Alto / Segui / Porta | C | telecamera |
-| Dati | S | cronaca, statistiche, formazioni |
+| Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni |
 | Audio | M | pubblico, fischio, calci, esultanza (sintetizzati, nessun file audio) |
 | Schermo intero | F | |
 | | R | replay dell'ultimo gol |
 | | Esc | chiude replay o pannello |
 
-Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. La telecronaca testuale (tiri, parate, assist, lanci, recuperi, ingressi in area, falli, angoli; circa 3 frasi al minuto) scorre nella cronaca e come sottotitolo sopra la regia; si attiva o disattiva nella scheda Cronaca. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, statistiche principali, seme, **Rivedi i gol**, **Rigioca**, **Menu**.
+Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. La telecronaca testuale (tiri, parate, assist, lanci, recuperi, ingressi in area, falli, angoli; circa 3 frasi al minuto) scorre nella cronaca e come sottotitolo sopra la regia; si attiva o disattiva nella scheda Cronaca. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, migliore in campo, mappa dei tiri, statistiche principali, seme, **Rivedi i gol**, **Pagelle**, **Rigioca**, **Menu**.
+
+**Voti e mappa dei tiri.** Ogni giocatore ha un voto da 4 a 10 (a mezzi punti), provvisorio durante la partita: base 6, +1 il primo gol e +0,7 i successivi, +0,6 l'assist (ultimo passaggio riuscito al marcatore entro 8 s), tiri in porta, passaggi (riusciti contro persi, a saldo zero intorno al 70%), palloni recuperati rispetto alla media, falli e cartellini in negativo, ±0,3 per vittoria o sconfitta. Il portiere guadagna con le parate (presa entro 2,5 s da un tiro in porta) e perde con i gol subiti; porta inviolata +0,5 al portiere e +0,3 ai difensori. Il migliore in campo è il voto più alto (a parità, gol e assist). La mappa mostra da dove è partito ogni tiro: pieno = gol, anello = in porta, sbiadito = fuori. I gol nati da un passaggio o da un tocco compaiono sulla mappa ma non tra i tiri, come nel registratore. I pesi sono scelte del progetto, non tarate su dati reali.
 
 Le statistiche dell'app (tiri, tiri in porta, passaggi, possesso) si calcolano come nel registratore `tools/lib/matches.mjs`.
 
@@ -52,6 +54,7 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5�
 | `npm run matches -- --games 200 --players 7` | Registratore: gioca partite IA contro IA e stampa le statistiche (gol, tiri, passaggi, possesso, falli, cartellini). |
 | `npm run stress -- --games 40` | Prova di robustezza: partite con semi casuali a 5, 6, 7, 8, 9, 10 e 11 giocatori; segnala valori non finiti, giocatori fuori dal campo, palla ferma oltre 20 s e partite che non finiscono. Esce con 1 se trova problemi. |
 | `node public/core/sim.test.js` | Test della simulazione. |
+| `npm run test:app` | Test dei moduli dell'app senza browser (statistiche per giocatore, voti, partita senza grafica). |
 | `npm test` | Test del relay. |
 
 ## Regole modellate (calcio a 7)
@@ -68,7 +71,7 @@ Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropas
 
 ## Integrazione continua
 
-`.github/workflows/test.yml` esegue a ogni push i test del relay, della simulazione, `npm run test:game` e una prova di robustezza ridotta; il rapporto dei test viene salvato come artefatto.
+`.github/workflows/test.yml` esegue a ogni push i test del relay, della simulazione, dell'app, `npm run test:game` e una prova di robustezza ridotta; il rapporto dei test viene salvato come artefatto.
 
 ## Parametri e taratura
 
@@ -81,7 +84,7 @@ Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, e
 ## Struttura
 
 - `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
-- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche `stats.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
+- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche e voti `stats.js`, mappa dei tiri e pagelle `views.js`, partita senza grafica `headless.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
 - `public/debug.html`: vista di debug.
 - `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
 - `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).

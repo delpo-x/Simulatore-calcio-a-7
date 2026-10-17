@@ -8,6 +8,7 @@
     "start": "node server/relay.js",
     "test": "node server/relay.test.js",
     "test:game": "node tools/game-tests.mjs",
+    "test:app": "node public/app/app.test.js",
     "matches": "node tools/run-matches.mjs",
     "stress": "node tools/stress.mjs"
   },

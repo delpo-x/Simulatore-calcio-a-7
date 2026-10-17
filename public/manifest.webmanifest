@@ -1,0 +1,15 @@
+{
+  "name": "Calcio a 7 — Simulatore",
+  "short_name": "Calcio a 7",
+  "description": "Simulatore di calcio a 7, intelligenza artificiale contro intelligenza artificiale, con grafica 3D.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "it",
+  "icons": [
+    { "src": "app/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

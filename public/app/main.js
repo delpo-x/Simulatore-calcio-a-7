@@ -375,3 +375,4 @@ function frame(now) {
 }
 
 initMenu(); initControls(); requestAnimationFrame(frame);
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {}); // installabile e offline (GitHub Pages)

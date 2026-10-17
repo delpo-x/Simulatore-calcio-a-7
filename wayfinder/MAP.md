@@ -101,14 +101,14 @@ Prima il battitore partiva palla al piede verso la porta: 6 gol su 213 (2,8%) en
 
 ## App e grafica
 
-Dopo la consegna del motore l'utente ha chiesto interfaccia e grafica: 3D low-poly in stile televisivo, menu e scelta squadre, tabellone e statistiche dal vivo, regia (velocità, pausa, avanti, telecamere), replay dei gol, computer e telefono; la vista di debug resta separata. `public/index.html` + `public/app/` (la vecchia shell è in `shell.html`). Il motore ha ora l'intervallo (stato `half`, 3 s, poi batte la squadra 1) e eventi più ricchi (`goal.scorer`, `foul.player`, `offside.player`, `passOk/passLost.team`). Le statistiche dell'app seguono `tools/lib/matches.mjs`. Squadre predefinite con nomi e cognomi inventati. Rendering misurato ~1,3 ms per fotogramma (GTX 1050 Ti, 1024 × 768).
+Dopo la consegna del motore l'utente ha chiesto interfaccia e grafica: 3D low-poly in stile televisivo, menu e scelta squadre, tabellone e statistiche dal vivo, regia (velocità, pausa, avanti, telecamere), replay dei gol, computer e telefono; la vista di debug resta separata. `public/index.html` + `public/app/` (la vecchia shell è in `shell.html`). Il motore ha ora l'intervallo (stato `half`, 3 s, poi batte la squadra 1) e eventi più ricchi (`goal.scorer`, `foul.player`, `offside.player`, `passOk/passLost.team`). Le statistiche dell'app seguono `tools/lib/matches.mjs`. Squadre predefinite con nomi e cognomi inventati. Rendering misurato ~1,3 ms per fotogramma (GTX 1050 Ti, 1024 × 768). Pubblicata su GitHub Pages (ramo `gh-pages` scritto dal workflow `pages.yml`; il primo push sul ramo da un account utente ha attivato Pages), installabile con manifest e service worker. Audio sintetizzato con Web Audio in `public/app/audio.js` (pubblico che segue la posizione della palla, fischio su falli e infrazioni, inizio, intervallo e fine, calci, esultanza ai gol, "ooh" sui tiri fuori); i suoni dei singoli episodi solo fino a 2×.
 
 ## Out of scope
 
 - Codice, asset, nomi, loghi, squadre e giocatori Konami o reali. Protetti; non rientra nella destinazione clean-room.
 - Decompilazione o analisi binaria di PES6.
 - Controllo umano, schema dei tasti, giocabilità, modalità a 2 giocatori ([ticket](tickets/01-comandi.md)).
-- Audio. (Grafica, telecamera, animazioni, interfaccia e replay ora fatti: vedi "App e grafica".)
+- (Grafica, telecamera, animazioni, interfaccia, replay e audio ora fatti: vedi "App e grafica".)
 - Gioco online (relay, lockstep, rollback).
 - Campionati, editor, allenamento, carriera.
 

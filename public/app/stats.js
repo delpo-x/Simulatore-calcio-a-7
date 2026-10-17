@@ -10,7 +10,9 @@ export class MatchStats {
     const shoot = sim.shoot.bind(sim), s = this.s;
     sim.shoot = (p, ...a) => { // tiro in porta: la traiettoria (senza resistenza) entra tra i pali sotto la traversa (come tools/lib/matches.mjs)
       s.shots[p.team]++; const r = shoot(p, ...a), b = sim.ball, gx = sim.dir(p.team) * sim.pitch.hx, t = (gx - b.x) / (b.vx || 1e-9);
-      if (t > 0 && Math.abs(b.z + b.vz * t) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) s.onTarget[p.team]++; }
+      let on = false;
+      if (t > 0 && Math.abs(b.z + b.vz * t) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) { s.onTarget[p.team]++; on = true; } }
+      this.onShot?.(p, on);
       return r;
     };
   }

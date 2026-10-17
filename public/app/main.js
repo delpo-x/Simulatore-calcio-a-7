@@ -5,6 +5,7 @@ import { TVRenderer, contrast } from './render3d.js';
 import { MatchStats } from './stats.js';
 import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
+import { MatchAudio } from './audio.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -15,6 +16,8 @@ const ROLE = { Goalkeeper: 'POR', Defender: 'DIF', Midfielder: 'CEN', Forward: '
 const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M6 4.5h4.2v15H6zM13.8 4.5H18v15h-4.2z"/></svg>',
+  sound: '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3zM15.5 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18.3 5.7a9 9 0 0 1 0 12.6l-1.4-1.4a7 7 0 0 0 0-9.8z"/></svg>',
+  mute: '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3zM15 9.4l1.4-1.4 2.6 2.6 2.6-2.6L23 9.4 20.4 12l2.6 2.6-1.4 1.4-2.6-2.6-2.6 2.6-1.4-1.4 2.6-2.6z"/></svg>',
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 0h2v5h-5v-2h3z"/></svg>',
 };
 
@@ -137,6 +140,9 @@ function startMatch(seed) {
   const info = sim.players.map(p => { const i = byTeam[p.team].indexOf(p), l = lineups[p.team][i]; return { num: l.number, role: ROLE[l.position] ?? '', offRole: l.offRole }; });
   const { kits } = kitsFor(defs);
   G = { sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
+  A.start();
+  const kick = sim.kick.bind(sim); sim.kick = (p, dx, dz, sp, ...r) => { if (sounds()) A.kick(sp); return kick(p, dx, dz, sp, ...r); };
+  G.stats.onShot = (p, on) => { if (!on && sounds()) setTimeout(() => A.roar('ooh'), 350); };
   G.rec.onClip = clip => { if (cfg.autoReplay && !G.skipping && G.speed <= 4 && !G.replay) playClips([clip], true); };
 
   $('#menu').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
@@ -157,10 +163,31 @@ function startMatch(seed) {
   showLower(`${esc(defs[0].name)} <span class="vs-mini">contro</span> ${esc(defs[1].name)}`, 'intro', 3.5);
 }
 
+const A = new MatchAudio();
+const WHISTLE = new Set(['foul', 'offside', 'backpass', 'gkHold', 'dangerous', 'obstruction']);
+/** Suoni dei singoli episodi solo a velocita' normale (a 16x sarebbero un rumore continuo). */
+const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
+
 function tick() {
-  const s = G.sim; s.step();
+  const s = G.sim, before = s.state; s.step();
   const items = G.stats.step(); G.rec.step(s, items);
+  if (sounds()) {
+    if (before !== 'play' && before !== 'full' && s.state === 'play') A.whistle(1, 0.35); // calcio d'inizio
+    if (s.events.some(e => WHISTLE.has(e.t))) A.whistle();
+  }
+  if (!G.skipping && !G.replay && G.speed <= 4) for (const e of s.events) {
+    if (e.t === 'goal') A.roar('goal');
+    else if (e.t === 'half') A.whistle(2, 0.45);
+    else if (e.t === 'full') A.whistle(3, 0.5);
+  }
   if (items.length) onItems(items);
+}
+
+/** Pubblico: piu' rumoroso quando la palla e' vicina a una porta. */
+function crowdLevel() {
+  if (!G || G.paused || G.ended) return G?.ended ? 0.25 : 0.12;
+  const s = G.sim, x = Math.abs(s.ball.x) / s.pitch.hx;
+  return 0.3 + 0.7 * Math.max(0, Math.min(1, (x - 0.45) / 0.5));
 }
 
 const teamName = t => G.defs[t].name;
@@ -298,6 +325,7 @@ function showEnd() {
 function updateControls() {
   if (!G) return;
   $('#c-play').innerHTML = G.paused ? ICON.play : ICON.pause; $('#c-play').title = G.paused ? 'Riprendi (spazio)' : 'Pausa (spazio)';
+  $('#c-audio').innerHTML = A.muted ? ICON.mute : ICON.sound; $('#c-audio').title = A.muted ? 'Attiva l\'audio (M)' : 'Disattiva l\'audio (M)';
   $('#c-speed').textContent = `${G.speed}×`; $('#c-cam').textContent = CAMS[G.cam][1];
   $('#c-skip').disabled = $('#c-end').disabled = G.ended;
   $('#match').classList.toggle('paused', G.paused);
@@ -306,7 +334,7 @@ function setSpeed(i) { G.speed = SPEEDS[i]; updateControls(); }
 function cycleCam() { G.cam = (G.cam + 1) % CAMS.length; if (!G.replay) R.setCamera(CAMS[G.cam][0]); updateControls(); }
 function setPanel(open) { $('#panel').classList.toggle('open', open); $('#match').classList.toggle('with-panel', open); if (open) { renderStats(); renderLineups(); } }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
-function toMenu() { G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = false; if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
+function toMenu() { A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = false; if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
 
 function initControls() {
   $('#c-full').innerHTML = ICON.full;
@@ -319,6 +347,7 @@ function initControls() {
   $('#c-panel').onclick = () => setPanel(!$('#panel').classList.contains('open'));
   $('#panel-close').onclick = () => setPanel(false);
   $('#c-full').onclick = toggleFull;
+  $('#c-audio').onclick = () => { A.start(); A.setMuted(!A.muted); updateControls(); };
   $('#c-menu').onclick = toMenu;
   $('#rp-skip').onclick = () => { G.queue = []; endReplay(); };
   $$('#panel [data-tab]').forEach(b => b.onclick = () => {
@@ -339,6 +368,7 @@ function initControls() {
     else if (k === 'c') cycleCam();
     else if (k === 's') $('#c-panel').click();
     else if (k === 'f') toggleFull();
+    else if (k === 'm') $('#c-audio').click();
     else if (k === 'r') { const c = G.rec.clips.at(-1); if (c && !G.replay) playClips([c]); }
     else if (k === 'escape') { if (G.replay) $('#rp-skip').click(); else setPanel(false); }
     else if (k === '?') $('#help').showModal();
@@ -370,6 +400,7 @@ function frame(now) {
     if (bannerT > 0 && (bannerT -= dt) <= 0) $('#banner').hidden = true;
     if (lowerT > 0 && (lowerT -= dt) <= 0) $('#lower').hidden = true;
     if ((G.panelT += dt) > 1 && $('#panel').classList.contains('open')) { G.panelT = 0; if (!$('[data-body=stats]').hidden) renderStats(); }
+    if ((G.crowdT = (G.crowdT ?? 0) + dt) > 0.25) { G.crowdT = 0; A.setCrowd(crowdLevel()); }
   }
   requestAnimationFrame(frame);
 }

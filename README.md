@@ -4,7 +4,11 @@ Simulatore di partite di calcio a 7 (clean-room, originale): due squadre IA si a
 
 Sotto c'è una shell browser con relay WebSocket (`pes-web-shell`), lasciata com'è: non fa parte del simulatore (ora in `shell.html`).
 
-## Avvio
+## Online
+
+L'app è pubblicata su GitHub Pages: https://delpo-x.github.io/Simulatore-calcio-a-7/ (aggiornata a ogni push su `main` dal workflow `.github/workflows/pages.yml`, che copia `public/` sul ramo `gh-pages`). Dal telefono si può aggiungere alla schermata Home e funziona anche offline dopo la prima apertura.
+
+## Avvio in locale
 
 ```bash
 npm install
@@ -27,6 +31,7 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | Fine | | simula il resto della partita |
 | TV / Alto / Segui / Porta | C | telecamera |
 | Dati | S | cronaca, statistiche, formazioni |
+| Audio | M | pubblico, fischio, calci, esultanza (sintetizzati, nessun file audio) |
 | Schermo intero | F | |
 | | R | replay dell'ultimo gol |
 | | Esc | chiude replay o pannello |

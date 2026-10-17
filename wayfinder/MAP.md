@@ -83,6 +83,14 @@ Attivo di default (`regole.fuorigioco_attivo` = 1), solo nell'area piccola avver
 
 Su 600 partite neutre la squadra 1 vinceva 277 volte contro 217 e tirava il 24% di più (gol +0,26, z ≈ −2,9), anche prima delle regole nuove. Causa: ordine fisso di aggiornamento dei giocatori in `step()`; la squadra aggiornata per seconda vedeva già le posizioni nuove dell'altra. Invertendo l'ordine il vantaggio passava alla squadra 0. Ora l'ordine alterna a ogni passo (`ordered()`): tiri 6,720 contro 6,717 su 300 partite, gol entro 1σ su altre 300. Restano ordini fissi nei contrasti e nei recuperi in `stepBall()`: nessun effetto misurabile, da ricontrollare se compare un nuovo scarto.
 
+## Robustezza
+
+`npm run stress` (280 partite, 40 per formato da 5 a 11, semi 5000+): nessun blocco, valore non finito o giocatore fuori campo. Il primo giro ha trovato un difetto: `keepAway` (distanza minima su angolo e punizione) poteva spingere un difensore a oltre 4 m fuori dal campo; ora la posizione è limitata al campo. Gol medi per partita (non tarati fuori dal 7): 5 → 13,0, 6 → 11,4, 7 → 6,3, 8 → 3,9, 9 → 2,2, 10 → 1,7, 11 → 1,1.
+
+## Ritocco dopo l'ordine alternato
+
+Con l'ordine di aggiornamento alternato i tiri in porta erano 14,4 a partita (bersaglio 9–13). `shootEager`, `shootRange` e `forceShot` non incidono (il tiro forzato scatta entro `minScaled` = 3 m e domina). `laneWidth` sì: 1,2 → 1,6 m dà su 40 partite gol 4,97 e tiri in porta 11,6; 2,0 e 2,5 scendono a ~10,9 e gol ~4,7.
+
 ## Out of scope
 
 - Codice, asset, nomi, loghi, squadre e giocatori Konami o reali. Protetti; non rientra nella destinazione clean-room.

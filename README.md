@@ -23,6 +23,7 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5�
 |---|---|
 | `npm run test:game` | Test di gioco (micro e macro). Scrive `reports/test-game.md`. Richiede alcuni minuti. Opzione `-- --full` per la versione completa. |
 | `npm run matches -- --games 200 --players 7` | Registratore: gioca partite IA contro IA e stampa le statistiche (gol, tiri, passaggi, possesso, falli, cartellini). |
+| `npm run stress -- --games 40` | Prova di robustezza: partite con semi casuali a 5, 6, 7, 8, 9, 10 e 11 giocatori; segnala valori non finiti, giocatori fuori dal campo, palla ferma oltre 20 s e partite che non finiscono. Esce con 1 se trova problemi. |
 | `node public/core/sim.test.js` | Test della simulazione. |
 | `npm test` | Test del relay. |
 
@@ -37,9 +38,13 @@ Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti, senza sostituzioni.
 
 Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropassaggio e rinvio nell'area seguono le scelte del progetto.
 
+## Integrazione continua
+
+`.github/workflows/test.yml` esegue a ogni push i test del relay, della simulazione, `npm run test:game` e una prova di robustezza ridotta; il rapporto dei test viene salvato come artefatto.
+
 ## Parametri e taratura
 
-Tutti i valori regolabili stanno in `config/params.json` (letti da `npm run test:game` e `npm run matches`; i valori in `public/core/sim.js` sono i predefiniti del browser). I bersagli statistici sono in `config/targets.json`: gol 4–6, tiri in porta 9–13, passaggi 67–73%, possesso ~50%, ~8 falli e ~1 giallo a partita.
+Tutti i valori regolabili stanno in `config/params.json` (letti da `npm run test:game` e `npm run matches`; i valori in `public/core/sim.js` sono i predefiniti del browser). Solo il formato a 7 è tarato: gli altri (5–11) funzionano ma i numeri sono indicativi (a 5 e 6 giocatori molti gol, a 10 e 11 pochi). I bersagli statistici sono in `config/targets.json`: gol 4–6, tiri in porta 9–13, passaggi 67–73%, possesso ~50%, ~8 falli e ~1 giallo a partita.
 
 ## Squadre e attributi
 

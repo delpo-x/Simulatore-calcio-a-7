@@ -214,7 +214,7 @@
     "markWeight": 0.7,
     "containDist": 5,
     "forceShot": 5,
-    "laneWidth": 1.2,
+    "laneWidth": 1.6,
     "tackleDist": 1.6,
     "sprintFree": 12,
     "defenderLimit": -0.1,

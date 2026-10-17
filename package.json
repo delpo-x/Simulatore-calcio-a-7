@@ -8,7 +8,8 @@
     "start": "node server/relay.js",
     "test": "node server/relay.test.js",
     "test:game": "node tools/game-tests.mjs",
-    "matches": "node tools/run-matches.mjs"
+    "matches": "node tools/run-matches.mjs",
+    "stress": "node tools/stress.mjs"
   },
   "dependencies": {
     "three": "^0.170.0",

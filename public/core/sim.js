@@ -26,7 +26,7 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
-  shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.2, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  shootRange: 14, shootEager: 0.05, shotAngle: 3, shotAnglePerM: 1, tackleEager: 0.3, markWeight: 0.7, containDist: 5, forceShot: 5, laneWidth: 1.6, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passBase: 0.06, passPressed: 0.4, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 2.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9,
 };
@@ -679,7 +679,8 @@ export class Sim {
     const d = dist(p.x, p.z, x, z);
     if (d >= R) return;
     const ux = d > 1e-6 ? (p.x - x) / d : -this.dir(p.team), uz = d > 1e-6 ? (p.z - z) / d : 0;
-    p.x = x + ux * R; p.z = z + uz * R;
+    const pt = this.pitch; // la spinta non deve portare il giocatore fuori dal campo (angolo vicino alla linea di fondo)
+    p.x = clamp(x + ux * R, -pt.hx + 0.5, pt.hx - 0.5); p.z = clamp(z + uz * R, -pt.hz + 0.5, pt.hz - 0.5);
   }
 
   /** Esito del rischio di fallo su un contrasto: null, oppure { card: null | 'yellow' | 'red' }. */

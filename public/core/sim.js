@@ -548,7 +548,7 @@ export class Sim {
     const bl = this.ball, pt = this.pitch, owner = bl.owner >= 0 ? this.players[bl.owner] : null;
     const gk = owner?.gk ? owner : null, other = gk ? (a === gk ? b : b === gk ? a : null) : null;
     if (gk && other && d < RULES.dangerDist && this.rand() < RULES.dangerRate * DT) { // gioco pericoloso: avvicinarsi al portiere che ha la palla
-      this.events.push({ t: 'dangerous', team: other.team });
+      this.events.push({ t: 'dangerous', team: other.team, player: other.id });
       bl.owner = -1; bl.kicker = -1; bl.vx = bl.vy = bl.vz = 0;
       this.setPiece('indirect', gk.team, clamp(gk.x, -pt.hx + 1, pt.hx - 1), clamp(gk.z, -pt.hz + 1, pt.hz - 1));
       return true;
@@ -558,7 +558,7 @@ export class Sim {
     if (Math.min(da, db) < 1.5 || Math.max(da, db) > 12) return false; // uno dei due gioca la palla, oppure la palla e' lontana
     if (this.rand() >= RULES.obstructRate * DT) return false;
     const foul = da < db ? a : b, victim = foul === a ? b : a; // ostruisce chi sta tra la palla e l'avversario
-    this.events.push({ t: 'obstruction', team: foul.team });
+    this.events.push({ t: 'obstruction', team: foul.team, player: foul.id });
     this.setPiece('indirect', victim.team, clamp(victim.x, -pt.hx + 1, pt.hx - 1), clamp(victim.z, -pt.hz + 1, pt.hz - 1));
     return true;
   }

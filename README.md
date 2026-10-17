@@ -36,7 +36,7 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | | R | replay dell'ultimo gol |
 | | Esc | chiude replay o pannello |
 
-Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, statistiche principali, seme, **Rivedi i gol**, **Rigioca**, **Menu**.
+Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. La telecronaca testuale (tiri, parate, assist, lanci, recuperi, ingressi in area, falli, angoli; circa 3 frasi al minuto) scorre nella cronaca e come sottotitolo sopra la regia; si attiva o disattiva nella scheda Cronaca. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, statistiche principali, seme, **Rivedi i gol**, **Rigioca**, **Menu**.
 
 Le statistiche dell'app (tiri, tiri in porta, passaggi, possesso) si calcolano come nel registratore `tools/lib/matches.mjs`.
 
@@ -81,7 +81,7 @@ Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, e
 ## Struttura
 
 - `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
-- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche `stats.js`, replay `replay.js`, squadre `teams.js`, `main.js`).
+- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche `stats.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
 - `public/debug.html`: vista di debug.
 - `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
 - `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).

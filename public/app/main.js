@@ -6,6 +6,7 @@ import { MatchStats } from './stats.js';
 import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
 import { MatchAudio } from './audio.js';
+import { Commentary } from './commentary.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -26,7 +27,7 @@ const ICON = {
 const MENU_KEY = 'calcio7.menu';
 function loadMenu() {
   let m = null; try { m = JSON.parse(localStorage.getItem(MENU_KEY)); } catch { /* niente */ }
-  return { perTeam: 7, half: 25, seed: '', autoReplay: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
+  return { perTeam: 7, half: 25, seed: '', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
 }
 function saveMenu() { try { localStorage.setItem(MENU_KEY, JSON.stringify(cfg)); } catch { /* niente */ } }
 
@@ -142,6 +143,7 @@ function startMatch(seed) {
   G = { sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
   A.start();
   const kick = sim.kick.bind(sim); sim.kick = (p, dx, dz, sp, ...r) => { if (sounds()) A.kick(sp); return kick(p, dx, dz, sp, ...r); };
+  G.cm = new Commentary(sim, { name: id => G.stats.name(id), team: t => defs[t].name });
   G.stats.onShot = (p, on) => { if (!on && sounds()) setTimeout(() => A.roar('ooh'), 350); };
   G.rec.onClip = clip => { if (cfg.autoReplay && !G.skipping && G.speed <= 4 && !G.replay) playClips([clip], true); };
 
@@ -181,6 +183,8 @@ function tick() {
     else if (e.t === 'full') A.whistle(3, 0.5);
   }
   if (items.length) onItems(items);
+  const lines = G.cm.step();
+  if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); }
 }
 
 /** Pubblico: piu' rumoroso quando la palla e' vicina a una porta. */
@@ -221,6 +225,7 @@ const FEED = {
   penalty: it => `Rigore per ${esc(teamName(it.team))}`,
   half: it => `<b>Fine primo tempo</b> <span class="sc">${it.score[0]}-${it.score[1]}</span>`,
   full: it => `<b>Fine partita</b> <span class="sc">${it.score[0]}-${it.score[1]}</span>`,
+  cm: it => esc(it.text),
 };
 
 function addFeed(it) {
@@ -252,7 +257,11 @@ function renderLineups() {
 
 // ---------------------------------------------------------------- banner
 
-let bannerT = 0, lowerT = 0;
+let bannerT = 0, lowerT = 0, captionT = 0;
+function showCaption(text) {
+  const c = $('#caption'); c.textContent = text; c.hidden = false;
+  c.classList.remove('in'); void c.offsetWidth; c.classList.add('in'); captionT = 4;
+}
 function showBanner(html, team, secs) {
   const b = $('#banner'); b.innerHTML = html; b.hidden = false; b.style.setProperty('--c', team >= 0 ? G.kits[team].shirt : '#e8edf5');
   b.classList.remove('in'); void b.offsetWidth; b.classList.add('in'); bannerT = secs;
@@ -355,6 +364,10 @@ function initControls() {
     $$('#panel [data-body]').forEach(x => { x.hidden = x.dataset.body !== b.dataset.tab; });
     if (b.dataset.tab === 'stats') renderStats(); if (b.dataset.tab === 'lineups') renderLineups();
   });
+  const cmOpt = () => { $('#feed').classList.toggle('no-cm', !cfg.commentary); if (!cfg.captions) $('#caption').hidden = true; saveMenu(); };
+  $('#opt-cm').checked = cfg.commentary; $('#opt-cap').checked = cfg.captions; cmOpt();
+  $('#opt-cm').onchange = e => { cfg.commentary = e.target.checked; cmOpt(); };
+  $('#opt-cap').onchange = e => { cfg.captions = e.target.checked; cmOpt(); };
   $('#e-replays').onclick = () => playClips(G.rec.clips);
   $('#e-view').onclick = () => { $('#end').hidden = true; };
   $('#e-again').onclick = () => startMatch(cfg.seed ? +cfg.seed : undefined);
@@ -399,6 +412,7 @@ function frame(now) {
     $('#period').textContent = s.state === 'full' ? 'FIN' : s.state === 'half' ? 'INT' : s.matchTime >= s.halfLength ? '2T' : '1T';
     if (bannerT > 0 && (bannerT -= dt) <= 0) $('#banner').hidden = true;
     if (lowerT > 0 && (lowerT -= dt) <= 0) $('#lower').hidden = true;
+    if (captionT > 0 && ((captionT -= dt) <= 0 || G.replay)) { captionT = 0; $('#caption').hidden = true; }
     if ((G.panelT += dt) > 1 && $('#panel').classList.contains('open')) { G.panelT = 0; if (!$('[data-body=stats]').hidden) renderStats(); }
     if ((G.crowdT = (G.crowdT ?? 0) + dt) > 0.25) { G.crowdT = 0; A.setCrowd(crowdLevel()); }
   }

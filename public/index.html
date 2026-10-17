@@ -60,6 +60,7 @@
 
   <div id="replay-tag" hidden><span class="rp-label">REPLAY</span><span class="rp-bar"><i></i></span><button id="rp-skip" class="ghost small">Salta</button></div>
 
+  <div id="caption" hidden></div>
   <div id="banner" hidden></div>
   <div id="lower" hidden></div>
 
@@ -82,7 +83,10 @@
       <button role="tab" data-tab="lineups">Formazioni</button>
       <button class="close" id="panel-close" title="Chiudi">×</button>
     </div>
-    <div class="tab-body" data-body="feed"><ol id="feed"></ol></div>
+    <div class="tab-body" data-body="feed">
+      <div class="feed-opts"><label><input type="checkbox" id="opt-cm"> Telecronaca</label><label><input type="checkbox" id="opt-cap"> Sottotitoli sul campo</label></div>
+      <ol id="feed"></ol>
+    </div>
     <div class="tab-body" data-body="stats" hidden><div id="stats"></div></div>
     <div class="tab-body" data-body="lineups" hidden><div id="lineups"></div></div>
   </aside>
@@ -126,7 +130,7 @@
     <tr><td><kbd>M</kbd></td><td>audio sì / no (pubblico, fischio, calci; i suoni dei singoli episodi solo fino a 2×)</td></tr>
     <tr><td><kbd>Esc</kbd></td><td>chiude il replay o il pannello</td></tr>
   </table>
-  <p>Nella cronaca, tocca un gol per rivederlo. <b>+1′</b> avanza di un minuto di gioco, <b>Fine</b> simula il resto della partita.</p>
+  <p>La telecronaca racconta tiri, parate, lanci, recuperi, falli e angoli nella cronaca e, se vuoi, come sottotitolo sul campo (si attivano nella scheda Cronaca). Nella cronaca, tocca un gol per rivederlo. <b>+1′</b> avanza di un minuto di gioco, <b>Fine</b> simula il resto della partita.</p>
   <form method="dialog"><button class="primary">Ho capito</button></form>
 </dialog>
 

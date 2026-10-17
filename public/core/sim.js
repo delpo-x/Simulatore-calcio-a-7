@@ -131,6 +131,7 @@ export class Sim {
     // kicking team's most advanced outfielder starts on the ball
     const kicker = live.filter(p => p.team === kickTeam && !p.gk).sort((a, c) => (c.home.x - a.home.x))[0];
     kicker.x = -this.dir(kickTeam) * 0.8; kicker.z = 0; this.giveBall(kicker);
+    this.setKind = { kind: 'kickoff', taker: kicker.id }; // chi batte passa la palla a un compagno (aiCarrier)
     // distanze minime tra giocatori (2 m), poi avversari a 6 m dal pallone
     for (let pass = 0; pass < 3; pass++) for (const p of live) {
       if (p === kicker) continue;
@@ -160,7 +161,7 @@ export class Sim {
       if (this.state === 'play' && p.team === om.team && om.ids.includes(p.id)) return this.callOffside(p);
     }
     const lp = this.lastPass;
-    if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost' }); }
+    if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost', team: lp.team }); }
     this.ball.owner = p.id; this.ball.last = p.id; this.ball.kicker = -1; p.kickCd = 0;
     if (this.setKind && p.id !== this.setKind.taker) this.setKind = null;
     if (this.indirect && p.id !== this.indirect.taker) this.indirect = null; // secondo tocco: la punizione indiretta e' valida
@@ -176,12 +177,17 @@ export class Sim {
     if (this.state === 'full') return;
     if (this.state !== 'play') {
       this.stateT -= DT;
-      if (this.stateT <= 0) { if (this.state === 'goal') this.resetPositions(this.kickTeam); this.state = 'play'; }
+      if (this.stateT <= 0) {
+        if (this.state === 'goal') this.resetPositions(this.kickTeam);
+        if (this.state === 'half') { this.indirect = null; this.setKind = null; this.offsideMark = null; this.resetPositions(1); } // secondo tempo: batte la squadra che non ha battuto l'inizio
+        this.state = 'play';
+      }
     } else {
       this.matchTime += DT;
       if (this.matchTime >= this.halfLength * 2) { this.state = 'full'; ev.push({ t: 'full' }); return; }
+      if (!this.halfDone && this.matchTime >= this.halfLength) { this.halfDone = true; this.state = 'half'; this.stateT = 3; ev.push({ t: 'half' }); return; }
     }
-    const frozen = this.state === 'goal';
+    const frozen = this.state === 'goal' || this.state === 'half';
     const ow = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
     if (ow && ow.team !== this.possTeam) { this.possTeam = ow.team; this.possT = 0; } else this.possT += DT;
     for (let t = 0; t < 2; t++) this.pickActive(t);
@@ -378,6 +384,11 @@ export class Sim {
     const opps = this.players.filter(q => q.team !== p.team && !q.out);
     const po = Math.min(...opps.map(q => dist(q.x, q.z, p.x, p.z)));
     const hold = { tx: p.x, tz: p.z, sprint: false }, range = this.sc(AI.shootRange);
+    if (this.setKind?.kind === 'kickoff' && this.setKind.taker === p.id) { // calcio d'inizio: palla a un compagno, non una corsa verso la porta
+      const mates = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out);
+      const q = this.bestPass(p) ?? mates.reduce((m, q) => !m || dist(q.x, q.z, p.x, p.z) < dist(m.x, m.z, p.x, p.z) ? q : m, null);
+      if (q) { this.passTo(p, q, false); return hold; }
+    }
     if (dg < range && !this.indirect && this.laneClear(p, gx) && ((AI.forceShot > 0 && dg < this.sc(AI.forceShot)) || this.rand() < AI.shootEager * (1 - dg / range) ** 2)) {
       const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, (this.setKind?.taker === p.id && this.setKind.kind === 'penalty' ? p.k.penaltyErr : this.setKind?.taker === p.id && this.setKind.kind === 'free' ? p.k.freeKickErr : dg < this.sc(16) ? p.k.shotNear : p.k.shotFar)) * Math.PI / 180;
       this.shoot(p, Math.atan2(-p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
@@ -612,7 +623,7 @@ export class Sim {
     if (Math.abs(b.x) > this.pitch.hx) {
       if (Math.abs(b.z) < this.pitch.goalHalf && b.y < this.pitch.goalH && !this.indirect) {
         const team = b.x > 0 ? 0 : 1;
-        this.score[team]++; this.state = 'goal'; this.stateT = 2.5; this.kickTeam = 1 - team; this.events.push({ t: 'goal', team });
+        this.score[team]++; this.state = 'goal'; this.stateT = 2.5; this.kickTeam = 1 - team; this.events.push({ t: 'goal', team, scorer: b.last });
         return;
       }
       this.restart(b.x > 0 ? 1 : -1, 0);
@@ -622,7 +633,7 @@ export class Sim {
   /** Retropassaggio (regolamento a 11, ipotesi per il girone): il portiere prende con le mani una palla calciata volontariamente da un compagno -> punizione indiretta. */
   callOffside(p) {
     const pt = this.pitch, b = this.ball;
-    this.events.push({ t: 'offside', team: p.team });
+    this.events.push({ t: 'offside', team: p.team, player: p.id });
     this.lastPass = null; b.owner = -1; b.kicker = -1; b.vx = b.vy = b.vz = 0;
     this.setPiece('indirect', 1 - p.team, clamp(p.x, -pt.hx + 1, pt.hx - 1), clamp(p.z, -pt.hz + 1, pt.hz - 1));
   }
@@ -705,7 +716,7 @@ export class Sim {
     if (card === 'blue' && full) this.suspend(q);
     if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
-    this.events.push({ t: 'foul', team: q.team, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
+    this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
     if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo
       const mates = this.players.filter(r => r.team === q.team && !r.out && !r.gk && !r.blueUntil);
       if (mates.length) { const m = mates[Math.floor(this.rand() * mates.length)]; this.suspend(m); this.events.push({ t: 'protest', team: m.team, player: m.id }); }

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Web Shell</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Web Shell</h1>
+  <nav>
+    <button id="btn-full">Pantalla completa</button>
+    <button id="btn-controls">Controles</button>
+  </nav>
+</header>
+
+<main>
+  <section id="launcher">
+    <h2>Lanzador</h2>
+    <label>Comentarios
+      <select id="commentary">
+        <option value="es">Original (español)</option>
+        <option value="ar">Argentina</option>
+        <option value="none">Sin comentarios (más ligero)</option>
+      </select>
+    </label>
+    <label>Ruta del núcleo (módulo ES con <code>export default</code>)
+      <input id="core-url" placeholder="vacío = motor de fútbol · demo = núcleo de prueba">
+    </label>
+    <button id="btn-start" class="primary">Iniciar</button>
+    <p class="note">El shell no incluye ningún juego. Aporta tu propio núcleo y datos.</p>
+  </section>
+
+  <section id="stage" hidden>
+    <canvas id="screen" width="480" height="272"></canvas>
+    <div id="touch" hidden></div>
+  </section>
+
+  <section id="panel">
+    <div class="tabs" role="tablist"></div>
+
+    <div class="tab" data-tab="general">
+      <label>Volumen <input type="range" id="s-volume" min="0" max="100"></label>
+      <label><input type="checkbox" id="s-skipIntro"> Saltar intro</label>
+      <label>Idioma
+        <select id="s-language"><option value="es">Español</option><option value="en">English</option></select>
+      </label>
+      <label>Descarga
+        <select id="s-download"><option value="stream">Streaming mientras juegas</option><option value="background">Segundo plano</option></select>
+      </label>
+      <label><input type="checkbox" id="s-touch"> Controles táctiles</label>
+    </div>
+
+    <div class="tab" data-tab="graphics" hidden>
+      <label>Renderizador
+        <select id="s-renderer"><option value="webgl2">WebGL2</option><option value="webgpu">WebGPU</option><option value="software">Software (480x272)</option></select>
+      </label>
+      <label>FPS
+        <select id="s-fps"><option value="30">30</option><option value="60">60 (experimental)</option></select>
+      </label>
+      <label>Resolución interna
+        <select id="s-scale"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option></select>
+      </label>
+      <label><input type="checkbox" id="s-smooth"> Suavizado</label>
+    </div>
+
+    <div class="tab" data-tab="saves" hidden>
+      <input type="file" id="save-upload" multiple webkitdirectory hidden>
+      <input type="file" id="save-upload-zip" accept=".zip" hidden>
+      <button id="btn-upload-zip">Subir .zip</button>
+      <button id="btn-upload-dir">Subir carpeta</button>
+      <button id="btn-download-saves">Descargar todo (.zip)</button>
+      <ul id="save-list"></ul>
+    </div>
+
+    <div class="tab" data-tab="online" hidden>
+      <label>Servidor <input id="o-server" placeholder="ws://localhost:8080/ws"></label>
+      <label>Apodo <input id="o-nick" maxlength="24"></label>
+      <button id="btn-connect">Conectar</button>
+      <span id="o-status">desconectado</span>
+      <div id="o-create">
+        <input id="o-room-name" placeholder="Nombre de sala">
+        <input id="o-room-pass" placeholder="Contraseña (opcional)">
+        <label><input type="checkbox" id="o-room-priv"> Privada</label>
+        <button id="btn-create-room">Crear sala</button>
+        <button id="btn-leave-room" hidden>Salir de la sala</button>
+      </div>
+      <ul id="room-list"></ul>
+    </div>
+
+    <div class="tab" data-tab="data" hidden>
+      <button id="btn-clear-data" class="danger">Borrar datos descargados</button>
+      <p id="data-info"></p>
+    </div>
+
+    <div class="tab" data-tab="chat" hidden>
+      <div id="chat-log"></div>
+      <form id="chat-form"><input id="chat-input" autocomplete="off" maxlength="200"><button>Enviar</button></form>
+    </div>
+
+    <div class="tab" data-tab="log" hidden><pre id="log"></pre></div>
+
+    <div class="tab" data-tab="advanced" hidden>
+      <label>pes6.ini</label>
+      <textarea id="s-ini" rows="10" spellcheck="false"></textarea>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg-controls">
+  <h2>Controles</h2>
+  <p>Jugador <select id="map-player"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></p>
+  <table id="map-table"></table>
+  <div class="row">
+    <button id="map-auto">Auto</button>
+    <button id="map-save">Guardar mapeo</button>
+    <button id="map-load">Cargar mapeo</button>
+    <input type="file" id="map-file" accept=".json" hidden>
+    <button id="map-close" class="primary">Cerrar</button>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 # Simulatore calcio a 7
 
-Simulatore di partite di calcio a 7 (clean-room, originale): due squadre IA si affrontano, senza controllo umano. Si osserva la partita in una vista 3D di debug e si misura il comportamento con test numerici.
+Simulatore di partite di calcio a 7 (clean-room, originale): due squadre IA si affrontano, senza controllo umano. Si guarda la partita in 3D con grafica televisiva, oppure nella vista di debug, e si misura il comportamento con test numerici.
 
-Sotto c'è una shell browser con relay WebSocket (`pes-web-shell`), lasciata com'è: non fa parte del simulatore.
+Sotto c'è una shell browser con relay WebSocket (`pes-web-shell`), lasciata com'è: non fa parte del simulatore (ora in `shell.html`).
 
 ## Avvio
 
@@ -11,7 +11,29 @@ npm install
 npm start
 ```
 
-Poi apri http://localhost:8080/debug.html.
+Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (vista di debug). Funziona su computer e telefono.
+
+## Guida all'app
+
+**Menu.** Per ogni lato scegli una squadra predefinita (nomi inventati) o una tua. Puoi cambiare nome, sigla, colori di maglia, calzoncini, calzettoni e portiere, modulo e livello (8–20), poi **Salva**: la squadra resta nel browser. **Carica file squadra** legge un file JSON con giocatori e attributi (esempio: `public/app/esempio-squadra.json`). Opzioni: giocatori per squadra (solo il 7 è tarato), durata di un tempo (25 minuti è il regolamentare), seme (vuoto = casuale; stesso seme e stesse squadre = stessa partita), replay automatico dei gol. Se le maglie si somigliano, gli ospiti usano la seconda maglia.
+
+**Partita.** In alto il tabellone (sigle, punteggio, tempo, 1T/INT/2T/FIN). In basso la regia:
+
+| Pulsante | Tasto | Cosa fa |
+|---|---|---|
+| Pausa | Spazio | ferma e riprende |
+| 1× … 16× | 1–5 | velocità |
+| +1′ | | avanza di un minuto di gioco |
+| Fine | | simula il resto della partita |
+| TV / Alto / Segui / Porta | C | telecamera |
+| Dati | S | cronaca, statistiche, formazioni |
+| Schermo intero | F | |
+| | R | replay dell'ultimo gol |
+| | Esc | chiude replay o pannello |
+
+Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, statistiche principali, seme, **Rivedi i gol**, **Rigioca**, **Menu**.
+
+Le statistiche dell'app (tiri, tiri in porta, passaggi, possesso) si calcolano come nel registratore `tools/lib/matches.mjs`.
 
 ## Vista di debug
 
@@ -31,6 +53,7 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5�
 
 Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti, senza sostituzioni.
 
+- Calcio d'inizio (anche dopo ogni gol e a inizio ripresa, intervallo di 3 s): il battitore passa a un compagno.
 - Falli, ammonizione, espulsione, rigore, punizione, angolo, rinvio, rimessa.
 - Cartellino azzurro: 5 minuti fuori, poi rientro. Nasce da un fallo o da proteste.
 - Punizione indiretta per: retropassaggio al portiere, portiere che trattiene la palla oltre 6 s, gioco pericoloso (avversario addosso al portiere in possesso), ostruzione, fuorigioco.
@@ -53,10 +76,11 @@ Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, e
 ## Struttura
 
 - `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
+- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche `stats.js`, replay `replay.js`, squadre `teams.js`, `main.js`).
 - `public/debug.html`: vista di debug.
 - `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
 - `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).
-- `server/`, `public/js/`: shell e relay (non usati dal simulatore).
+- `server/`, `public/js/`, `public/shell.html`: shell e relay (non usati dal simulatore).
 
 ## Relay (shell)
 

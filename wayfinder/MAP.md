@@ -26,7 +26,7 @@ Una **specifica con roadmap** per un motore di **simulazione** di partite di cal
 ## Decisions so far
 
 - [Sensazione dei comandi](tickets/01-comandi.md): chiuso fuori perimetro, non serve controllo umano.
-- [Stile e telecamera](tickets/03-telecamera.md): chiuso fuori perimetro, la grafica non è un obiettivo.
+- [Stile e telecamera](tickets/03-telecamera.md): chiuso fuori perimetro, la grafica non è un obiettivo. Riaperto dopo la consegna del simulatore: vedi "App e grafica".
 - [Modello di palla, tiro e passaggio](tickets/02-palla.md): bersagli accettati (passaggio 18 m/s copre 20 m in ~1.3 s, tiro 25–32 m/s, rotolamento ~1–2 m/s², lob 20–30 m con un rimbalzo); oggi la palla rallenta troppo.
 
 - [Movimento e possesso palla](tickets/04-movimento-possesso.md): corsa 6,0 e sprint 8,0 m/s, costante di accelerazione 0,6 s, stamina semplice, palla a 0,5 m + 0,08 × velocità, contrasto 55% di base, urti con stordimento sopra 6 m/s.
@@ -91,12 +91,20 @@ Su 600 partite neutre la squadra 1 vinceva 277 volte contro 217 e tirava il 24% 
 
 Con l'ordine di aggiornamento alternato i tiri in porta erano 14,4 a partita (bersaglio 9–13). `shootEager`, `shootRange` e `forceShot` non incidono (il tiro forzato scatta entro `minScaled` = 3 m e domina). `laneWidth` sì: 1,2 → 1,6 m dà su 40 partite gol 4,97 e tiri in porta 11,6; 2,0 e 2,5 scendono a ~10,9 e gol ~4,7.
 
+## Calcio d'inizio
+
+Prima il battitore partiva palla al piede verso la porta: 6 gol su 213 (2,8%) entro 10 s dall'inizio o dalla ripresa, 2 entro 6 s. Ora `resetPositions` segna `setKind` = `kickoff` e l'IA del battitore passa a un compagno (miglior passaggio, altrimenti il più vicino). Su 40 partite (semi 9000+): 0 gol entro 10 s, gol 5,15, tiri in porta 12,7, passaggi 71%, possesso 50%. Test `regole.calcio_inizio.passaggio`.
+
+## App e grafica
+
+Dopo la consegna del motore l'utente ha chiesto interfaccia e grafica: 3D low-poly in stile televisivo, menu e scelta squadre, tabellone e statistiche dal vivo, regia (velocità, pausa, avanti, telecamere), replay dei gol, computer e telefono; la vista di debug resta separata. `public/index.html` + `public/app/` (la vecchia shell è in `shell.html`). Il motore ha ora l'intervallo (stato `half`, 3 s, poi batte la squadra 1) e eventi più ricchi (`goal.scorer`, `foul.player`, `offside.player`, `passOk/passLost.team`). Le statistiche dell'app seguono `tools/lib/matches.mjs`. Squadre predefinite con nomi e cognomi inventati. Rendering misurato ~1,3 ms per fotogramma (GTX 1050 Ti, 1024 × 768).
+
 ## Out of scope
 
 - Codice, asset, nomi, loghi, squadre e giocatori Konami o reali. Protetti; non rientra nella destinazione clean-room.
 - Decompilazione o analisi binaria di PES6.
 - Controllo umano, schema dei tasti, giocabilità, modalità a 2 giocatori ([ticket](tickets/01-comandi.md)).
-- Grafica, telecamera, animazioni, audio, interfaccia, replay ([ticket](tickets/03-telecamera.md)).
+- Audio. (Grafica, telecamera, animazioni, interfaccia e replay ora fatti: vedi "App e grafica".)
 - Gioco online (relay, lockstep, rollback).
 - Campionati, editor, allenamento, carriera.
 
@@ -106,7 +114,7 @@ Con l'ordine di aggiornamento alternato i tiri in porta erano 14,4 a partita (be
 |---|---|---|---|
 | [Sensazione dei comandi](tickets/01-comandi.md) | grilling | chiuso, fuori perimetro | - |
 | [Modello di palla, tiro e passaggio](tickets/02-palla.md) | prototype | chiuso | - |
-| [Stile e telecamera](tickets/03-telecamera.md) | prototype | chiuso, fuori perimetro | - |
+| [Stile e telecamera](tickets/03-telecamera.md) | prototype | fatto (app 3D) | - |
 | [Movimento e possesso palla](tickets/04-movimento-possesso.md) | grilling | chiuso | - |
 | [Test di gioco e taratura](tickets/05-test-taratura.md) | grilling | chiuso | - |
 | [Regole e riprese del gioco](tickets/06-regole.md) | grilling | chiuso | - |

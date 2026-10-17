@@ -322,6 +322,20 @@ export function offsideTrial() {
   return out;
 }
 
+/** Calcio d'inizio: quota di inizi in cui chi batte passa la palla a un compagno entro 1,5 s (invece di partire palla al piede). */
+export function kickoffTrial({ n = 200 } = {}) {
+  let passed = 0;
+  for (let i = 0; i < n; i++) {
+    const s = new Sim({ perTeam: 7, seed: 100 + i, halfLength: 600 });
+    if (i % 2) s.resetPositions(1);
+    const kicker = s.players[s.ball.owner]; let ok = false;
+    const passTo = s.passTo.bind(s); s.passTo = (p, ...a) => { if (p === kicker) ok = true; return passTo(p, ...a); };
+    for (let k = 0; k < (1 + 1.5) / DT && !ok; k++) s.step([null, null]);
+    passed += ok;
+  }
+  return { pass_rate: passed / n };
+}
+
 /** Il portiere trattiene la palla oltre il limite: punizione indiretta agli avversari; entro il limite nessuna infrazione. */
 export function gkHoldTrial() {
   const out = {};

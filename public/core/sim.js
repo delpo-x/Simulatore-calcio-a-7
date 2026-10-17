@@ -9,7 +9,7 @@ export const DT = 1 / 60;
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
-export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick', 'gkHold', 'obstruction', 'dangerousPlay']);
+export const FEATURES = new Set(['stamina', 'tackleProbability', 'collisionStun', 'configurablePitch', 'schemes', 'fouls', 'setPieces', 'aiScaling', 'attributes', 'cardsDuration', 'backPass', 'indirectKick', 'gkHold', 'obstruction', 'dangerousPlay', 'offside']);
 
 /** Movimento e possesso (ticket 04; specchio di config/params.json, sezione "movimento"). */
 export const MOVE = {
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2,
+  foulProb: 0.023, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -98,7 +98,7 @@ export class Sim {
     this.prev = [0, 0]; this.charge = [0, 0]; this.active = [0, 0];
     this.players = [];
     this.pitch = pitch ?? pitchFor(perTeam);
-    this.sentOff = [0, 0]; this.indirect = null;
+    this.sentOff = [0, 0]; this.indirect = null; this.offsideMark = null;
     this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
     this.possTeam = 0; this.possT = 0; this.lastPass = null;
     this.form = [0, 1].map(() => (this.rand() - 0.5) * 2 * AI.formSpread); // forma di giornata: sposta la probabilita' di vincere i contrasti
@@ -143,7 +143,22 @@ export class Sim {
     }
   }
 
+  /** Fuorigioco nell'area piccola (dato del progetto): chi e' nell'area piccola avversaria quando un compagno calcia, e tocca per primo la palla, e' in fuorigioco. Esenti angolo, rinvio e rimessa. */
+  markOffside(p) {
+    this.offsideMark = null;
+    const k = this.setKind;
+    if (!RULES.offside || (k?.taker === p.id && (k.kind === 'corner' || k.kind === 'goalkick' || k.kind === 'throwin'))) return;
+    const pt = this.pitch, d = this.dir(p.team);
+    const ids = this.players.filter(q => q.team === p.team && q.id !== p.id && !q.gk && !q.out && Math.sign(q.x) === d && Math.abs(q.x) > pt.hx - RULES.smallAreaDepth && Math.abs(q.z) < RULES.smallAreaWidth / 2).map(q => q.id);
+    if (ids.length) this.offsideMark = { team: p.team, ids };
+  }
+
   giveBall(p) {
+    const om = this.offsideMark;
+    if (om) {
+      this.offsideMark = null;
+      if (this.state === 'play' && p.team === om.team && om.ids.includes(p.id)) return this.callOffside(p);
+    }
     const lp = this.lastPass;
     if (lp) { this.lastPass = null; if (p.id !== lp.id) this.events.push({ t: p.team === lp.team ? 'passOk' : 'passLost' }); }
     this.ball.owner = p.id; this.ball.last = p.id; this.ball.kicker = -1; p.kickCd = 0;
@@ -215,6 +230,7 @@ export class Sim {
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
+    this.markOffside(p);
     this.lastPass = null; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
@@ -601,6 +617,13 @@ export class Sim {
   }
 
   /** Retropassaggio (regolamento a 11, ipotesi per il girone): il portiere prende con le mani una palla calciata volontariamente da un compagno -> punizione indiretta. */
+  callOffside(p) {
+    const pt = this.pitch, b = this.ball;
+    this.events.push({ t: 'offside', team: p.team });
+    this.lastPass = null; b.owner = -1; b.kicker = -1; b.vx = b.vy = b.vz = 0;
+    this.setPiece('indirect', 1 - p.team, clamp(p.x, -pt.hx + 1, pt.hx - 1), clamp(p.z, -pt.hz + 1, pt.hz - 1));
+  }
+
   backPass(gk) {
     const b = this.ball, k = b.kicker >= 0 ? this.players[b.kicker] : null;
     if (!k || k.team !== gk.team || k.gk || !b.toGk || this.state !== 'play') return false;
@@ -625,6 +648,7 @@ export class Sim {
   /** Riprese da fermo: rimessa, rinvio, angolo, punizione e rigore, con le distanze regolamentari. */
   setPiece(kind, team, x, z) {
     const b = this.ball, pt = this.pitch;
+    this.offsideMark = null;
     const own = this.players.filter(p => p.team === team && !p.out);
     const pool = kind === 'goalkick' ? own.filter(p => p.gk) : own.filter(p => !p.gk);
     const taker = pool.reduce((m, p) => dist(p.x, p.z, x, z) < dist(m.x, m.z, x, z) ? p : m);

@@ -304,6 +304,24 @@ export function turnTrial() {
   return out;
 }
 
+/** Fuorigioco nell'area piccola: passaggio a un compagno dentro l'area piccola avversaria -> fuorigioco e indiretta; fuori dall'area piccola -> nessuna infrazione; da angolo -> esente. */
+export function offsideTrial() {
+  const out = {}, run = (tag, rx, corner = false) => {
+    const s = quiet(), k = s.players[3], r = s.players[4], pt = s.pitch;
+    s.aiControl = () => ({ mx: 0, mz: 0, sprint: false });
+    Object.assign(k, { x: pt.hx - 15, z: 0 }); Object.assign(r, { x: pt.hx - rx, z: 0, kickCd: 0 });
+    Object.assign(s.ball, { x: k.x, z: 0, y: 0.11, owner: -1, vx: 0, vz: 0 });
+    if (corner) s.setKind = { kind: 'corner', taker: k.id };
+    s.kick(k, 1, 0, 14, 0);
+    let ev = false;
+    for (let i = 0; i < 3 / DT && !ev; i++) { s.step([null, null]); ev = s.events.some(e => e.t === 'offside'); }
+    out[tag] = Number(ev);
+    if (tag === 'dentro') out.dentro_indirect = Number(!!s.indirect);
+  };
+  run('dentro', 3); run('fuori', 9); run('angolo', 3, true);
+  return out;
+}
+
 /** Il portiere trattiene la palla oltre il limite: punizione indiretta agli avversari; entro il limite nessuna infrazione. */
 export function gkHoldTrial() {
   const out = {};

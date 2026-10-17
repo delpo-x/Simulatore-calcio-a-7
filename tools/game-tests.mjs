@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
 import { configSync } from './lib/config.mjs';
-import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, teamValidation, teamDeterminism, equalTeams, sendOffTrial, backPassTrial, gkHoldTrial, turnTrial, indirectInfractionTrial, opponentPassToKeeper, indirectKickTrial, skillFormula } from './lib/micro.mjs';
+import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, teamValidation, teamDeterminism, equalTeams, sendOffTrial, backPassTrial, gkHoldTrial, offsideTrial, turnTrial, indirectInfractionTrial, opponentPassToKeeper, indirectKickTrial, skillFormula } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -41,6 +41,7 @@ const scenarios = {
   sendOffTrial: () => sendOffTrial(),
   backPassTrial: () => backPassTrial(),
   gkHoldTrial: () => gkHoldTrial(),
+  offsideTrial: () => offsideTrial(),
   turnTrial: () => turnTrial(),
   indirectInfractionTrial: () => indirectInfractionTrial(),
   opponentPassToKeeper: () => opponentPassToKeeper(),

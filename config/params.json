@@ -99,11 +99,9 @@
     "fallo_giallo_su_fallo": 0.125,
     "fallo_rosso_su_fallo": 0.01,
     "azzurro_minuti": 5,
-    "fuorigioco_attivo": false,
-    "area_piccola_m": [
-      6,
-      12
-    ],
+    "fuorigioco_attivo": 1,
+    "area_piccola_profondita_m": 6,
+    "area_piccola_larghezza_m": 12,
     "fallo_azzurro_su_fallo": 0.015,
     "azzurro_proteste_su_fallo": 0.015,
     "azzurro_secondi": 300,

@@ -143,3 +143,6 @@ Modellati: Decisioni (rumore sul punteggio di `bestPass`, 0,25 a 10 -> 0,15 a 20
 
 ## Torneo (sessione 8)
 Campionato (andata, o andata e ritorno, metodo del cerchio) e coppa a eliminazione diretta tra 3 e 8 squadre. Logica in `public/app/tournament.js` (test in `app.test.js`), interfaccia in `public/app/tourui.js`, partite simulate in `public/app/worker.js` (con ripiego sul thread principale). Il seme di ogni partita dipende dal torneo e dalla partita: guardare o simulare dà lo stesso risultato. Rigori di coppa: modello statistico `penaltyChance` (circa 78%), perché il portiere fisico sul dischetto parava quasi tutto (le parate sono tarate sull'azione). Scelte del progetto, non verificate su regolamenti ufficiali: punti 3/1/0, spareggio per differenza reti e gol fatti, sorteggio della coppa con turno di riposo ai primi sorteggiati. Il torneo si salva in `localStorage` (`calcio7.torneo`).
+
+## Cambi tattici (sessione 8)
+`Sim.setScheme(team, scheme)` e `Sim.setTactics(team, {press, line, width, tempo})` (i valori esistevano già in `sim.tac`). Scheda Tattica in `public/app/main.js` (`renderTactics`): pressing 9/14/20, linea 0,15/0,25/0,35, ampiezza 0,85/1/1,15, ritmo 0,8/1/1,25. Cambiare modulo riassegna i `home` per indice: i ruoli dei giocatori non seguono (un centrocampista può finire in difesa). Effetto sulle statistiche non misurato.

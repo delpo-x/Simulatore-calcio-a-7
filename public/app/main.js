@@ -261,6 +261,31 @@ function renderRatings() {
     + [0, 1].map(t => ratingsTable(playerRows(t), { head: esc(G.defs[t].name), color: G.kits[t].shirt, best })).join('');
 }
 
+const TAC = [
+  ['press', 'Pressing', [['Basso', 9], ['Medio', 14], ['Alto', 20]]],
+  ['line', 'Linea difensiva', [['Bassa', 0.15], ['Media', 0.25], ['Alta', 0.35]]],
+  ['width', 'Ampiezza', [['Stretta', 0.85], ['Normale', 1], ['Larga', 1.15]]],
+  ['tempo', 'Ritmo', [['Basso', 0.8], ['Normale', 1], ['Alto', 1.25]]],
+];
+/** Scheda Tattica: modulo, pressing, linea, ampiezza e ritmo di ogni squadra, modificabili anche durante la partita. */
+function renderTactics() {
+  if (!G) return;
+  const s = G.sim, n = G.ov?.n ?? cfg.perTeam;
+  $('#tactics').innerHTML = [0, 1].map(t => `<div class="tc" data-t="${t}"><div class="lu-head" style="--c:${G.kits[t].shirt}">${esc(G.defs[t].name)}</div>
+    <label>Modulo<select data-k="scheme">${SCHEMES[n].map(m => `<option${m === G.schemes[t] ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
+    ${TAC.map(([k, label, opts]) => `<label>${label}<select data-k="${k}">${opts.map(([l, v]) => `<option value="${v}"${Math.abs(s.tac[t][k] - v) < 1e-6 ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>`).join('')
+    + '<p class="note">Il cambio vale subito. I giocatori prendono i nuovi posti in questo ordine: portiere, difesa, centrocampo, attacco.</p>';
+  $$('#tactics select').forEach(sel => {
+    sel.onchange = () => {
+      const t = +sel.closest('.tc').dataset.t, k = sel.dataset.k;
+      if (k === 'scheme') { G.sim.setScheme(t, sel.value); G.schemes[t] = sel.value; }
+      else G.sim.setTactics(t, { [k]: +sel.value });
+      const label = k === 'scheme' ? `nuovo modulo ${sel.value}` : `${TAC.find(x => x[0] === k)[1].toLowerCase()}: ${sel.selectedOptions[0].textContent.toLowerCase()}`;
+      addFeed({ t: 'cm', min: G.stats.minute(), team: t, text: `${G.defs[t].name}, cambio tattico (${label}).` });
+    };
+  });
+}
+
 function renderLineups() {
   if (!G) return;
   const s = G.sim;
@@ -376,7 +401,7 @@ function refreshPanel() {
 function showTab(name) {
   $$('#panel [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
   $$('#panel [data-body]').forEach(x => { x.hidden = x.dataset.body !== name; });
-  if (name === 'lineups') renderLineups(); else refreshPanel();
+  if (name === 'lineups') renderLineups(); else if (name === 'tactics') renderTactics(); else refreshPanel();
 }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
 function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }

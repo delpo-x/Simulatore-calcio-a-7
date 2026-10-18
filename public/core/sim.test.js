@@ -31,4 +31,11 @@ p.x = 36; p.z = 0; p.face = 0; s.giveBall(p); s.active[0] = p.id;
 for (let i = 0; i < 40; i++) s.step([32, null]); // hold circle (charge)
 s.step([0, null]); // release
 assert.ok(s.ball.vx > 10, 'shot kicked towards +x');
+// cambio tattico in partita: nuovo modulo e pressing, senza stati non finiti
+const t = new Sim({ seed: 5, perTeam: 7, schemes: ['2-3-1', '3-2-1'] });
+t.setScheme(0, '3-1-2'); t.setTactics(0, { press: 20, line: 0.35 });
+assert.equal(t.schemes[0], '3-1-2'); assert.equal(t.tac[0].press, 20); assert.equal(t.tac[1].press, 14, 'altra squadra invariata');
+assert.equal(t.players.filter(q => q.team === 0).map(q => q.home.x).filter(x => Math.abs(x + t.pitch.hx - 0.25 * t.pitch.hx * 2) < 1e-9).length, 3, 'tre difensori');
+for (let i = 0; i < 60 * 60; i++) t.step();
+for (const q of t.players) assert.ok(Number.isFinite(q.x + q.z), 'giocatore finito dopo cambio tattico');
 console.log('sim tests ok');

@@ -30,13 +30,15 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | +1′ | | avanza di un minuto di gioco |
 | Fine | | simula il resto della partita |
 | TV / Alto / Segui / Porta | C | telecamera |
-| Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni |
+| Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni, tattica |
 | Audio | M | pubblico, fischio, calci, esultanza (sintetizzati, nessun file audio) |
 | Schermo intero | F | |
 | | R | replay dell'ultimo gol |
 | | Esc | chiude replay o pannello |
 
 Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. La telecronaca testuale (tiri, parate, assist, lanci, recuperi, ingressi in area, falli, angoli; circa 3 frasi al minuto) scorre nella cronaca e come sottotitolo sopra la regia; si attiva o disattiva nella scheda Cronaca. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×); nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, migliore in campo, mappa dei tiri, statistiche principali, seme, **Rivedi i gol**, **Pagelle**, **Rigioca**, **Menu**.
+
+**Tattica.** Nella scheda Tattica del pannello Dati, per ciascuna squadra e anche a partita in corso: modulo, pressing (basso/medio/alto), linea difensiva (bassa/media/alta), ampiezza e ritmo. Le squadre restano guidate dall'IA; cambia solo la disposizione. Un cambio di modulo riassegna i posti in ordine (portiere, difesa, centrocampo, attacco) e finisce nella cronaca. Sono scelte di gioco, non tarate: le statistiche di riferimento valgono con i valori predefiniti (pressing medio, linea media, ampiezza e ritmo normali).
 
 **Voti e mappa dei tiri.** Ogni giocatore ha un voto da 4 a 10 (a mezzi punti), provvisorio durante la partita: base 6, +1 il primo gol e +0,7 i successivi, +0,6 l'assist (ultimo passaggio riuscito al marcatore entro 8 s), tiri in porta, passaggi (riusciti contro persi, a saldo zero intorno al 70%), palloni recuperati rispetto alla media, falli e cartellini in negativo, ±0,3 per vittoria o sconfitta. Il portiere guadagna con le parate (presa entro 2,5 s da un tiro in porta) e perde con i gol subiti; porta inviolata +0,5 al portiere e +0,3 ai difensori. Il migliore in campo è il voto più alto (a parità, gol e assist). La mappa mostra da dove è partito ogni tiro: pieno = gol, anello = in porta, sbiadito = fuori. I gol nati da un passaggio o da un tocco compaiono sulla mappa ma non tra i tiri, come nel registratore. I pesi sono scelte del progetto, non tarate su dati reali.
 

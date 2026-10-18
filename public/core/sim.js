@@ -118,6 +118,13 @@ export class Sim {
   }
 
   dir(team) { return team === 0 ? 1 : -1; }
+  /** Cambia il modulo di una squadra durante la partita: i giocatori prendono i nuovi posti nell'ordine (portiere, difesa, centrocampo, attacco). */
+  setScheme(team, scheme) {
+    const mine = this.players.filter(p => p.team === team), lay = layout(mine.length, scheme, this.pitch);
+    mine.forEach((p, i) => { p.home = lay[i]; });
+    this.schemes[team] = scheme;
+  }
+  setTactics(team, o) { Object.assign(this.tac[team], o); }
   homePos(p) { const d = this.dir(p.team); return { x: p.home.x * d, z: p.home.z * d }; }
 
   resetPositions(kickTeam) {

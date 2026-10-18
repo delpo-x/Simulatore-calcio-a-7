@@ -38,15 +38,15 @@ function pitchTexture(P) {
 
 function netTexture() {
   const [c, g] = canvas(64, 64);
-  g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 2;
-  g.beginPath(); g.moveTo(0, 0); g.lineTo(64, 0); g.moveTo(0, 0); g.lineTo(0, 64); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 7; // maglie larghe e linee spesse: a distanza di telecamera una rete fine sparisce
+  g.beginPath(); g.moveTo(0, 3.5); g.lineTo(64, 3.5); g.moveTo(3.5, 0); g.lineTo(3.5, 64); g.stroke();
   return tex(c);
 }
 
 function goal(dir, P) {
-  const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), grp = new THREE.Group(), D = Math.min(1.8, P.goalH * 0.75);
+  const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), grp = new THREE.Group(), D = Math.min(2.2, P.goalH * 1.0);
   const cyl = (len, x, y, z, axis) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, len, 10), white);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, len, 10), white);
     if (axis === 'z') m.rotation.x = Math.PI / 2; if (axis === 'x') m.rotation.z = Math.PI / 2;
     m.position.set(x, y, z); grp.add(m);
   };
@@ -54,10 +54,10 @@ function goal(dir, P) {
   cyl(h, 0, h / 2, -P.goalHalf); cyl(h, 0, h / 2, P.goalHalf); cyl(w, 0, h, 0, 'z');
   cyl(D, dir * D / 2, h, -P.goalHalf, 'x'); cyl(D, dir * D / 2, h, P.goalHalf, 'x'); cyl(w, dir * D, 0.03, 0, 'z');
   const net = (wd, ht, rep) => { const t = netTexture(); t.repeat.set(...rep); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    return new THREE.Mesh(new THREE.PlaneGeometry(wd, ht), new THREE.MeshBasicMaterial({ map: t, transparent: true, side: THREE.DoubleSide, depthWrite: false })); };
-  const back = net(w, h, [w * 6, h * 6]); back.rotation.y = Math.PI / 2; back.position.set(dir * D, h / 2, 0); grp.add(back);
-  const top = net(D, w, [D * 6, w * 6]); top.rotation.x = -Math.PI / 2; top.position.set(dir * D / 2, h, 0); grp.add(top);
-  for (const e of [-1, 1]) { const side = net(D, h, [D * 6, h * 6]); side.position.set(dir * D / 2, h / 2, e * P.goalHalf); grp.add(side); }
+    return new THREE.Mesh(new THREE.PlaneGeometry(wd, ht), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.05 })); };
+  const back = net(w, h, [w * 2.5, h * 2.5]); back.rotation.y = Math.PI / 2; back.position.set(dir * D, h / 2, 0); grp.add(back);
+  const top = net(D, w, [D * 2.5, w * 2.5]); top.rotation.x = -Math.PI / 2; top.position.set(dir * D / 2, h, 0); grp.add(top);
+  for (const e of [-1, 1]) { const side = net(D, h, [D * 2.5, h * 2.5]); side.position.set(dir * D / 2, h / 2, e * P.goalHalf); grp.add(side); }
   grp.position.x = dir * P.hx;
   return grp;
 }

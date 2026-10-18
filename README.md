@@ -26,7 +26,7 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | Pulsante | Tasto | Cosa fa |
 |---|---|---|
 | Pausa | Spazio | ferma e riprende |
-| 1× … 16× | 1–5 | velocità |
+| 0,5× … 16× | 1–6 | velocità |
 | +1′ | | avanza di un minuto di gioco |
 | Fine | | simula il resto della partita |
 | TV / Alto / Segui / Porta | C | telecamera |
@@ -75,7 +75,7 @@ Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropas
 
 ## Parametri e taratura
 
-Tutti i valori regolabili stanno in `config/params.json` (letti da `npm run test:game` e `npm run matches`; i valori in `public/core/sim.js` sono i predefiniti del browser). Solo il formato a 7 è tarato: gli altri (5–11) funzionano ma i numeri sono indicativi (a 5 e 6 giocatori molti gol, a 10 e 11 pochi). I bersagli statistici sono in `config/targets.json`: gol 4–6, tiri in porta 9–13 (tiri totali 12–20, ipotesi), passaggi 67–73%, possesso ~50%, ~8 falli e ~1 giallo a partita.
+Tutti i valori regolabili stanno in `config/params.json` (letti da `npm run test:game` e `npm run matches`; i valori in `public/core/sim.js` sono i predefiniti del browser). Solo il formato a 7 è tarato: gli altri (5–11) funzionano ma i numeri sono indicativi (a 5 e 6 giocatori molti gol, a 10 e 11 pochi). I bersagli statistici sono in `config/targets.json`: gol 4–6, tiri in porta 9–13 (tiri totali 20–30, ipotesi), passaggi 67–73%, possesso ~50%, ~8 falli e ~1 giallo a partita.
 
 ## Squadre e attributi
 

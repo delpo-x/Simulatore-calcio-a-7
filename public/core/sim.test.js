@@ -19,8 +19,8 @@ const a = run(1, 120), b = run(1, 120);
 assert.equal(a.h, b.h, 'same seed => same state');
 assert.notEqual(run(2, 120).h, a.h, 'different seed differs');
 assert.equal(a.state, 'full', 'match ends');
-const total = [1, 2, 3, 4, 5].map(sd => run(sd, 120)).reduce((n, r) => n + r.goals, 0);
-console.log('AI-vs-AI:', JSON.stringify(a), 'goals across 5 seeds:', total);
+const total = [1, 2, 3, 4, 5, 6, 7, 8].map(sd => run(sd, 300)).reduce((n, r) => n + r.goals, 0);
+console.log('AI-vs-AI:', JSON.stringify(a), 'goals across 8 seeds:', total);
 assert.ok(total > 0, 'goals happen');
 
 // human shoot at goal from the edge of the box scores sometimes / ball moves

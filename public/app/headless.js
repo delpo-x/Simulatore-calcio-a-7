@@ -20,6 +20,34 @@ export function summarize(stats, lineups) {
   return { score: [...sim.score], goals, players, best: stats.best(), rows: stats.rows(), shots: stats.shotList.map(({ team, x, z, on, goal }) => ({ team, x, z, on, goal })) };
 }
 
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/** Probabilita' di segnare un rigore della lotteria (modello del progetto, non la fisica della partita): circa 78% con rigorista e portiere medi, meno con un rigorista scarso o un portiere dai buoni riflessi. */
+export function penaltyChance(taker, keeper) {
+  return Math.max(0.5, Math.min(0.95, 0.78 - 0.15 * (taker.k.penaltyErr - 1) - 0.25 * (keeper.k.reach - 1)));
+}
+
+/** Calci di rigore dopo un pareggio a eliminazione diretta: 5 per parte a turno (si chiude appena il risultato e' deciso), poi a oltranza.
+ *  Nella simulazione il portiere sul dischetto a 8 m para quasi tutto (i riflessi sono tarati sull'azione), quindi l'esito di ogni rigore viene da penaltyChance. */
+export function shootout(home, away, { perTeam = 7, seed = 1 } = {}) {
+  const { sim } = createMatch(home, away, { perTeam, seed }), score = [0, 0], kicks = [], rand = rng(seed * 2654435761);
+  const order = [0, 1].map(t => sim.players.filter(p => p.team === t && !p.gk).sort((a, b) => a.k.penaltyErr - b.k.penaltyErr || a.id - b.id)); // prima i rigoristi migliori
+  const keeper = [0, 1].map(t => sim.players.find(p => p.team === t && p.gk));
+  for (let r = 0; r < 40; r++) {
+    for (const t of [0, 1]) {
+      const p = order[t][r % order[t].length], ch = penaltyChance(p, keeper[1 - t]), x = rand(), goal = x < ch;
+      score[t] += goal; kicks.push({ team: t, name: p.name ?? '', goal, how: goal ? 'gol' : x < ch + (1 - ch) * 0.65 ? 'parato' : 'fuori' });
+      if (r < 5) { // rigori ancora da tirare nei primi 5: si chiude se una squadra non puo' piu' recuperare
+        const left = [4 - r, 4 - r + (t === 0 ? 1 : 0)];
+        if (score[0] + left[0] < score[1] || score[1] + left[1] < score[0]) return { score, kicks };
+      }
+    }
+    if (r >= 4 && score[0] !== score[1]) return { score, kicks };
+  }
+  score[seed % 2]++; // 40 serie in parita' (non succede in pratica): decide il sorteggio
+  return { score, kicks };
+}
+
 /** Gioca una partita intera senza grafica e ne restituisce il riassunto. */
 export function playMatch(home, away, opts = {}) {
   const { sim, lineups } = createMatch(home, away, opts), stats = new MatchStats(sim);

@@ -13,7 +13,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const clone = o => JSON.parse(JSON.stringify(o));
-const SPEEDS = [1, 2, 4, 8, 16], CAMS = [['tv', 'TV'], ['alto', 'Alto'], ['segui', 'Segui'], ['porta', 'Porta']];
+const SPEEDS = [0.5, 1, 2, 4, 8, 16], CAMS = [['tv', 'TV'], ['alto', 'Alto'], ['segui', 'Segui'], ['porta', 'Porta']];
 const ROLE = { Goalkeeper: 'POR', Defender: 'DIF', Midfielder: 'CEN', Forward: 'ATT' };
 const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
@@ -353,7 +353,7 @@ function updateControls() {
   if (!G) return;
   $('#c-play').innerHTML = G.paused ? ICON.play : ICON.pause; $('#c-play').title = G.paused ? 'Riprendi (spazio)' : 'Pausa (spazio)';
   $('#c-audio').innerHTML = A.muted ? ICON.mute : ICON.sound; $('#c-audio').title = A.muted ? 'Attiva l\'audio (M)' : 'Disattiva l\'audio (M)';
-  $('#c-speed').textContent = `${G.speed}×`; $('#c-cam').textContent = CAMS[G.cam][1];
+  $('#c-speed').textContent = `${String(G.speed).replace('.', ',')}×`; $('#c-cam').textContent = CAMS[G.cam][1];
   $('#c-skip').disabled = $('#c-end').disabled = G.ended;
   $('#match').classList.toggle('paused', G.paused);
 }
@@ -403,7 +403,7 @@ function initControls() {
     if (!G || $('#match').hidden || e.target.closest?.('input,select,textarea,dialog')) return;
     const k = e.key.toLowerCase();
     if (k === ' ') { e.preventDefault(); $('#c-play').click(); }
-    else if (k >= '1' && k <= '5') setSpeed(+k - 1);
+    else if (k >= '1' && k <= '6') setSpeed(+k - 1);
     else if (k === 'c') cycleCam();
     else if (k === 's') $('#c-panel').click();
     else if (k === 'f') toggleFull();

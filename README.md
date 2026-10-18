@@ -42,6 +42,8 @@ Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche i
 
 Le statistiche dell'app (tiri, tiri in porta, passaggi, possesso) si calcolano come nel registratore `tools/lib/matches.mjs`.
 
+**Torneo.** Dal menu, **Torneo**: scegli da 3 a 8 squadre (predefinite o salvate), il formato (campionato solo andata, campionato andata e ritorno, coppa a eliminazione diretta) e la durata del tempo. Il torneo ha calendario (o tabellone), classifica (3 punti per vittoria, a parità differenza reti, gol fatti, nome), marcatori e media voti, e resta nel browser. Ogni partita si può **guardare** (poi si torna al torneo) o **simulare** senza grafica in un worker; ci sono anche **Simula giornata** e **Simula tutto**. Lo stesso torneo dà lo stesso risultato guardando o simulando. In coppa, un pareggio si decide ai rigori: la lotteria usa un modello statistico del progetto (circa 78% di rigori segnati), non la fisica della partita; con un numero di squadre non potenza di 2 le prime del sorteggio passano il primo turno.
+
 ## Vista di debug
 
 Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5–11, il 7 è il caso principale), seme, velocità (1×, 3×, 10×, 30×), Riavvia, Pausa, +60 s. In basso i contatori: falli, gialli, azzurri, rossi, retropassaggi, ostruzioni, gioco pericoloso, trattenuta del portiere, proteste, fuorigioco. In alto il punteggio e il tempo; compare INDIRETTA quando la punizione è indiretta.
@@ -84,7 +86,7 @@ Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, e
 ## Struttura
 
 - `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
-- `public/index.html` e `public/app/`: app (menu, grafica 3D `render3d.js`, statistiche e voti `stats.js`, mappa dei tiri e pagelle `views.js`, partita senza grafica `headless.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
+- `public/index.html` e `public/app/`: app (menu, torneo `tournament.js` e `tourui.js`, `worker.js`, grafica 3D `render3d.js`, statistiche e voti `stats.js`, mappa dei tiri e pagelle `views.js`, partita senza grafica `headless.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
 - `public/debug.html`: vista di debug.
 - `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
 - `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).

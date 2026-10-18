@@ -42,8 +42,18 @@
   <p id="menu-note" class="note"></p>
   <div class="menu-actions">
     <button id="start" class="primary big">Calcio d'inizio</button>
+    <button id="tour-open" class="ghost big">Torneo</button>
   </div>
   <footer class="menu-foot"><a href="debug.html">Vista di debug</a></footer>
+</main>
+
+<!-- Torneo -->
+<main id="tour" class="screen" hidden>
+  <header class="menu-head">
+    <div class="logo"><span class="logo-ball"></span>Torneo <small>campionato e coppa tra le tue squadre</small></div>
+    <button class="ghost" id="t-back">Menu</button>
+  </header>
+  <div id="tour-body"></div>
 </main>
 
 <!-- Partita -->
@@ -124,6 +134,8 @@
     <li><b>Carica file squadra</b> legge un file JSON nel formato del progetto: parti dal <a href="app/esempio-squadra.json" download>file di esempio</a> (ruoli Goalkeeper, Defender, Midfielder, Forward; attributi 1-20).</li>
     <li>Lo stesso seme con le stesse squadre produce sempre la stessa partita. Solo il calcio a 7 è tarato sui dati reali.</li>
   </ul>
+  <h3>Torneo</h3>
+  <ul><li>Dal menu, <b>Torneo</b>: campionato o coppa tra 3 e 8 squadre. Ogni partita si guarda o si simula; il torneo resta nel browser. In coppa i pareggi vanno ai rigori.</li></ul>
   <h3>Durante la partita</h3>
   <table>
     <tr><td><kbd>Spazio</kbd></td><td>pausa / riprendi</td></tr>

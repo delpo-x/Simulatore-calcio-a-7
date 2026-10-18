@@ -7,6 +7,9 @@ import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
 import { MatchAudio } from './audio.js';
 import { Commentary } from './commentary.js';
+import { summarize } from './headless.js';
+import { initTour } from './tourui.js';
+import { matchSeed } from './tournament.js';
 import { shotMap, ratingsTable, fmtVote, voteClass } from './views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -130,25 +133,25 @@ function initMenu() {
 
 let G = null, R = null;
 
-function startMatch(seed) {
-  const n = cfg.perTeam, defs = clone(cfg.teams);
+function startMatch(seed, ov = null) {
+  const n = ov?.n ?? cfg.perTeam, defs = clone(ov?.defs ?? cfg.teams);
   const schemes = defs.map(d => SCHEMES[n].includes(d.scheme) ? d.scheme : SCHEMES[n][0]);
   let lineups;
   try { lineups = defs.map((d, i) => lineupFor(d, n, schemes[i])); }
-  catch (err) { $('#menu-note').textContent = `Impossibile schierare la squadra: ${err.message}`; return; }
+  catch (err) { $('#menu-note').textContent = `Impossibile schierare la squadra: ${err.message}`; if (ov) alert(`Impossibile schierare la squadra: ${err.message}`); return; }
   seed = seed ?? (cfg.seed ? +cfg.seed : 1 + Math.floor(Math.random() * 999999999));
-  const sim = new Sim({ perTeam: n, seed, halfLength: cfg.half * 60, schemes, teams: lineups });
+  const sim = new Sim({ perTeam: n, seed, halfLength: (ov?.half ?? cfg.half) * 60, schemes, teams: lineups });
   const byTeam = [0, 1].map(t => sim.players.filter(p => p.team === t));
   const info = sim.players.map(p => { const i = byTeam[p.team].indexOf(p), l = lineups[p.team][i]; return { num: l.number, role: ROLE[l.position] ?? '', offRole: l.offRole }; });
   const { kits } = kitsFor(defs);
-  G = { sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
+  G = { ov, sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
   A.start();
   const kick = sim.kick.bind(sim); sim.kick = (p, dx, dz, sp, ...r) => { if (sounds()) A.kick(sp); return kick(p, dx, dz, sp, ...r); };
   G.cm = new Commentary(sim, { name: id => G.stats.name(id), team: t => defs[t].name });
   G.stats.onShot = (p, on) => { if (!on && sounds()) setTimeout(() => A.roar('ooh'), 350); };
   G.rec.onClip = clip => { if (cfg.autoReplay && !G.skipping && G.speed <= 4 && !G.replay) playClips([clip], true); };
 
-  $('#menu').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
+  $('#menu').hidden = true; $('#tour').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
   if (R) R.dispose();
   R = new TVRenderer($('#view'), sim.pitch, { kits, nums: info.map(i => i.num) });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
@@ -342,7 +345,11 @@ function showEnd() {
   $('.end-motm').innerHTML = `<span class="motm-label">Migliore in campo</span><span class="num" style="background:${bp.gk ? G.kits[bp.team].gk : G.kits[bp.team].shirt};color:${contrast(bp.gk ? G.kits[bp.team].gk : G.kits[bp.team].shirt)}">${G.info[bid].num}</span>`
     + `<span class="motm-name">${esc(playerName(bid))}<small>${esc(G.defs[bp.team].name)}${facts ? ` · ${facts}` : ''}</small></span><span class="vote ${voteClass(bv)}">${fmtVote(bv)}</span>`;
   $('.end-map').innerHTML = shotMap(G.stats.shotList, s.pitch, G.kits.map(k => k.shirt));
-  $('.end-seed').textContent = `Seme ${G.seed} · ${G.schemes[0]} contro ${G.schemes[1]}`;
+  let so = null;
+  if (G.ov && !G.recorded) { G.recorded = true; G.so = tour.result(G.ov.matchId, summarize(G.stats)); }
+  so = G.so;
+  $('.end-seed').textContent = `${so ? `Ai rigori ${so.score[0]}-${so.score[1]} · ` : ''}Seme ${G.seed} · ${G.schemes[0]} contro ${G.schemes[1]}`;
+  $('#e-again').hidden = !!G.ov; $('#e-menu').textContent = G.ov ? 'Torna al torneo' : 'Menu';
   $('#e-replays').hidden = !G.rec.clips.length;
   $('#end').hidden = false;
 }
@@ -372,7 +379,7 @@ function showTab(name) {
   if (name === 'lineups') renderLineups(); else refreshPanel();
 }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
-function toMenu() { A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = false; if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
+function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
 
 function initControls() {
   $('#c-full').innerHTML = ICON.full;
@@ -445,5 +452,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+const tour = initTour({
+  root: $('#tour-body'), teams: () => [...PRESETS, ...custom], defaultHalf: cfg.half,
+  watch: (T, m) => startMatch(matchSeed(T, m), { n: T.perTeam, half: T.half, defs: [T.teams[m.home], T.teams[m.away]], matchId: m.id }),
+});
+$('#tour-open').onclick = () => { $('#menu').hidden = true; $('#tour').hidden = false; tour.open(); };
+$('#t-back').onclick = () => { $('#tour').hidden = true; $('#menu').hidden = false; teamCard(0); teamCard(1); };
 initMenu(); initControls(); requestAnimationFrame(frame);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {}); // installabile e offline (GitHub Pages)

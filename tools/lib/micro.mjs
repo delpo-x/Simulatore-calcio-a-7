@@ -401,3 +401,29 @@ export function skillFormula({ attrs }) {
   const s = new Sim({ perTeam: 7, seed: 1, teams: [lineup(15, attrs), null] });
   return { ...s.players[3].k, gk: { ...s.players[0].k } };
 }
+
+/** Rimesse laterali: battute con le mani (palla alta al rilascio), da fermo sulla linea laterale, entro 3 s, verso un compagno. */
+export function throwInTrial() {
+  let n = 0, high = 0, onLine = 0, fast = 0, toMate = 0, dribbled = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const s = new Sim({ perTeam: 7, seed, halfLength: 300 });
+    let cur = null;
+    while (s.state !== 'full') {
+      s.step([null, null]);
+      for (const e of s.events) {
+        if (e.t === 'restart' && e.kind === 'throwin') cur = { id: s.setKind.taker, t0: s.time, x: s.players[s.setKind.taker].x, z: s.players[s.setKind.taker].z, team: e.team };
+        else if (e.t === 'throwin' && cur) {
+          n++; const p = s.players[cur.id];
+          if (s.ball.y >= 1.8) high++;
+          if (Math.abs(Math.abs(p.z) - (s.pitch.hz - 0.5)) < 0.6 && Math.hypot(p.x - cur.x, p.z - cur.z) < 0.6) onLine++;
+          if (s.time - cur.t0 <= 3) fast++;
+          cur.thrown = true; cur.thrownT = s.time;
+        }
+      }
+      if (cur?.thrown && s.ball.owner >= 0 && s.ball.owner !== cur.id) { if (s.players[s.ball.owner].team === cur.team) toMate++; cur = null; }
+      else if (cur && !cur.thrown && s.ball.owner !== cur.id && s.state === 'play') { dribbled++; cur = null; } // la palla ha lasciato le mani senza lancio
+      else if (cur?.thrown && s.time - cur.thrownT > 6) cur = null;
+    }
+  }
+  return { throwins: n, high_share: high / (n || 1), on_line_share: onLine / (n || 1), fast_share: fast / (n || 1), to_mate_share: toMate / (n || 1), not_thrown: dribbled };
+}

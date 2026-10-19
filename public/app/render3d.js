@@ -242,6 +242,7 @@ export class TVRenderer {
     u.legs[0].knee.rotation.z = -Math.max(0, -Math.cos(u.phase)) * sw * 1.3; u.legs[1].knee.rotation.z = -Math.max(0, Math.cos(u.phase)) * sw * 1.3;
     u.arms[0].rotation.z = -s * sw * 0.8; u.arms[1].rotation.z = s * sw * 0.8;
     if (sp < 0.3) { for (const l of u.legs) { l.hip.rotation.z *= 0.2; l.knee.rotation.z = 0; } for (const a of u.arms) a.rotation.z *= 0.2; }
+    if (p.throwT > 0) { u.arms[0].rotation.z = 2.9; u.arms[1].rotation.z = 2.9; for (const l of u.legs) { l.hip.rotation.z *= 0.2; l.knee.rotation.z = 0; } } // rimessa: braccia alzate
     const b = u.body;
     if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; }
     else { b.rotation.z += (-run * 0.22 - b.rotation.z) * Math.min(1, dt * 10); b.position.y = Math.abs(s) * run * 0.06; }

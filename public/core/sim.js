@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.029, shotAngle: 3, shotAnglePerM: 4, longBall: 0.002, longMin: 30, tackleEager: 0.06, markWeight: 0.7, containDist: 5, forceShot: 3, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.12, parryCorner: 0.6, width: 1.35, formSpeed: 0, formTackle: 1,
+  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.12, throwDelay: 1.2, throwMiss: 0.3, parryCorner: 0.6, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.35, passSlip: 0.25, shieldSeconds: 0.8,
 };
 
@@ -106,7 +106,7 @@ export class Sim {
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
       id: this.players.length, team, gk: !!f.gk, home: f, x: 0, z: 0, vx: 0, vz: 0, face: team === 0 ? 0 : Math.PI,
-      kickCd: 0, tackleT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
+      kickCd: 0, tackleT: 0, throwT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
     }));
     teams.forEach((lineup, team) => lineup?.forEach((pl, i) => {
       const p = this.players.filter(q => q.team === team)[i];
@@ -200,7 +200,7 @@ export class Sim {
     for (let t = 0; t < 2; t++) this.pickActive(t);
     for (const p of this.ordered()) {
       if (p.out) continue;
-      p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.stun = Math.max(0, p.stun - DT); if (p.shieldT) p.shieldT = Math.max(0, p.shieldT - DT);
+      p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.throwT = Math.max(0, p.throwT - DT); p.stun = Math.max(0, p.stun - DT); if (p.shieldT) p.shieldT = Math.max(0, p.shieldT - DT);
       const human = this.active[p.team] === p.id && inputs[p.team] != null;
       let c = frozen ? { mx: 0, mz: 0, sprint: false } : human ? this.humanControl(p, inputs[p.team]) : this.aiControl(p);
       this.move(p, c);
@@ -428,6 +428,11 @@ export class Sim {
       const q = this.bestPass(p) ?? mates.reduce((m, q) => !m || dist(q.x, q.z, p.x, p.z) < dist(m.x, m.z, p.x, p.z) ? q : m, null);
       if (q) { this.passTo(p, q, false); return hold; }
     }
+    if (this.setKind?.kind === 'throwin' && this.setKind.taker === p.id) { // rimessa laterale: si lancia con le mani a un compagno, mai in porta ne' in conduzione
+      p.vx = p.vz = 0; this.throwWait += 1 / AI.hz;
+      if (this.throwWait >= AI.throwDelay) this.throwIn(p);
+      return hold;
+    }
     const close = dg < this.sc(AI.forceShot), lane = this.laneClear(p, gx);
     if (dg < range && !this.indirect && ((close && this.rand() < (lane ? 0.5 : 0.08)) || (lane && this.rand() < AI.shootEager * (1 - dg / range)))) {
       this.aimShot(p);
@@ -477,6 +482,32 @@ export class Sim {
   }
 
   /** Lancio lungo: palla alta che atterra vicino al compagno (tempo di volo 1,2-2,2 s, come il lob tarato nei test della palla); con 'miss' la mira e' lontana. */
+  /** Rimessa laterale: lancio a due mani da sopra la testa verso il compagno piu' libero e vicino (6-16 m scalati). */
+  throwIn(p) {
+    const mates = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out);
+    const opps = this.players.filter(q => q.team !== p.team && !q.out);
+    let q = null, bs = -1e9;
+    for (const m of mates) {
+      const d = dist(p.x, p.z, m.x, m.z);
+      if (d < this.sc(5) || d > this.sc(18)) continue;
+      const open = Math.min(8, ...opps.map(o => dist(o.x, o.z, m.x, m.z)));
+      const sc = open - d * 0.25 + this.dir(p.team) * (m.x - p.x) * 0.05 + this.rand() * 0.5;
+      if (sc > bs) { bs = sc; q = m; }
+    }
+    if (!q) q = mates.reduce((m, c) => !m || dist(c.x, c.z, p.x, p.z) < dist(m.x, m.z, p.x, p.z) ? c : m, null);
+    if (!q) return;
+    const D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 9, 0.7, 1.7), pt = this.pitch;
+    const px = clamp(q.x + q.vx * T * 0.6, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.6, -pt.hz + 1, pt.hz - 1);
+    let dx = px - p.x, dz = pz - p.z;
+    if (this.rand() < AI.throwMiss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.0, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; } // lancio impreciso
+    const D = Math.hypot(dx, dz) || 1;
+    p.face = Math.atan2(dz, dx);
+    this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (4.9 * T * T - 2.0) / T);
+    this.ball.x = p.x + dx / D * 0.3; this.ball.z = p.z + dz / D * 0.3; this.ball.y = 2.0;
+    this.lastPass = null; p.throwT = 0.5; // la rimessa non entra nelle statistiche dei passaggi p.shieldT = 0;
+    this.setKind = null; this.events.push({ t: 'throwin', team: p.team, player: p.id });
+  }
+
   lobTo(p, q, miss) {
     const pt = this.pitch, D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 11, 1.2, 2.2);
     let px = clamp(q.x + q.vx * T * 0.7, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.7, -pt.hz + 1, pt.hz - 1);
@@ -663,7 +694,9 @@ export class Sim {
     if (b.owner >= 0) {
       const o = ps[b.owner];
       const gap = MOVE.ballGap + MOVE.ballGapPerSpeed * Math.hypot(o.vx, o.vz);
-      b.x = o.x + Math.cos(o.face) * gap; b.z = o.z + Math.sin(o.face) * gap; b.y = 0.11;
+      const thrower = this.setKind?.kind === 'throwin' && this.setKind.taker === o.id;
+      if (thrower) { o.x = this.setKind.x; o.z = this.setKind.z; o.vx = o.vz = 0; } // chi batte la rimessa resta fermo sul punto
+      b.x = o.x + Math.cos(o.face) * (thrower ? 0.1 : gap); b.z = o.z + Math.sin(o.face) * (thrower ? 0.1 : gap); b.y = thrower ? 2.0 : 0.11; // rimessa: palla sopra la testa, tenuta con le mani
       b.vx = o.vx; b.vz = o.vz; b.vy = 0; b.last = o.id;
       return;
     }
@@ -767,8 +800,9 @@ export class Sim {
     Object.assign(b, { x, z, vx: 0, vz: 0, vy: 0, y: 0.11 });
     this.giveBall(taker);
     this.indirect = kind === 'indirect' ? { team, taker: taker.id } : null;
-    this.setKind = { kind, taker: taker.id };
-    const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : 0, end = Math.sign(x);
+    this.setKind = { kind, taker: taker.id, x, z };
+    if (kind === 'throwin') { taker.throwT = 9; taker.shieldT = 9; taker.aiT = 1; this.throwWait = 0; this.indirect = { team, taker: taker.id }; } // la rimessa non vale come gol diretto; chi la batte non si contrasta
+    const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : kind === 'throwin' ? 2 : 0, end = Math.sign(x);
     for (const p of this.players) {
       if (p === taker || p.out) continue;
       if (R && p.team !== team) this.keepAway(p, x, z, R);

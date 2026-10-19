@@ -120,11 +120,11 @@ gate('C.gol_secondo_tempo_quota', runs.reduce((a, r) => a + r.goalsHalf[1], 0) /
 
 // D. Coerenza di forza: squadra migliore vince di piu', nessun vantaggio di lato
 const duel = (a, b, n) => { let w = 0, d = 0; for (let i = 0; i < n; i++) { const m = play(seed0 + 500000 + i, [pickLineup(syntheticTeam('A', a), SCHEMES[7][0]), pickLineup(syntheticTeam('B', b), SCHEMES[7][0])]); if (m.score[0] > m.score[1]) w++; else if (m.score[0] === m.score[1]) d++; } return (w + d / 2) / n; };
-const n = Math.max(20, Math.round(games / 2));
+const n = Math.max(40, games); // con 20 duelli l'errore standard e' ~0,10 e la soglia dava falsi allarmi (misurato: 42 vittorie, 42 sconfitte, 16 pareggi su 100 duelli)
 if (!fast) {
 gate('D.forte_vs_debole_18_12', duel(18, 12, n), 0.7, 1);
 gate('D.medio_vs_debole_15_12', duel(15, 12, n), 0.55, 0.9);
-gate('D.pari_livello_15_15', duel(15, 15, n), 0.35, 0.65, 'nessun vantaggio sistematico di lato');
+gate('D.pari_livello_15_15', duel(15, 15, n), 0.30, 0.70, 'nessun vantaggio sistematico di lato; 40 duelli: errore standard ~0,07, soglia ~3 errori standard');
 
 // E. Riproducibilita'
 gate('E.determinismo', play(7).hash === play(7).hash ? 1 : 0, 1, 1);

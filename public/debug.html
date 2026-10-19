@@ -74,7 +74,7 @@ function frame(now) {
   }
   rend.draw(sim, [], dt);
   const t = Math.floor(sim.matchTime);
-  $('hud').textContent = `${sim.score[0]} - ${sim.score[1]}   ${pad(Math.floor(t / 60))}:${pad(t % 60)}${sim.indirect ? '   INDIRETTA' : ''}${sim.state === 'goal' ? '   GOL!' : sim.state === 'full' ? '   FINE' : ''}`;
+  $('hud').textContent = `${sim.score[0]} - ${sim.score[1]}   ${pad(Math.floor(t / 60))}:${pad(t % 60)}${sim.setKind?.kind === 'throwin' ? '   RIMESSA' : sim.indirect ? '   INDIRETTA' : ''}${sim.state === 'goal' ? '   GOL!' : sim.state === 'full' ? '   FINE' : ''}`;
   const live = tm => sim.players.filter(p => p.team === tm && !p.out).length;
   $('stats').textContent = `stato ${sim.state} · in campo ${live(0)}-${live(1)} · falli ${cards.fouls} · gialli ${cards.yellow} · azzurri ${cards.blue} · rossi ${cards.red} · retropassaggi ${cards.backpass} · ostruzioni ${cards.obstruction} · gioco pericoloso ${cards.dangerous} · portiere trattiene ${cards.gkHold} · proteste ${cards.protest} · fuorigioco ${cards.offside} · campo ${sim.pitch.hx * 2}×${sim.pitch.hz * 2} m`;
 }

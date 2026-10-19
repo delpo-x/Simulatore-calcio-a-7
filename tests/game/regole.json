@@ -1,5 +1,5 @@
 [
-  { "id": "regole.falli.quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "foul_rate", "expect": { "min": 0.019, "max": 0.027 }, "severity": "error" },
+  { "id": "regole.falli.quota", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "foul_rate", "expect": { "min": 0.044, "max": 0.052 }, "severity": "error" },
   { "id": "regole.falli.giallo", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "yellow_rate", "expect": { "value": 0.125, "abs": 0.04 }, "severity": "error" },
   { "id": "regole.falli.rosso", "subsystem": "regole", "ticket": "06", "requires": ["fouls"], "scenario": { "type": "foulTrials" }, "metric": "red_rate", "expect": { "value": 0.01, "abs": 0.01 }, "severity": "error" },
   { "id": "regole.riprese.barriera", "subsystem": "regole", "ticket": "06", "requires": ["setPieces"], "scenario": { "type": "setPieceDistances" }, "metric": "wall_distance", "expect": { "min": 5.999, "max": 6.2 }, "severity": "error" },

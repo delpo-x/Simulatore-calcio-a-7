@@ -68,7 +68,7 @@ export function syntheticTeam(name = 'Squadra', level = 15, perTeam = 7) {
 }
 
 /** Moltiplicatori derivati dagli attributi. Senza attributi tutti valgono 1 (giocatore neutro, valori base). */
-export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, decNoise: 0, offBall: 1, placeErr: 0, freeKickErr: 1, penaltyErr: 1, hold: 1, oneOnOne: 1, rated: false });
+export const NEUTRAL = Object.freeze({ speed: 1, acc: 1, agi: 1, balance: 1, stamina: 1, stun: 1, passErr: 1, shotNear: 1, shotFar: 1, react: 1, press: 1, foul: 1, vision: 1, touch: 1, reach: 1, exit: 1, posErr: 1, decNoise: 0, offBall: 1, placeErr: 0, freeKickErr: 1, penaltyErr: 1, hold: 0.7, oneOnOne: 1, rated: false });
 
 export function deriveSkill(pl) {
   const a = pl.attrs, o = pl.position !== 'Goalkeeper';

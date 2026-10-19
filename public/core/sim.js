@@ -26,8 +26,8 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
-  shootRange: 22, shootEager: 0.14, shotAngle: 3, shotAnglePerM: 6, longBall: 0.002, longMin: 30, tackleEager: 0.15, markWeight: 0.7, containDist: 5, forceShot: 10, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.35, formSpeed: 0, formTackle: 1,
+  shootRange: 48, shootEager: 0.029, shotAngle: 3, shotAnglePerM: 4, longBall: 0.002, longMin: 30, tackleEager: 0.06, markWeight: 0.7, containDist: 5, forceShot: 3, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.12, parryCorner: 0.6, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 14, blockDepth: 1.0, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.35, passSlip: 0.25, shieldSeconds: 0.8,
 };
 
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.023, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
+  foulProb: 0.048, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -99,7 +99,7 @@ export class Sim {
     this.players = [];
     this.pitch = pitch ?? pitchFor(perTeam);
     this.sentOff = [0, 0]; this.indirect = null; this.offsideMark = null; this.tickN = 0;
-    this.tac = [0, 1].map(() => ({ line: 0.25, width: 1.0, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
+    this.tac = [0, 1].map(() => ({ line: 0.25, width: AI.width, tempo: 1.0, press: AI.pressTrigger, ...tactics }));
     this.possTeam = 0; this.possT = 0; this.lastPass = null;
     this.form = [0, 1].map(() => (this.rand() - 0.5) * 2 * AI.formSpread); // forma di giornata: sposta la probabilita' di vincere i contrasti
     const names = Array.isArray(schemes) ? schemes : [schemes, schemes];
@@ -684,9 +684,15 @@ export class Sim {
         best = p; bd = d;
       }
       if (best && best.gk && this.backPass(best)) return;
-      if (best && best.gk && sp > 12 && best.attr && this.rand() > best.k.hold) { // respinta invece di presa: la palla sparisce lontano dalla porta
-        const a = Math.atan2(b.z - best.z, b.x - best.x) + (this.rand() - 0.5) * 1.2;
-        b.vx = Math.cos(a) * sp * 0.4; b.vz = Math.sin(a) * sp * 0.4; best.kickCd = 0.4; return;
+      if (best && best.gk && sp > 12 && this.rand() > best.k.hold) { // respinta invece di presa
+        b.last = best.id;
+        if (this.rand() < AI.parryCorner) { // deviata in angolo: la palla esce dal fondo, calcio d'angolo
+          b.vx = Math.sign(best.x) * sp * 0.25; b.vz = (b.z >= 0 ? 1 : -1) * sp * 0.35; b.vy = 0;
+        } else {
+          const a = Math.atan2(b.z - best.z, b.x - best.x) + (this.rand() - 0.5) * 1.2;
+          b.vx = Math.cos(a) * sp * 0.4; b.vz = Math.sin(a) * sp * 0.4;
+        }
+        best.kickCd = 0.4; return;
       }
       if (best) { b.vx = b.vy = b.vz = 0; this.giveBall(best); }
     }

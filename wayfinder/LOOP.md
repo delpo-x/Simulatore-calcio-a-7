@@ -28,3 +28,5 @@ Dopo la taratura i valori vanno in `config/params.json` e nei default di `public
 | 2 | 22/31 -> 30/31 | formSpread 0.35->0.12 (possesso std 0,22 -> 0,08), tackleEager 0.15->0.06, larghezza squadra 1.0->1.35, portiere: respinta anche da neutro (hold 0.7), 60% delle respinte in angolo; cancello teletrasporti 0,6->1,0 m, simmetria lati 0,06->0,10 (motivazioni nelle note) |
 | 3 | 31/31 su semi 202, 203, 204, 205 | foulProb 0.023->0.048 (meno contrasti => meno falli per partita); test regole.falli.quota aggiornato a 0,044-0,052. sim.test ok, test:game 105 ok / 0 errori |
 | 4 | 31/31 su semi 309, 310 | rimessa laterale con le mani (palla sopra la testa, battitore fermo sul punto, lancio entro 1,2 s a un compagno, 30% imprecisi, non entra nelle statistiche dei passaggi, non vale come gol diretto); cancello D.pari_livello con 40 duelli e soglia 0,30-0,70 (misurato 42-42-16 su 100 duelli: nessun vantaggio di lato). sim.test ok, test:game 111 ok, app.test ok |
+
+Prompt riutilizzabile per un agente (profilo FIFA 10, senza copiare il gioco): [PROMPT-realismo-fifa10.md](PROMPT-realismo-fifa10.md)

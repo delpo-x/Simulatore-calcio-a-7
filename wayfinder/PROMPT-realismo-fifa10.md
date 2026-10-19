@@ -38,7 +38,7 @@ Il lavoro si ferma solo quando la pagella di realismo passa al 100% su due semi 
 
 <profile_fifa10_gates>
 Soglie di lavoro (ipotesi dell'assistente, da sostituire con dati reali appena disponibili), scalate sul 7 vs 7 (campo 50x30 m):
-- Ritmo: possessi medi 4-10 s, 90 percentile 10-35 s; passaggi 900-1300 a partita; 15-35% di passaggi in avanti.
+- Ritmo: possessi medi 4-10 s, 90 percentile 10-35 s; 150-450 passaggi con esito a partita (11v11 reale ~450-600 per squadra in 90 min, scalati su 7 e 50 min; la banda 900-1300 iniziale era un errore di misura); 15-40% di passaggi in avanti.
 - Tiri: 20-32 totali, 9-13 in porta, distanza media 8-13 m (scalata), 5-25% da fuori area, conversione 15-22%.
 - Difesa e duelli: falli 6-10; gialli ~1; rossi ~0,2; azzurri ~0,25.
 - Palla ferma: angoli 3-9, rimesse laterali 12-40 con lancio a due mani, rinvii dal fondo 6-22, punizioni con barriera a 6 m.

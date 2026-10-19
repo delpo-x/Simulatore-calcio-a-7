@@ -11,7 +11,8 @@
     "test:app": "node public/app/app.test.js",
     "matches": "node tools/run-matches.mjs",
     "stress": "node tools/stress.mjs",
-    "realism": "node tools/realism.mjs"
+    "realism": "node tools/realism.mjs",
+    "realism:fifa10": "node tools/realism.mjs --profile fifa10"
   },
   "dependencies": {
     "three": "^0.170.0",

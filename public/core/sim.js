@@ -24,11 +24,11 @@ export const MOVE = {
 
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
-  hz: 10, reaction: 0.1, passError: 0.04, risk: 0.6,
+  hz: 10, reaction: 0.1, passError: 0.04, risk: 0.4,
   pressTrigger: 14, secondPress: 12, mateGap: 8, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.029, shotAngle: 3, shotAnglePerM: 4, longBall: 0.002, longMin: 30, tackleEager: 0.06, markWeight: 0.7, containDist: 5, forceShot: 3, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.12, throwDelay: 1.2, throwMiss: 0.3, parryCorner: 0.6, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 14, blockDepth: 1.0, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.35, passSlip: 0.25, shieldSeconds: 0.8,
+  shootRange: 48, shootEager: 0.038, shotAngle: 3, shotAnglePerM: 4, longBall: 0.002, longMin: 30, tackleEager: 0.045, markWeight: 0.7, containDist: 5, forceShot: 3, laneWidth: 1.6, shotMargin: 0.5, shotFarPost: 0.7, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.03, passPressed: 0.2, passMin: 0.35, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.2, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 0.9, width: 1.35, formSpeed: 0, formTackle: 1,
+  attackDepth: 14, blockDepth: 1.0, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.35, passSlip: 0.5, shieldSeconds: 0.8,
 };
 
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
@@ -82,7 +82,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.048, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
+  foulProb: 0.07, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -548,7 +548,7 @@ export class Sim {
       const g = this.players.find(r => r.gk && r.team === p.team && !r.out);
       if (g && dist(g.x, g.z, q.x, q.z) < 4) continue; // compagno attaccato al portiere: il portiere prenderebbe la palla con le mani
       if (g) { const tt = clamp(((g.x - p.x) * (q.x - p.x) + (g.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1); if (dist(g.x, g.z, p.x + (q.x - p.x) * tt, p.z + (q.z - p.z) * tt) < 2.5) continue; } // mai attraverso il proprio portiere
-      const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0);
+      const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0) - (Math.abs(q.z) > this.pitch.hz - 2.5 ? AI.edgePenalty : 0); // compagno sulla linea laterale: passaggio piu' rischioso (palla fuori)
       if (score > bestScore) { bestScore = score; best = q; }
     }
     return best;

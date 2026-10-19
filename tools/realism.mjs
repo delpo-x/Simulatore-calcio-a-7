@@ -13,6 +13,7 @@ applyParams(JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'params.json'),
 const T = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'targets.json'), 'utf8'));
 const sj = process.argv.indexOf('--set'); // prove senza salvare: --set '{"AI":{"forceShot":6},"RULES":{}}'
 if (sj > 0) { const o = JSON.parse(process.argv[sj + 1]); Object.assign(AI, o.AI ?? {}); Object.assign(RULES, o.RULES ?? {}); }
+const profIx = process.argv.indexOf('--profile'), profile = profIx > 0 ? process.argv[profIx + 1] : 'base'; // base | fifa10 (soglie di lavoro piu' severe, wayfinder/PROMPT-realismo-fifa10.md)
 const fast = process.argv.includes('--fast'); // salta cancelli D ed E (solo per la taratura; la pagella ufficiale non li salta)
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? Number(process.argv[i + 1]) : d; };
 const games = arg('games', 40), half = arg('half', 25), seed0 = arg('seed', Date.now() % 1e6);
@@ -26,10 +27,15 @@ function play(seed, teams) {
   const L = s.pitch.hx * 2, W = s.pitch.hz * 2;
   const m = { shotDist: [], passLen: [], spells: [], thirds: [0, 0, 0], restarts: {}, goalsHalf: [0, 0], maxPlayerSpeed: 0, maxBallSpeed: 0,
     teleports: 0, outside: 0, width: [], depth: [], lineGap: [], touches: 0, shots: 0, onTarget: 0, passOk: 0, passLost: 0, fouls: 0, cards: { yellow: 0, blue: 0, red: 0 },
-    own: [0, 0], stuck: 0, ticks: 0 };
+    own: [0, 0], fwd: 0, onTarget: 0, stuck: 0, ticks: 0 };
   const shoot = s.shoot.bind(s), passTo = s.passTo.bind(s);
-  s.shoot = (p, ...a) => { const r = shoot(p, ...a); m.shotDist.push(Math.abs(p.x - s.dir(p.team) * s.pitch.hx)); m.shots++; return r; };
-  s.passTo = (p, q, ...a) => { m.passLen.push(Math.hypot(p.x - q.x, p.z - q.z)); return passTo(p, q, ...a); };
+  s.shoot = (p, ...a) => {
+    const r = shoot(p, ...a), b = s.ball, gx = s.dir(p.team) * s.pitch.hx; m.shotDist.push(Math.abs(p.x - gx)); m.shots++;
+    const t = (gx - b.x) / (b.vx || 1e-9); // in porta: la traiettoria senza resistenza entra tra i pali sotto la traversa
+    if (t > 0 && Math.abs(b.z + b.vz * t) < s.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < s.pitch.goalH) m.onTarget++; }
+    return r;
+  };
+  s.passTo = (p, q, ...a) => { m.passLen.push(Math.hypot(p.x - q.x, p.z - q.z)); if ((q.x - p.x) * s.dir(p.team) > 2) m.fwd++; return passTo(p, q, ...a); };
   const prev = s.players.map(p => [p.x, p.z]);
   let spellTeam = -1, spellT = 0, idle = 0, last = [s.ball.x, s.ball.z];
   const max = Math.ceil(half * 2 * 60 * 3 / DT);
@@ -128,6 +134,20 @@ gate('D.pari_livello_15_15', duel(15, 15, n), 0.30, 0.70, 'nessun vantaggio sist
 
 // E. Riproducibilita'
 gate('E.determinismo', play(7).hash === play(7).hash ? 1 : 0, 1, 1);
+}
+
+// F. Profilo FIFA 10 (solo con --profile fifa10): ipotesi dell'assistente scalate sul 7 vs 7, vedi wayfinder/PROMPT-realismo-fifa10.md
+if (profile === 'fifa10') {
+  gate('F.tiri_in_porta', mean(col(r => r.onTarget)), 9, 13);
+  gate('F.conversione_tiri', mean(col(r => r.score[0] + r.score[1])) / (mean(col(r => r.shots)) || 1), 0.15, 0.22, 'gol / tiri');
+  gate('F.passaggi_totali', mean(col(r => r.passOk + r.passLost)), 150, 450, 'passaggi con esito (ricevuti o intercettati); 11v11 reale ~450-600 per squadra, scalati su 7 e 50 min');
+  gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.40, 'passaggi che guadagnano > 2 m verso la porta avversaria');
+  gate('F.possesso_medio_s', mean(all(r => r.spells)), 4, 10);
+  gate('F.possesso_p90_s', pct(all(r => r.spells), 0.9), 10, 35);
+  gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 2, 3);
+  gate('F.angoli', mean(col(r => r.restarts.corner || 0)), 3, 9);
+  gate('F.rimesse', mean(col(r => r.restarts.throwin || 0)), 12, 40);
+  gate('F.rinvii', mean(col(r => r.restarts.goalkick || 0)), 6, 22);
 }
 
 const pass = gates.filter(g => g.ok).length;

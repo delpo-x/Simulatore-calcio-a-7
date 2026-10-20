@@ -59,6 +59,8 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5â€
 | `npm run stress -- --games 40` | Prova di robustezza: partite con semi casuali a 5, 6, 7, 8, 9, 10 e 11 giocatori; segnala valori non finiti, giocatori fuori dal campo, palla ferma oltre 20 s e partite che non finiscono. Esce con 1 se trova problemi. |
 | `node public/core/sim.test.js` | Test della simulazione. |
 | `npm run test:app` | Test dei moduli dell'app senza browser (statistiche per giocatore, voti, partita senza grafica). |
+| `npm run realism` | Pagella di realismo (31 cancelli: statistiche, fisica, gioco, coerenza di forza, determinismo). Semi nuovi a ogni giro; scrive `reports/realism.md`. `-- --fast` salta i cancelli lenti, `-- --seed N` fissa il seme. |
+| `npm run realism:fifa10` | Come sopra con il profilo "FIFA 10" (41 cancelli, soglie scalate sul 7 vs 7). Le soglie sono ipotesi del progetto, nessun dato di terzi. Vedi `wayfinder/LOOP.md`. |
 | `npm test` | Test del relay. |
 
 ## Regole modellate (calcio a 7)

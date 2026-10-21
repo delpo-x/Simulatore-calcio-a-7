@@ -26,9 +26,9 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.02, risk: 0.7641,
   pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.8, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0462, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.6537, shotFarPost: 0.7098, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.4702, passPressed: 0.05, passMin: 0.3684, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.2, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 0.9, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 0.5, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.791, shieldSeconds: 0.3,
+  shootRange: 48, shootEager: 0.8, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.4702, passPressed: 0.05, passMin: 0.3684, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 0.9, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 0.5, width: 1.35, formSpeed: 0, formTackle: 1,
+  attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.76, shieldSeconds: 0.3,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -113,7 +113,7 @@ export class Sim {
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
       id: this.players.length, team, gk: !!f.gk, home: f, x: 0, z: 0, vx: 0, vz: 0, face: team === 0 ? 0 : Math.PI,
-      kickCd: 0, tackleT: 0, throwT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
+      kickCd: 0, tackleT: 0, throwT: 0, pickT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
     }));
     teams.forEach((lineup, team) => lineup?.forEach((pl, i) => {
       const p = this.players.filter(q => q.team === team)[i];
@@ -386,21 +386,22 @@ export class Sim {
       const lim = d * (pt.hx - pt.areaDepth - 1), tx = d > 0 ? Math.min(p.x, lim) : Math.max(p.x, lim);
       return { tx, tz: p.z, sprint: Math.abs(p.x - lim) > 3 && (d > 0 ? p.x > lim : p.x < lim) };
     }
+    const hold = this.setKind?.kind === 'throwin' && owner?.id === this.setKind.taker; // rimessa in corso: nessuno aggredisce chi la batte
     const lost = this.possTeam !== p.team && this.possT < 1.5; // transizione: palla appena persa
     const trig = this.sc(t.press) * p.k.press * (lost ? 1.4 : 1) * (owner ? 1 : 1.6);
-    if (owner && db < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35; // chiunque sia a tiro contrasta
-    if (rank === 0 && db < trig) {
+    if (!hold && owner && db < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35; // chiunque sia a tiro contrasta
+    if (!hold && rank === 0 && db < trig) {
       const lead = spot.air ? 0 : clamp(db / MOVE.sprint, 0, 1.2); // intercetta il punto dove sara' la palla
       return { tx: spot.x + b.vx * lead, tz: spot.z + b.vz * lead, sprint: true };
     }
-    if (rank === 1 && owner && db < this.sc(AI.secondPress)) {
+    if (!hold && rank === 1 && owner && db < this.sc(AI.secondPress)) {
       const gx = -d * pt.hx, dx = gx - b.x, dz = -b.z, l = Math.hypot(dx, dz) || 1, c = this.sc(3);
       return { tx: b.x + dx / l * c, tz: b.z + dz / l * c, sprint: true };
     }
     const top = mates.reduce((m, q) => q.home.x > m.home.x ? q : m, mates[0]);
     let tx, tz;
     const deepest = mates.filter(q => q !== top && ranked.indexOf(q) > 0).sort((a, c) => a.home.x - c.home.x || a.id - c.id)[0];
-    if (owner && p === deepest) { // ultimo difensore: si mette tra il portatore e la porta e lo contiene
+    if (!hold && owner && p === deepest) { // ultimo difensore: si mette tra il portatore e la porta e lo contiene
       const gx = -d * pt.hx, dx = gx - owner.x, dz = -owner.z, l = Math.hypot(dx, dz) || 1, m = Math.min(this.sc(AI.containDist), l);
       if (dist(p.x, p.z, owner.x, owner.z) < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35;
       return { tx: owner.x + dx / l * m, tz: owner.z + dz / l * m, sprint: true };
@@ -436,8 +437,8 @@ export class Sim {
       if (q) { this.passTo(p, q, false); return hold; }
     }
     if (this.setKind?.kind === 'throwin' && this.setKind.taker === p.id) { // rimessa laterale: si lancia con le mani a un compagno, mai in porta ne' in conduzione
-      p.vx = p.vz = 0; this.throwWait += 1 / AI.hz;
-      if (this.throwWait >= AI.throwDelay) this.throwIn(p);
+      p.vx = p.vz = 0;
+      if ((this.setKind.t ?? 0) >= AI.throwDelay) this.throwIn(p);
       return hold;
     }
     const close = dg < this.sc(AI.forceShot), lane = this.laneClear(p, gx);
@@ -510,8 +511,8 @@ export class Sim {
     const D = Math.hypot(dx, dz) || 1;
     p.face = Math.atan2(dz, dx);
     this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (4.9 * T * T - 2.0) / T);
-    this.ball.x = p.x + dx / D * 0.3; this.ball.z = p.z + dz / D * 0.3; this.ball.y = 2.0;
-    this.lastPass = null; p.throwT = 0.5; // la rimessa non entra nelle statistiche dei passaggi p.shieldT = 0;
+    this.ball.x = p.x + dx / D * 0.3; this.ball.z = clamp(p.z + dz / D * 0.3, -pt.hz + 0.05, pt.hz - 0.05); this.ball.y = 2.0; // parte da sopra la linea, mai gia' fuori
+    p.pickT = 0; this.lastPass = null; p.throwT = 0.5; // la rimessa non entra nelle statistiche dei passaggi p.shieldT = 0;
     this.setKind = null; this.events.push({ t: 'throwin', team: p.team, player: p.id });
   }
 
@@ -702,7 +703,14 @@ export class Sim {
       const o = ps[b.owner];
       const gap = MOVE.ballGap + MOVE.ballGapPerSpeed * Math.hypot(o.vx, o.vz);
       const thrower = this.setKind?.kind === 'throwin' && this.setKind.taker === o.id;
-      if (thrower) { o.x = this.setKind.x; o.z = this.setKind.z; o.vx = o.vz = 0; } // chi batte la rimessa resta fermo sul punto
+      if (thrower) { // rimessa: il battitore arriva dal fuori campo, si china sulla palla ferma sulla linea, la solleva sopra la testa
+        const k = this.setKind, t = k.t = (k.t ?? 0) + DT, side = Math.sign(k.z), walk = Math.max(0, 1 - t / 0.6), lift = clamp((t - 0.9) / 0.5, 0, 1);
+        o.x = k.x; o.z = k.z + side * 2.4 * walk; o.vx = 0; o.vz = walk > 0 ? -side * 4 : 0; o.pickT = t;
+        const hx = o.x + Math.cos(o.face) * 0.1, hz = o.z + Math.sin(o.face) * 0.1, gz = side * this.pitch.hz;
+        b.x = k.x + (hx - k.x) * lift; b.z = gz + (hz - gz) * lift; b.y = 0.11 + 1.89 * lift; b.vx = b.vz = b.vy = 0; b.last = o.id;
+        for (const q of ps) if (q.team !== o.team && !q.out) this.keepAway(q, k.x, k.z, 2); // gli avversari restano a 2 m dal punto della rimessa
+        return;
+      }
       b.x = o.x + Math.cos(o.face) * (thrower ? 0.1 : gap); b.z = o.z + Math.sin(o.face) * (thrower ? 0.1 : gap); b.y = thrower ? 2.0 : 0.11; // rimessa: palla sopra la testa, tenuta con le mani
       b.vx = o.vx; b.vz = o.vz; b.vy = 0; b.last = o.id;
       return;
@@ -766,6 +774,7 @@ export class Sim {
         return;
       }
     } else this.gkHoldId = -1;
+    if (this.setKind?.kind === 'throwin' && b.owner === this.setKind.taker) return; // chi batte la rimessa sta fuori dalla linea con la palla in mano
     if (Math.abs(b.x) > this.pitch.hx) {
       if (Math.abs(b.z) < this.pitch.goalHalf && b.y < this.pitch.goalH && !this.indirect) {
         const team = b.x > 0 ? 0 : 1;
@@ -802,7 +811,7 @@ export class Sim {
       if (lastTeam === attackers) return this.setPiece('goalkick', 1 - attackers, sx * (pt.hx - 6), 0);
       return this.setPiece('corner', attackers, sx * (pt.hx - 0.3), (b.z >= 0 ? 1 : -1) * (pt.hz - 0.3));
     }
-    return this.setPiece('throwin', 1 - lastTeam, clamp(b.x, -pt.hx + 1, pt.hx - 1), sz * (pt.hz - 0.5));
+    return this.setPiece('throwin', 1 - lastTeam, clamp(b.x, -pt.hx + 1, pt.hx - 1), sz * (pt.hz + 0.45)); // chi batte sta fuori dalla linea laterale
   }
 
   /** Riprese da fermo: rimessa, rinvio, angolo, punizione e rigore, con le distanze regolamentari. */
@@ -812,7 +821,7 @@ export class Sim {
     const own = this.players.filter(p => p.team === team && !p.out);
     const pool = kind === 'goalkick' ? own.filter(p => p.gk) : own.filter(p => !p.gk);
     const taker = pool.reduce((m, p) => dist(p.x, p.z, x, z) < dist(m.x, m.z, x, z) ? p : m);
-    taker.x = x; taker.z = z; taker.vx = taker.vz = 0;
+    taker.x = x; taker.z = kind === 'throwin' ? z + Math.sign(z) * 2.4 : z; taker.vx = taker.vz = 0; // rimessa: parte 2,4 m piu' fuori e arriva a piedi sulla palla
     // il battitore guarda verso il campo, altrimenti la palla esce subito di nuovo
     taker.face = kind === 'throwin' ? (z > 0 ? -Math.PI / 2 : Math.PI / 2)
       : kind === 'corner' ? Math.atan2(-z, -x)

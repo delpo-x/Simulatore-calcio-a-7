@@ -192,7 +192,7 @@ function buildPlayer(kit, gk, num, id, blobMat) {
   const front = back.clone(); front.scale.setScalar(0.45); front.position.set(0.2, 1.36, 0.07); front.rotation.y = Math.PI / 2;
   body.add(torso, pants, head, hr, back, front);
   const blob = new THREE.Mesh(G.blob, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
-  root.userData = { body, legs, arms, phase: (id * 1.7) % 6.28 };
+  root.userData = { body, legs, arms, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0 };
   return root;
 }
 
@@ -234,19 +234,60 @@ export class TVRenderer {
     this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); this.scene.add(m); return m; });
   }
 
-  animate(m, p, dt) {
-    const u = m.userData, sp = Math.hypot(p.vx, p.vz), run = clamp(sp / 7, 0, 1);
-    u.phase += dt * (3 + sp * 1.6);
-    const s = Math.sin(u.phase), sw = 0.15 + run * 0.75;
-    u.legs[0].hip.rotation.z = s * sw; u.legs[1].hip.rotation.z = -s * sw;
-    u.legs[0].knee.rotation.z = -Math.max(0, -Math.cos(u.phase)) * sw * 1.3; u.legs[1].knee.rotation.z = -Math.max(0, Math.cos(u.phase)) * sw * 1.3;
-    u.arms[0].rotation.z = -s * sw * 0.8; u.arms[1].rotation.z = s * sw * 0.8;
-    if (sp < 0.3) { for (const l of u.legs) { l.hip.rotation.z *= 0.2; l.knee.rotation.z = 0; } for (const a of u.arms) a.rotation.z *= 0.2; }
-    if (p.throwT > 0) { u.arms[0].rotation.z = 2.9; u.arms[1].rotation.z = 2.9; for (const l of u.legs) { l.hip.rotation.z *= 0.2; l.knee.rotation.z = 0; } } // rimessa: braccia alzate
-    const b = u.body;
-    if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; }
-    else { b.rotation.z += (-run * 0.22 - b.rotation.z) * Math.min(1, dt * 10); b.position.y = Math.abs(s) * run * 0.06; }
-    b.rotation.x = p.stun > 0 ? Math.sin(u.phase * 2) * 0.15 : 0;
+  /** Animazione procedurale (nessun dato di terzi): andatura camminata/corsa/scatto, conduzione, finta, tiro, colpo di testa, rimessa. */
+  animate(m, p, dt, ctx = {}) {
+    const u = m.userData, sp = Math.hypot(p.vx, p.vz), b = u.body;
+    const gait = clamp((sp - 2) / 5.5, 0, 1), dribbling = !!ctx.owns && sp > 1; // 0 = cammina, 1 = scatto
+    const heading = sp > 1.5 ? Math.atan2(p.vz, p.vx) : u.heading;
+    if (u.heading !== undefined && sp > 2.5 && dt > 0) { // cambio di direzione secco con la palla: finta
+      const da = Math.atan2(Math.sin(heading - u.heading), Math.cos(heading - u.heading));
+      if (ctx.owns && Math.abs(da) / dt > 3.2 && u.feintT <= 0) { u.feintT = 0.5; u.feintDir = Math.sign(da) || 1; }
+    }
+    u.heading = heading;
+    const acc = dt > 0 ? (sp - u.prevSp) / dt : 0; u.prevSp = sp;
+    u.accLean += (clamp(acc, -6, 8) * 0.018 - u.accLean) * Math.min(1, dt * 6);
+    u.feintT = Math.max(0, u.feintT - dt); u.kickT = Math.max(0, u.kickT - dt); u.headT = Math.max(0, u.headT - dt);
+    const cadence = (0.7 + sp * 0.33) * (dribbling ? 1.2 : 1);
+    u.phase += dt * Math.PI * 2 * cadence;
+    const s = Math.sin(u.phase), c = Math.cos(u.phase), sw = (0.22 + sp * 0.1) * (dribbling ? 0.75 : 1), bend = sw * (0.5 + gait * 1.4);
+    const [l0, l1] = u.legs, [a0, a1] = u.arms;
+    l0.hip.rotation.z = s * sw; l1.hip.rotation.z = -s * sw;
+    l0.knee.rotation.z = -Math.max(0, c) * bend; l1.knee.rotation.z = -Math.max(0, -c) * bend; // il ginocchio si piega nella fase di recupero
+    a0.rotation.z = -s * sw * (0.7 + gait * 0.5); a1.rotation.z = s * sw * (0.7 + gait * 0.5);
+    a0.rotation.x = a1.rotation.x = 0; l0.hip.rotation.x = l1.hip.rotation.x = 0;
+    b.rotation.x = 0; b.rotation.y = s * 0.05 + s * gait * 0.14; // torsione del busto: piu' marcata a pieno ritmo
+    let lean = -(gait * 0.3 + (dribbling ? 0.05 : 0) + u.accLean), drop = Math.abs(s) * (0.02 + gait * 0.09);
+    if (sp < 0.3) { for (const l of u.legs) { l.hip.rotation.z *= 0.2; l.knee.rotation.z = 0; } a0.rotation.z *= 0.2; a1.rotation.z *= 0.2; b.rotation.y = 0; lean = 0; drop = 0; }
+    if (dribbling) { const k = Math.max(0, c); l1.hip.rotation.z += k * 0.35; l1.knee.rotation.z *= 0.5; a0.rotation.x = -0.3; a1.rotation.x = 0.3; } // tocchi corti: il piede accompagna la palla
+    if (u.feintT > 0) { // finta con passo sopra la palla e peso sul lato opposto
+      const q = 1 - u.feintT / 0.5, w = Math.sin(Math.PI * q), d = u.feintDir, over = d > 0 ? l0 : l1;
+      b.rotation.x = d * 0.4 * w; b.rotation.y += d * 0.35 * w; drop += 0.07 * w; lean = lean * 0.5 - 0.1 * w;
+      over.hip.rotation.z = 0.95 * w; over.knee.rotation.z = -0.6 * w; over.hip.rotation.x = d * 0.55 * Math.sin(Math.PI * q);
+    }
+    if (u.kickT > 0) { // tiro o passaggio: rincorsa all'indietro, impatto, accompagnamento
+      const q = 1 - u.kickT / 0.3, kl = u.kickLeft ? l0 : l1, pl = u.kickLeft ? l1 : l0, pw = u.kickPow;
+      const f = q < 0.4 ? -0.9 * (q / 0.4) : q < 0.65 ? -0.9 + (1.2 + 1.1 * pw) * ((q - 0.4) / 0.25) : 0.3 + 1.1 * pw - 0.5 * ((q - 0.65) / 0.35);
+      kl.hip.rotation.z = f; kl.knee.rotation.z = -(q < 0.4 ? 1.3 * (q / 0.4) : q < 0.65 ? 1.3 * (1 - (q - 0.4) / 0.25) : 0.1);
+      pl.hip.rotation.z *= 0.3; pl.knee.rotation.z = -0.25;
+      a0.rotation.z = u.kickLeft ? 0.7 : -0.7; a1.rotation.z = u.kickLeft ? -0.7 : 0.7; a0.rotation.x = a1.rotation.x = 0;
+      lean += u.kickLoft ? 0.25 * Math.sin(Math.PI * q) : -0.12 * Math.sin(Math.PI * q); b.rotation.y = (u.kickLeft ? -1 : 1) * 0.3 * Math.sin(Math.PI * q);
+    }
+    if (u.headT > 0) { // colpo di testa: stacco, busto indietro poi in avanti
+      const q = 1 - u.headT / 0.45; drop = -0.42 * Math.sin(Math.PI * q); lean = q < 0.45 ? 0.35 * (q / 0.45) : 0.35 - 0.7 * ((q - 0.45) / 0.55);
+      a0.rotation.z = a1.rotation.z = 1.2 * Math.sin(Math.PI * q); l0.hip.rotation.z = 0.5; l1.hip.rotation.z = -0.3; l1.knee.rotation.z = -0.9; l0.knee.rotation.z = -0.3;
+    }
+    if (p.throwT > 5) { // rimessa: si china a prendere la palla, la solleva sopra la testa
+      const t = p.pickT ?? 0, down = clamp((t - 0.6) / 0.3, 0, 1) * (1 - clamp((t - 0.9) / 0.5, 0, 1)), lift = clamp((t - 0.9) / 0.5, 0, 1);
+      if (t >= 0.6) {
+        for (const l of u.legs) { l.hip.rotation.z = 1.0 * down; l.knee.rotation.z = -1.7 * down; }
+        a0.rotation.z = a1.rotation.z = 0.6 * down + (2.9 - 0.6) * lift * (down > 0 || lift > 0 ? 1 : 0); drop = -0.45 * down; lean = -0.9 * down + 0.3 * lift; b.rotation.y = 0;
+      }
+    } else if (p.throwT > 0 && p.throwT <= 0.5) { // lancio: braccia dal sopra la testa in avanti
+      const q = 1 - p.throwT / 0.5; a0.rotation.z = a1.rotation.z = 2.9 - 2.4 * q; lean = -0.35 * Math.sin(Math.PI * Math.min(1, q * 1.4)); l0.hip.rotation.z = 0.35; l1.hip.rotation.z = -0.3; l0.knee.rotation.z = l1.knee.rotation.z = 0;
+    }
+    if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; b.rotation.x = 0; } // scivolata
+    else { b.rotation.z += (lean - b.rotation.z) * Math.min(1, dt * 14); b.position.y = drop; }
+    if (p.stun > 0) b.rotation.x = Math.sin(u.phase * 2) * 0.15;
   }
 
   updateCamera(v, dt) {
@@ -281,10 +322,18 @@ export class TVRenderer {
   draw(v, dt) {
     this.resize();
     if (this.meshes.length !== v.players.length) this.build(v.players);
+    const bo = v.ball.owner, from = this.prevOwner;
+    if (from >= 0 && bo < 0 && v.players[from] && !(v.players[from].throwT > 0)) { // palla appena lasciata dal giocatore: tiro o passaggio
+      const sp = Math.hypot(v.ball.vx, v.ball.vz), u = this.meshes[from]?.userData;
+      if (u && sp > 3) { u.kickT = 0.3; u.kickLeft = (from + Math.round(sp)) % 3 === 0; u.kickPow = clamp(sp / 22, 0.2, 1); u.kickLoft = v.ball.vy > 2; }
+    }
+    this.prevOwner = bo;
     v.players.forEach((p, i) => {
       const m = this.meshes[i]; m.visible = !p.out;
       if (p.out) return;
-      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt);
+      const u = m.userData; u.headCd = Math.max(0, u.headCd - dt);
+      if (!p.gk && u.headCd === 0 && v.ball.owner < 0 && v.ball.y > 1.1 && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 0.8) { u.headT = 0.45; u.headCd = 1.5; } // palla alta addosso: colpo di testa
+      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id });
     });
     const b = v.ball, sp = Math.hypot(b.vx, b.vz);
     this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);

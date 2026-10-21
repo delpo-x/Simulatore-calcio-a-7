@@ -402,7 +402,7 @@ export function skillFormula({ attrs }) {
   return { ...s.players[3].k, gk: { ...s.players[0].k } };
 }
 
-/** Rimesse laterali: battute con le mani (palla alta al rilascio), da fermo sulla linea laterale, entro 3 s, verso un compagno. */
+/** Rimesse laterali: battute con le mani (palla alta al rilascio), da fermo appena fuori dalla linea laterale, entro 3 s, verso un compagno. */
 export function throwInTrial() {
   let n = 0, high = 0, onLine = 0, fast = 0, toMate = 0, dribbled = 0;
   for (let seed = 1; seed <= 6; seed++) {
@@ -411,17 +411,18 @@ export function throwInTrial() {
     while (s.state !== 'full') {
       s.step([null, null]);
       for (const e of s.events) {
-        if (e.t === 'restart' && e.kind === 'throwin') cur = { id: s.setKind.taker, t0: s.time, x: s.players[s.setKind.taker].x, z: s.players[s.setKind.taker].z, team: e.team };
+        if (e.t === 'restart' && e.kind === 'throwin') cur = { id: s.setKind.taker, t0: s.time, x: s.setKind.x, z: s.setKind.z, team: e.team };
         else if (e.t === 'throwin' && cur) {
           n++; const p = s.players[cur.id];
           if (s.ball.y >= 1.8) high++;
-          if (Math.abs(Math.abs(p.z) - (s.pitch.hz - 0.5)) < 0.6 && Math.hypot(p.x - cur.x, p.z - cur.z) < 0.6) onLine++;
+          if (Math.abs(Math.abs(p.z) - (s.pitch.hz + 0.45)) < 0.6 && Math.hypot(p.x - cur.x, p.z - cur.z) < 0.6) onLine++;
           if (s.time - cur.t0 <= 3) fast++;
           cur.thrown = true; cur.thrownT = s.time;
         }
       }
       if (cur?.thrown && s.ball.owner >= 0 && s.ball.owner !== cur.id) { if (s.players[s.ball.owner].team === cur.team) toMate++; cur = null; }
-      else if (cur && !cur.thrown && s.ball.owner !== cur.id && s.state === 'play') { dribbled++; cur = null; } // la palla ha lasciato le mani senza lancio
+      else if (cur && !cur.thrown && s.setKind?.kind === 'kickoff') cur = null; // il tempo e' finito durante la rimessa
+      else if (cur && !cur.thrown && s.ball.owner !== cur.id && s.state === 'play' && s.setKind?.kind !== 'kickoff') { dribbled++; cur = null; } // la palla ha lasciato le mani senza lancio
       else if (cur?.thrown && s.time - cur.thrownT > 6) cur = null;
     }
   }

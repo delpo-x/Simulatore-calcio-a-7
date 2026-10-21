@@ -285,7 +285,7 @@ export function backPassTrial() {
   s.kick(k, -1, 0, 12, 0);
   let violation = false, taker = -1;
   for (let i = 0; i < 4 / DT; i++) { s.step([null, null]); if (s.events.some(e => e.t === 'backpass')) { violation = true; break; } }
-  if (violation) taker = s.players[s.ball.owner]?.team ?? -1;
+  if (violation) taker = s.dead?.team ?? s.players[s.ball.owner]?.team ?? -1;
   return { violation: Number(violation), kick_to_opponents: Number(taker === 1), indirect_active: Number(!!s.indirect) };
 }
 

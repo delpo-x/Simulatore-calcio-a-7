@@ -58,8 +58,8 @@ export class MatchStats {
     const sim = this.sim, s = this.s, ps = this.ps, n = this.timeline.length;
     if (sim.state === 'play' && sim.ball.owner >= 0) s.poss[sim.players[sim.ball.owner].team]++;
     for (const e of sim.events) {
-      if (e.t === 'passOk') s.passOk[e.team]++;
-      else if (e.t === 'passLost') s.passLost[e.team]++;
+      if (e.t === 'passOk') { s.passOk[e.team]++; if (e.player >= 0) ps[e.player].passOk++; } // con 'player': passaggio chiuso dalla palla uscita, non da un cambio di possesso
+      else if (e.t === 'passLost') { s.passLost[e.team]++; if (e.player >= 0) ps[e.player].passLost++; }
       else if (e.t === 'goal') {
         const sc = sim.players[e.scorer], own = !!sc && sc.team !== e.team, lp = this.lastPass;
         const assist = !own && lp && lp.to === e.scorer && sim.matchTime - lp.sec < 8 ? lp.from : -1;

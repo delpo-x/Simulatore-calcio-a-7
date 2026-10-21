@@ -41,7 +41,7 @@
     },
     "contrasto": {
       "raggio_m": 1.3,
-      "successo_base": 0.4413
+      "successo_base": 0.4408
     },
     "raccolta": {
       "raggio_m": 0.9,
@@ -65,7 +65,7 @@
     "innesco_pressing_m": 16,
     "raggio_secondo_pressatore_m": 12,
     "distanza_minima_compagni_m": 12,
-    "propensione_rischio": 0.7641,
+    "propensione_rischio": 0.6,
     "distanza_minima_scalata_m": 3,
     "riferimento_lunghezza_campo_m": 105,
     "parametri_tattici": {
@@ -211,7 +211,7 @@
   },
   "ia_taratura": {
     "shootRange": 48,
-    "shootEager": 0.8,
+    "shootEager": 0.56,
     "shotAngle": 1,
     "shotAnglePerM": 0.5,
     "tackleEager": 0.0438,
@@ -224,17 +224,17 @@
     "longBall": 0.002,
     "keeperLong": 0.4,
     "tackleFoul": 0.6817,
-    "passSlip": 0.76,
+    "passSlip": 0.82,
     "shieldSeconds": 0.3,
     "longMin": 30,
     "passSpeed0": 7,
     "tackleDist": 1.6,
     "sprintFree": 12,
     "defenderLimit": -0.1,
-    "passBase": 0.4702,
+    "passBase": 0.6207,
     "passPressed": 0.05,
-    "passMin": 0.3684,
-    "pressedDist": 4,
+    "passMin": 0.451,
+    "pressedDist": 3.7531,
     "attackDepth": 10.1654,
     "blockDepth": 0.6769,
     "pressedErrMul": 6,

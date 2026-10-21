@@ -88,6 +88,11 @@ function stadium(P, scene) {
   const W = P.hx * 2, Hz = P.hz * 2, m = Math.max(4, P.hz * 0.25);
   const run = new THREE.Mesh(new THREE.PlaneGeometry(W + m * 2 + 4, Hz + m * 2 + 4), new THREE.MeshLambertMaterial({ color: 0x2e7f36 }));
   run.rotation.x = -Math.PI / 2; run.position.y = -0.01; scene.add(run);
+  const gc = document.createElement('canvas'); gc.width = gc.height = 128; const g2 = gc.getContext('2d'); g2.fillStyle = '#b4a58d'; g2.fillRect(0, 0, 128, 128); // ghiaia attorno al campo: la palla uscita rallenta
+  for (let i = 0; i < 900; i++) { g2.fillStyle = `hsl(${30 + Math.random() * 15} ${10 + Math.random() * 15}% ${45 + Math.random() * 30}%)`; g2.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set((W + 5) / 3, (Hz + 5) / 3); gt.colorSpace = THREE.SRGBColorSpace;
+  const gravel = new THREE.Mesh(new THREE.PlaneGeometry(W + 5, Hz + 5), new THREE.MeshLambertMaterial({ map: gt }));
+  gravel.rotation.x = -Math.PI / 2; gravel.position.y = -0.004; scene.add(gravel);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * 6 + 300, Hz * 6 + 300), new THREE.MeshLambertMaterial({ color: 0x4d545c }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -0.03; scene.add(floor);
   const board = (len, x, z, ry) => {
@@ -192,7 +197,7 @@ function buildPlayer(kit, gk, num, id, blobMat) {
   const front = back.clone(); front.scale.setScalar(0.45); front.position.set(0.2, 1.36, 0.07); front.rotation.y = Math.PI / 2;
   body.add(torso, pants, head, hr, back, front);
   const blob = new THREE.Mesh(G.blob, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
-  root.userData = { body, legs, arms, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0 };
+  root.userData = { body, legs, arms, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1 };
   return root;
 }
 
@@ -286,6 +291,18 @@ export class TVRenderer {
     } else if (p.throwT > 0 && p.throwT <= 0.5) { // lancio: braccia dal sopra la testa in avanti
       const q = 1 - p.throwT / 0.5; a0.rotation.z = a1.rotation.z = 2.9 - 2.4 * q; lean = -0.35 * Math.sin(Math.PI * Math.min(1, q * 1.4)); l0.hip.rotation.z = 0.35; l1.hip.rotation.z = -0.3; l0.knee.rotation.z = l1.knee.rotation.z = 0;
     }
+    if (p.gk) { // portiere: posizione di attesa con braccia aperte, presa a petto, tuffo
+      u.diveT = Math.max(0, u.diveT - dt);
+      if (u.diveT > 0) {
+        const q = 1 - u.diveT / 0.8, f = q < 0.2 ? q / 0.2 : q < 0.7 ? 1 : (1 - q) / 0.3, d = u.diveDir;
+        b.rotation.x = d * 1.35 * f; b.position.z = d * 1.1 * f; drop = 0.45 * Math.sin(Math.PI * Math.min(1, q * 1.4)); lean = 0.1;
+        a0.rotation.x = a1.rotation.x = Math.PI * 0.95 * f; a0.rotation.z = a1.rotation.z = 0; l0.hip.rotation.z = 0.3; l1.hip.rotation.z = -0.3; l0.knee.rotation.z = l1.knee.rotation.z = -0.4;
+      } else {
+        b.position.z = 0;
+        if (ctx.owns) { a0.rotation.z = a1.rotation.z = 1.5; a0.rotation.x = -0.45; a1.rotation.x = 0.45; lean = -0.12; } // palla tenuta al petto
+        else if (sp < 3) { a0.rotation.x = 0.75; a1.rotation.x = -0.75; a0.rotation.z = a1.rotation.z = 0.35; lean = -0.15; drop = Math.min(drop, 0) - 0.08 + Math.sin(u.phase * 0.7) * 0.01; for (const l of u.legs) { l.hip.rotation.z = 0.35; l.knee.rotation.z = -0.6; } } // attesa: gambe piegate, braccia larghe
+      }
+    }
     if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; b.rotation.x = 0; } // scivolata
     else { b.rotation.z += (lean - b.rotation.z) * Math.min(1, dt * 14); b.position.y = drop; }
     if (p.stun > 0) b.rotation.x = Math.sin(u.phase * 2) * 0.15;
@@ -332,7 +349,14 @@ export class TVRenderer {
     v.players.forEach((p, i) => {
       const m = this.meshes[i]; m.visible = !p.out;
       if (p.out) return;
-      const u = m.userData; u.headCd = Math.max(0, u.headCd - dt);
+      const u = m.userData; u.headCd = Math.max(0, u.headCd - dt); u.diveCd = Math.max(0, u.diveCd - dt);
+      if (p.gk && u.diveT <= 0 && u.diveCd === 0 && v.ball.owner < 0) { // tiro verso il portiere: tuffo dal lato dove passa la palla
+        const bx = v.ball.x - p.x, bz = v.ball.z - p.z, sp2 = v.ball.vx ** 2 + v.ball.vz ** 2;
+        if (sp2 > 81 && Math.hypot(bx, bz) < 9 && v.ball.y < 2.2 && bx * v.ball.vx + bz * v.ball.vz < 0) {
+          const t = -(bx * v.ball.vx + bz * v.ball.vz) / sp2, l = (bx + v.ball.vx * t) * -Math.sin(p.face) + (bz + v.ball.vz * t) * Math.cos(p.face);
+          if (Math.abs(l) > 0.5) { u.diveT = 0.8; u.diveDir = Math.sign(l); } u.diveCd = 2;
+        }
+      }
       if (!p.gk && u.headCd === 0 && v.ball.owner < 0 && v.ball.y > 1.1 && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 0.8) { u.headT = 0.45; u.headCd = 1.5; } // palla alta addosso: colpo di testa
       m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id });
     });

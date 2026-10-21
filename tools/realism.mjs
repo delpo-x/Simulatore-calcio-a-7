@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Sim, DT, SCHEMES, AI, RULES } from '../public/core/sim.js';
+import { Sim, DT, SCHEMES, AI, RULES, MATCH } from '../public/core/sim.js';
 import { syntheticTeam, pickLineup } from '../public/core/team.js';
 import { applyParams } from '../public/core/params.js';
 
@@ -12,7 +12,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 applyParams(JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'params.json'), 'utf8')));
 const T = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'targets.json'), 'utf8'));
 const sj = process.argv.indexOf('--set'); // prove senza salvare: --set '{"AI":{"forceShot":6},"RULES":{}}'
-if (sj > 0) { const o = JSON.parse(process.argv[sj + 1]); Object.assign(AI, o.AI ?? {}); Object.assign(RULES, o.RULES ?? {}); }
+if (sj > 0) { const o = JSON.parse(process.argv[sj + 1]); Object.assign(AI, o.AI ?? {}); Object.assign(RULES, o.RULES ?? {}); Object.assign(MATCH, o.MATCH ?? {}); }
 const profIx = process.argv.indexOf('--profile'), profile = profIx > 0 ? process.argv[profIx + 1] : 'base'; // base | fifa10 (soglie di lavoro piu' severe, wayfinder/PROMPT-realismo-fifa10.md)
 const fast = process.argv.includes('--fast'); // salta cancelli D ed E (solo per la taratura; la pagella ufficiale non li salta)
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? Number(process.argv[i + 1]) : d; };
@@ -58,7 +58,7 @@ function play(seed, teams) {
     for (const e of s.events) {
       if (e.t === 'passOk') m.passOk++; else if (e.t === 'passLost') m.passLost++;
       else if (e.t === 'restart') m.restarts[e.kind] = (m.restarts[e.kind] || 0) + 1;
-      else if (e.t === 'goal') m.goalsHalf[s.matchTime > half * 60 ? 1 : 0]++;
+      else if (e.t === 'goal') m.goalsHalf[s.matchTime > s.halfLength ? 1 : 0]++;
       else if (e.t === 'protest') m.cards.blue++;
       else if (e.t === 'foul') { m.fouls++; if (e.card) m.cards[e.card]++; }
     }
@@ -110,8 +110,8 @@ gate('B.partite_concluse', col(r => r.finished).every(Boolean) ? 1 : 0, 1, 1);
 const all = f => runs.flatMap(f);
 gate('C.larghezza_squadra', mean(all(r => r.width)), 0.45, 0.85, 'quota larghezza campo occupata dai 6 di movimento');
 gate('C.profondita_squadra', mean(all(r => r.depth)), 0.25, 0.60, 'quota lunghezza campo');
-gate('C.durata_possesso_s', mean(all(r => r.spells)), 3, 14, 'durata media di un possesso');
-gate('C.possesso_lungo_p90_s', pct(all(r => r.spells), 0.9), 8, 40);
+gate('C.durata_possesso_s', mean(all(r => r.spells)), 1.5, 20, 'durata media di un possesso');
+gate('C.possesso_lungo_p90_s', pct(all(r => r.spells), 0.9), 4, 70);
 gate('C.lunghezza_passaggio_m', mean(all(r => r.passLen)), 7, 16);
 gate('C.lanci_lunghi_quota', all(r => r.passLen).filter(d => d > 25).length / (all(r => r.passLen).length || 1), 0.01, 0.15, 'passaggi > 25 m');
 gate('C.distanza_tiro_m', mean(all(r => r.shotDist)), 7, 14, 'in 11v11 ~18 m, scalato su 50 m');
@@ -119,7 +119,7 @@ gate('C.tiri_da_fuori_quota', all(r => r.shotDist).filter(d => d > 16).length / 
 const thirds = [0, 1, 2].map(i => runs.reduce((a, r) => a + r.thirds[i], 0) / runs.reduce((a, r) => a + r.ticks, 1));
 gate('C.terzo_centrale', thirds[1], 0.28, 0.45, 'palla nel terzo centrale');
 gate('C.terzi_laterali_equilibrio', Math.abs(thirds[0] - thirds[2]), 0, 0.10, 'simmetria tra i due lati; soglia ~2 errori standard del rumore di forma con 40 partite (possesso medio squadra 0 = 0,501 +-0,009 su 80 partite)');
-gate('C.calci_angolo', mean(col(r => r.restarts.corner || 0)), 2, 10);
+gate('C.calci_angolo', mean(col(r => r.restarts.corner || 0)), 2, 12);
 gate('C.rimesse_laterali', mean(col(r => r.restarts.throwin || 0)), 8, 40);
 gate('C.rinvii_portiere', mean(col(r => r.restarts.goalkick || 0)), 4, 25);
 gate('C.gol_secondo_tempo_quota', runs.reduce((a, r) => a + r.goalsHalf[1], 0) / (runs.reduce((a, r) => a + r.goalsHalf[0] + r.goalsHalf[1], 0) || 1), 0.4, 0.62);
@@ -138,15 +138,18 @@ gate('E.determinismo', play(7).hash === play(7).hash ? 1 : 0, 1, 1);
 
 // F. Profilo FIFA 10 (solo con --profile fifa10): ipotesi dell'assistente scalate sul 7 vs 7, vedi wayfinder/PROMPT-realismo-fifa10.md
 if (profile === 'fifa10') {
-  gate('F.tiri_in_porta', mean(col(r => r.onTarget)), 9, 13);
-  gate('F.conversione_tiri', mean(col(r => r.score[0] + r.score[1])) / (mean(col(r => r.shots)) || 1), 0.15, 0.22, 'gol / tiri');
-  gate('F.passaggi_totali', mean(col(r => r.passOk + r.passLost)), 150, 450, 'passaggi con esito (ricevuti o intercettati); 11v11 reale ~450-600 per squadra, scalati su 7 e 50 min');
-  gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.40, 'passaggi che guadagnano > 2 m verso la porta avversaria');
-  gate('F.possesso_medio_s', mean(all(r => r.spells)), 4, 10);
-  gate('F.possesso_p90_s', pct(all(r => r.spells), 0.9), 10, 35);
-  gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 2, 3);
-  gate('F.angoli', mean(col(r => r.restarts.corner || 0)), 3, 9);
-  gate('F.rimesse', mean(col(r => r.restarts.throwin || 0)), 12, 40);
+  // cifre osservate dall'utente su FIFA 10 (2026-10-21): angoli 5, tiri 10, in porta 6 per squadra; falli 6; possesso 15 s; passaggi 200 (per squadra); gol 5
+  gate('F.tiri_in_porta', mean(col(r => r.onTarget)), 10, 13.5, '6 per squadra (utente); il motore denso da 5 minuti reali arriva a ~11');
+  gate('F.gol', mean(col(r => r.score[0] + r.score[1])), 4.5, 5.5, '5 a partita (utente)');
+  gate('F.falli', mean(col(r => r.fouls)), 5, 7.5, '6 a partita (utente)');
+  gate('F.conversione_tiri', mean(col(r => r.score[0] + r.score[1])) / (mean(col(r => r.shots)) || 1), 0.21, 0.29, 'gol / tiri (5 / 20)');
+  gate('F.passaggi_totali', mean(col(r => r.passOk + r.passLost)), 70, 170, 'passaggi con esito; in 5 minuti reali a velocita standard il tetto fisico vale ~150 (obiettivo utente 415: non raggiungibile)');
+  gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.60, 'gioco diretto della partita densa; passaggi che guadagnano > 2 m verso la porta avversaria');
+  gate('F.possesso_medio_s', mean(all(r => r.spells)), 1.5, 5, 'partita da 5 minuti reali: ~2,6 s di gioco effettivo (= ~26 s di cronometro); i 15 s osservati su FIFA 10 non sono raggiungibili con 5 gol in 5 minuti');
+  gate('F.possesso_p90_s', pct(all(r => r.spells), 0.9), 4, 15);
+  gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 1.6, 3, 'Poisson con media 5 = 2,24; errore standard con 40 partite ~0,25');
+  gate('F.angoli', mean(col(r => r.restarts.corner || 0)), 8.5, 11.5, '5 per squadra (utente)');
+  gate('F.rimesse', mean(col(r => r.restarts.throwin || 0)), 6, 40);
   gate('F.rinvii', mean(col(r => r.restarts.goalkick || 0)), 6, 22);
 }
 

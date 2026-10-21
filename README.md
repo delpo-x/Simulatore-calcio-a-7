@@ -65,7 +65,7 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5�
 
 ## Regole modellate (calcio a 7)
 
-Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti, senza sostituzioni.
+Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti sul cronometro, senza sostituzioni. Come in FIFA, il cronometro corre più veloce del tempo di gioco: `partita.passo` = 0,1 (in `config/params.json`), quindi 50 minuti di tabellone sono 5 minuti reali a velocità 1×. Il gioco è tarato per essere denso in quei 5 minuti (circa 5 gol, 20+ tiri, 9–10 angoli, 6 falli).
 
 - Calcio d'inizio (anche dopo ogni gol e a inizio ripresa, intervallo di 3 s): il battitore passa a un compagno.
 - Falli, ammonizione, espulsione, rigore, punizione, angolo, rinvio, rimessa.

@@ -1,7 +1,7 @@
 // Collegamento tra config/params.json e le costanti del motore (BALL, MOVE, AI, RULES).
 // Il motore ha i propri valori predefiniti (servono al browser, che non legge il file); applyParams()
 // li sovrascrive da params.json negli strumenti Node, diffParams() segnala ogni scostamento.
-import { BALL, MOVE, AI, RULES } from './sim.js';
+import { BALL, MOVE, AI, RULES, MATCH } from './sim.js';
 
 /** [percorso in params.json, oggetto del motore, chiave]. */
 export const PARAM_MAP = [

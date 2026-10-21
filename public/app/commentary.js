@@ -22,7 +22,7 @@ export class Commentary {
     const t = this.sim.matchTime;
     if (t - this.lastLine < GAP[prio] || (prio === 'low' && Math.random() < 0.5)) return;
     this.lastLine = t;
-    this.out.push({ t: 'cm', text, team, prio, sec: t, min: Math.min(Math.floor(t / 60) + 1, Math.ceil(this.sim.halfLength * 2 / 60)) });
+    this.out.push({ t: 'cm', text, team, prio, sec: t, min: Math.min(Math.floor(this.sim.clock(t) / 60) + 1, Math.ceil(this.sim.halfLengthClock * 2 / 60)) });
   }
 
   inArea(p) { const pt = this.sim.pitch, d = this.sim.dir(p.team); return Math.sign(p.x) === d && Math.abs(p.x) > pt.hx - pt.areaDepth && Math.abs(p.z) < pt.areaWidth / 2; }

@@ -34,7 +34,7 @@ export class MatchStats {
     sim.giveBall = p => { const prev = this.owner, lp = sim.lastPass, r = give(p); if (sim.ball.owner === p.id) this.onOwner(p, prev, lp); return r; };
   }
 
-  minute() { return Math.min(Math.floor(this.sim.matchTime / 60) + 1, Math.ceil(this.sim.halfLength * 2 / 60)); }
+  minute() { return Math.min(Math.floor(this.sim.clock() / 60) + 1, Math.ceil(this.sim.halfLengthClock * 2 / 60)); }
 
   /** Cambio di possesso: esito del passaggio in corso, parata, recupero. */
   onOwner(p, prevId, lp) {

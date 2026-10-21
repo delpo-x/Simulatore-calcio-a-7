@@ -266,7 +266,7 @@ export function sendOffTrial() {
   out.blue_on_field = live(s, 0);
   let t = 0, back = null;
   while (t < 400 && back === null) { s.state = 'play'; s.stateT = 0; s.step([null, null]); t += DT; if (live(s, 0) === 7) back = s.matchTime; }
-  out.blue_minutes = back === null ? -1 : back / 60;
+  out.blue_minutes = back === null ? -1 : back / 60 / s.pace; // minuti di cronometro
   return out;
 }
 
@@ -406,7 +406,7 @@ export function skillFormula({ attrs }) {
 export function throwInTrial() {
   let n = 0, high = 0, onLine = 0, fast = 0, toMate = 0, dribbled = 0;
   for (let seed = 1; seed <= 6; seed++) {
-    const s = new Sim({ perTeam: 7, seed, halfLength: 300 });
+    const s = new Sim({ perTeam: 7, seed, halfLength: 300, pace: 1 });
     let cur = null;
     while (s.state !== 'full') {
       s.step([null, null]);

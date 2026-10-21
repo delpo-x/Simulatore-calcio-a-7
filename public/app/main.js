@@ -334,7 +334,7 @@ function endReplay() {
 function skipSeconds(sec) {
   if (G.ended || G.replay) return;
   G.skipping = true;
-  const target = Math.min(G.sim.matchTime + sec, G.sim.halfLength * 2);
+  sec *= G.sim.pace; /* sec: secondi di cronometro */ const target = Math.min(G.sim.matchTime + sec, G.sim.halfLength * 2);
   for (let i = 0; i < sec * 120 && G.sim.matchTime < target && G.sim.state !== 'full'; i++) tick();
   G.skipping = false; R.snap = true; refreshPanel(); renderLineups();
   if (G.ended) setTimeout(showEnd, 300);
@@ -454,7 +454,7 @@ function frame(now) {
   if (G && R && !G.skipping) {
     if (G.replay) {
       const v = G.replay.frame(dt);
-      if (v) { R.draw(v, dt * G.replay.speed); $('#replay-tag .rp-bar i').style.width = `${100 * G.replay.progress}%`; $('#clock').textContent = mmss(v.t); }
+      if (v) { R.draw(v, dt * G.replay.speed); $('#replay-tag .rp-bar i').style.width = `${100 * G.replay.progress}%`; $('#clock').textContent = mmss(v.t / G.sim.pace); }
       else endReplay();
     } else {
       if (!G.paused && !G.ended) {
@@ -463,7 +463,7 @@ function frame(now) {
         if (G.acc > DT * 4) G.acc = 0; // dispositivo lento: meglio rallentare che accumulare ritardo
       }
       if (!G.replay) R.draw(G.sim, G.paused ? 0 : dt * Math.min(G.speed, 3));
-      $('#clock').textContent = mmss(G.sim.matchTime);
+      $('#clock').textContent = mmss(G.sim.clock());
     }
     const s = G.sim;
     $('#sc0').textContent = s.score[0]; $('#sc1').textContent = s.score[1];

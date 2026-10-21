@@ -28,7 +28,7 @@ export const AI = {
   pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.56, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.6207, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 1, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.82, shieldSeconds: 0.3,
+  attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.84, shieldSeconds: 0.3,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -730,7 +730,7 @@ export class Sim {
     if (air) { const f = Math.max(0, 1 - BALL.airDrag * DT); b.vx *= f; b.vz *= f; }
     if (!air) { const s = Math.hypot(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
-    if (b.y < 0.11) { b.y = 0.11; b.vy = Math.abs(b.vy) > 1.5 ? -b.vy * BALL.restitution : 0; }
+    if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
     if (Math.abs(b.x) > hx || Math.abs(b.z) > hz) { // fuori dal campo c'e' la ghiaia: la palla rallenta di colpo e non va oltre 2,5 m
       const f = Math.max(0, 1 - (b.y < 0.2 ? 7 : 0.5) * DT); b.vx *= f; b.vz *= f;

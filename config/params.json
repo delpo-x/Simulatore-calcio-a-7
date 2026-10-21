@@ -224,7 +224,7 @@
     "longBall": 0.002,
     "keeperLong": 0.4,
     "tackleFoul": 0.6817,
-    "passSlip": 0.82,
+    "passSlip": 0.84,
     "shieldSeconds": 0.3,
     "longMin": 30,
     "passSpeed0": 7,

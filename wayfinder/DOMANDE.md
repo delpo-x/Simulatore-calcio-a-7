@@ -15,3 +15,7 @@
 4. Cifre osservate in FIFA 10: da fornire (bastano 3-4 numeri); soglie ipotetiche finche' non arrivano.
 5. Testi CSI: da incollare; azzurro, fuorigioco e area piccola restano scelte del progetto.
 6. "Tiri 11" = tiri in porta (confermato).
+
+## Correzione (2026-10-21)
+
+5. Regole CSI: chiusa. Le regole sono quelle gia' stabilite dall'utente ("come nel calcio a 11" dove il testo manca); nessun testo da incollare.

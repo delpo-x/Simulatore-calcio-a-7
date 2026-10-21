@@ -243,6 +243,7 @@ export class TVRenderer {
       const da = Math.atan2(Math.sin(heading - u.heading), Math.cos(heading - u.heading));
       if (ctx.owns && Math.abs(da) / dt > 3.2 && u.feintT <= 0) { u.feintT = 0.5; u.feintDir = Math.sign(da) || 1; }
     }
+    if (p.dribT > 0.45 && u.feintT <= 0) { u.feintT = 0.5; u.feintDir = p.dribDir || 1; } // finta decisa dalla simulazione
     u.heading = heading;
     const acc = dt > 0 ? (sp - u.prevSp) / dt : 0; u.prevSp = sp;
     u.accLean += (clamp(acc, -6, 8) * 0.018 - u.accLean) * Math.min(1, dt * 6);

@@ -98,7 +98,7 @@
     "distanza_calcio_inizio_m": 6,
     "distanza_rigore_m": 8,
     "rimessa_laterale_m": 15,
-    "fallo_probabilita": 0.3552,
+    "fallo_probabilita": 0.37,
     "fallo_cautela_in_area": 0.35,
     "fallo_giallo_su_fallo": 0.125,
     "fallo_rosso_su_fallo": 0.01,

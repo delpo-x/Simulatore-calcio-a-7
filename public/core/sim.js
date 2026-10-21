@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.02, risk: 0.7641,
   pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.8, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.4702, passPressed: 0.05, passMin: 0.3684, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 0.9, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 0.5, width: 1.35, formSpeed: 0, formTackle: 1,
+  passSpeed0: 7, passBase: 0.4702, passPressed: 0.05, passMin: 0.3684, pressedDist: 4, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 0.9, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 0.5, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.76, shieldSeconds: 0.3,
 };
 
@@ -85,7 +85,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.3552, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
+  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
   minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -113,7 +113,7 @@ export class Sim {
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
       id: this.players.length, team, gk: !!f.gk, home: f, x: 0, z: 0, vx: 0, vz: 0, face: team === 0 ? 0 : Math.PI,
-      kickCd: 0, tackleT: 0, throwT: 0, pickT: 0, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
+      kickCd: 0, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 1, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
     }));
     teams.forEach((lineup, team) => lineup?.forEach((pl, i) => {
       const p = this.players.filter(q => q.team === team)[i];
@@ -207,7 +207,7 @@ export class Sim {
     for (let t = 0; t < 2; t++) this.pickActive(t);
     for (const p of this.ordered()) {
       if (p.out) continue;
-      p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.throwT = Math.max(0, p.throwT - DT); p.stun = Math.max(0, p.stun - DT); if (p.shieldT) p.shieldT = Math.max(0, p.shieldT - DT);
+      p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.throwT = Math.max(0, p.throwT - DT); p.dribT = Math.max(0, p.dribT - DT); p.stun = Math.max(0, p.stun - DT); if (p.shieldT) p.shieldT = Math.max(0, p.shieldT - DT);
       const human = this.active[p.team] === p.id && inputs[p.team] != null;
       let c = frozen ? { mx: 0, mz: 0, sprint: false } : human ? this.humanControl(p, inputs[p.team]) : this.aiControl(p);
       this.move(p, c);
@@ -440,6 +440,16 @@ export class Sim {
       p.vx = p.vz = 0;
       if ((this.setKind.t ?? 0) >= AI.throwDelay) this.throwIn(p);
       return hold;
+    }
+    if (!this.setKind && this.state === 'play' && p.kickCd === 0 && this.rand() < AI.dribbleEager) { // dribbling: salta l'avversario davanti; esito da Dribbling contro Contrasti
+      const q = opps.filter(o => !o.gk && !o.shieldT && dist(o.x, o.z, p.x, p.z) < this.sc(AI.dribbleDist) && (o.x - p.x) * d > 0).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0];
+      if (q) {
+        const win = this.rand() < clamp(AI.dribbleBase + (p.attr && q.attr ? 0.02 * ((p.attr.Dribbling ?? 13) - (q.attr.Contrasti ?? 14)) : 0), 0.15, 0.85), side = q.z > p.z ? -1 : 1;
+        this.events.push({ t: 'dribble', team: p.team, player: p.id, ok: win });
+        p.dribT = 0.5; p.dribDir = side;
+        if (win) { q.stun = 0.7; p.vx += Math.cos(p.face) * 1.2; p.vz += Math.sin(p.face) * 1.2 + side * 0.6; } // avversario saltato: perde l'attimo, il portatore scatta via
+        else { p.stun = 0.4; p.kickCd = 0.4; this.ball.owner = -1; this.giveBall(q); q.shieldT = AI.shieldSeconds; return hold; } // palla persa
+      }
     }
     const close = dg < this.sc(AI.forceShot), lane = this.laneClear(p, gx);
     if (dg < range && !this.indirect && ((close && this.rand() < (lane ? 0.5 : 0.08)) || (lane && this.rand() < AI.shootEager * (1 - dg / range)))) {
@@ -708,7 +718,7 @@ export class Sim {
         o.x = k.x; o.z = k.z + side * 2.4 * walk; o.vx = 0; o.vz = walk > 0 ? -side * 4 : 0; o.pickT = t;
         const hx = o.x + Math.cos(o.face) * 0.1, hz = o.z + Math.sin(o.face) * 0.1, gz = side * this.pitch.hz;
         b.x = k.x + (hx - k.x) * lift; b.z = gz + (hz - gz) * lift; b.y = 0.11 + 1.89 * lift; b.vx = b.vz = b.vy = 0; b.last = o.id;
-        for (const q of ps) if (q.team !== o.team && !q.out) this.keepAway(q, k.x, k.z, 2); // gli avversari restano a 2 m dal punto della rimessa
+        for (const q of ps) { const dq = dist(q.x, q.z, k.x, k.z); if (q.team !== o.team && !q.out && dq < 2 && dq > 1e-6) { const m = Math.min(2 - dq, 0.05) / dq; q.x += (q.x - k.x) * m; q.z += (q.z - k.z) * m; } } // gli avversari vengono spinti piano fuori dai 2 m dal punto della rimessa
         return;
       }
       b.x = o.x + Math.cos(o.face) * (thrower ? 0.1 : gap); b.z = o.z + Math.sin(o.face) * (thrower ? 0.1 : gap); b.y = thrower ? 2.0 : 0.11; // rimessa: palla sopra la testa, tenuta con le mani

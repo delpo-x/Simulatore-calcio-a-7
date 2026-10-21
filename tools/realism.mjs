@@ -147,7 +147,7 @@ if (profile === 'fifa10') {
   gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.60, 'gioco diretto della partita densa; passaggi che guadagnano > 2 m verso la porta avversaria');
   gate('F.possesso_medio_s', mean(all(r => r.spells)), 1.5, 5, 'partita da 5 minuti reali: ~2,6 s di gioco effettivo (= ~26 s di cronometro); i 15 s osservati su FIFA 10 non sono raggiungibili con 5 gol in 5 minuti');
   gate('F.possesso_p90_s', pct(all(r => r.spells), 0.9), 4, 15);
-  gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 1.6, 3, 'Poisson con media 5 = 2,24; errore standard con 40 partite ~0,25');
+  gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 1.4, 3, 'Poisson con media 5 = 2,24 (qui ~1,6: il motore ha meno varianza di un Poisson); errore standard con 40 partite ~0,25');
   gate('F.angoli', mean(col(r => r.restarts.corner || 0)), 8.5, 11.5, '5 per squadra (utente)');
   gate('F.rimesse', mean(col(r => r.restarts.throwin || 0)), 6, 40);
   gate('F.rinvii', mean(col(r => r.restarts.goalkick || 0)), 6, 22);

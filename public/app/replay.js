@@ -5,7 +5,7 @@ const FPS = 30, KEEP = 12; // fotogrammi al secondo registrati, secondi tenuti i
 function snapshot(sim) {
   return {
     t: sim.matchTime,
-    players: sim.players.map(p => ({ id: p.id, team: p.team, gk: p.gk, x: p.x, z: p.z, face: p.face, vx: p.vx, vz: p.vz, tackleT: p.tackleT, throwT: p.throwT, pickT: p.pickT, stun: p.stun, out: p.out })),
+    players: sim.players.map(p => ({ id: p.id, team: p.team, gk: p.gk, x: p.x, z: p.z, face: p.face, vx: p.vx, vz: p.vz, tackleT: p.tackleT, throwT: p.throwT, pickT: p.pickT, dribT: p.dribT, dribDir: p.dribDir, stun: p.stun, out: p.out })),
     ball: { x: sim.ball.x, y: sim.ball.y, z: sim.ball.z, vx: sim.ball.vx, vy: sim.ball.vy, vz: sim.ball.vz, owner: sim.ball.owner },
   };
 }

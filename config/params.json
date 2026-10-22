@@ -205,13 +205,13 @@
   },
   "palla_modello": {
     "resistenza_aria_1_s": 0.15,
-    "rotolamento_decel_m_s2": 1.5,
-    "rotolamento_quadratico_1_m": 0.0111,
+    "rotolamento_decel_m_s2": 1.725,
+    "rotolamento_quadratico_1_m": 0.012765,
     "rimbalzo": 0.5
   },
   "ia_taratura": {
     "shootRange": 48,
-    "shootEager": 0.56,
+    "shootEager": 0.58,
     "shotAngle": 1,
     "shotAnglePerM": 0.5,
     "tackleEager": 0.0438,
@@ -231,7 +231,7 @@
     "tackleDist": 1.6,
     "sprintFree": 12,
     "defenderLimit": -0.1,
-    "passBase": 0.6207,
+    "passBase": 0.59,
     "passPressed": 0.05,
     "passMin": 0.451,
     "pressedDist": 3.7531,

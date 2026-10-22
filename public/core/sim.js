@@ -26,8 +26,8 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.02, risk: 0.6,
   pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.56, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.6207, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 1, parryExtra: 0.7, blockProb: 0.3498, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
+  shootRange: 48, shootEager: 0.58, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.59, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 1, parryExtra: 0.95, blockProb: 0.5, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.84, shieldSeconds: 0.3,
 };
 
@@ -37,8 +37,8 @@ export const MATCH = { pace: 0.1 };
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
 export const BALL = {
   airDrag: 0.15,     // 1/s, resistenza in volo
-  rollDecel: 1.5,    // m/s², attrito di rotolamento (palla lenta: 1-2 m/s²)
-  rollQuad: 0.0111,  // 1/m, resistenza a terra ~v²: un passaggio da 18 m/s copre 20 m in ~1,3 s
+  rollDecel: 1.725,    // m/s², attrito di rotolamento (palla lenta: 1-2 m/s²)
+  rollQuad: 0.012765,  // 1/m, resistenza a terra ~v²: un passaggio da 18 m/s copre 20 m in ~1,3 s
   restitution: 0.5,  // rimbalzo: un lob fa al massimo un rimbalzo significativo
 };
 

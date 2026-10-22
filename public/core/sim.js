@@ -462,7 +462,7 @@ export class Sim {
       if (q) { this.lobTo(p, q, this.rand() < AI.passError * 3 * this.errMul(p, p.k.passErr)); return hold; }
     }
     if (best && this.rand() < (AI.passBase * t.tempo + (pressed ? AI.passPressed : 0))) {
-      this.passTo(p, best, this.rand() < AI.passSlip + AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1) * (1 - 2 * this.form[p.team])); // sotto pressione si sbaglia di piu'
+      this.passTo(p, best, this.rand() < AI.passSlip * clamp(p.k.passErr, 0.5, 1.15) + AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1) * (1 - 2 * this.form[p.team])); // sotto pressione si sbaglia di piu'
       return hold;
     }
     if (pressed && !best && d * p.x < -L * 0.2 && this.rand() < 0.03) { // spalle alla porta e senza appoggi: si spazza lungo
@@ -517,7 +517,7 @@ export class Sim {
     const D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 9, 0.7, 1.7), pt = this.pitch;
     const px = clamp(q.x + q.vx * T * 0.6, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.6, -pt.hz + 1, pt.hz - 1);
     let dx = px - p.x, dz = pz - p.z;
-    if (this.rand() < AI.throwMiss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.0, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; } // lancio impreciso
+    if (this.rand() < AI.throwMiss * clamp(p.k.passErr, 0.5, 1.5)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.0, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; } // lancio impreciso
     const D = Math.hypot(dx, dz) || 1;
     p.face = Math.atan2(dz, dx);
     this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (4.9 * T * T - 2.0) / T);

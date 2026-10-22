@@ -428,3 +428,16 @@ export function throwInTrial() {
   }
   return { throwins: n, high_share: high / (n || 1), on_line_share: onLine / (n || 1), fast_share: fast / (n || 1), to_mate_share: toMate / (n || 1), not_thrown: dribbled };
 }
+
+/** Squadra forte contro squadra debole (tutti gli attributi a `strong` / `weak`), `games` partite con campi alternati: differenza reti media e differenza di precisione passaggi. */
+export function levelMatches({ strong, weak, games = 16 }) {
+  let gd = 0; const ok = [0, 0], lost = [0, 0]; // indice 0 = forte, 1 = debole
+  for (let g = 0; g < games; g++) {
+    const side = g % 2, role = t => (t === side ? 0 : 1);
+    const s = new Sim({ perTeam: 7, seed: 100 + g, halfLength: 25 * 60, teams: (side ? [weak, strong] : [strong, weak]).map(l => lineup(l)) });
+    while (s.state !== 'full') { s.step(); for (const e of s.events) if (e.t === 'passOk') ok[role(e.team)]++; else if (e.t === 'passLost') lost[role(e.team)]++; }
+    gd += s.score[side] - s.score[1 - side];
+  }
+  const acc = r => ok[r] / ((ok[r] + lost[r]) || 1);
+  return { goal_diff: gd / games, acc_diff: acc(0) - acc(1) };
+}

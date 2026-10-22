@@ -26,9 +26,9 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.02, risk: 0.6,
   pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.58, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.768, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.59, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3, parryCorner: 1, parryExtra: 0.95, blockProb: 0.5, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 10.1654, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.84, shieldSeconds: 0.3,
+  shootRange: 48, shootEager: 0.58, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.7118, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.59, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3691, crossEager: 0.3, crossWide: 0.4475, crossRange: 28, crossError: 0.3424, headShot: 0.3, headReach: 1.1, parryCorner: 1, parryExtra: 0.95, blockProb: 0.5, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
+  attackDepth: 12, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.84, shieldSeconds: 0.3,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -254,7 +254,7 @@ export class Sim {
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
     this.markOffside(p);
-    this.lastPass = null; b.shot = false; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.shot = false; b.cross = false; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -285,11 +285,12 @@ export class Sim {
     return along > 0 && along < 30 && perp < 2.5;
   }
 
-  shoot(p, aim, power, raw = false) {
+  shoot(p, aim, power, raw = false, head = false) {
     const gx = this.dir(p.team) * this.pitch.hx, onGoal = !raw && Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
     const tz = onGoal ? clamp((this.rand() - 0.5) * 2 * (this.pitch.goalHalf - 0.5), -3, 3) : null;
     const dx = onGoal ? gx - p.x : Math.cos(aim), dz = onGoal ? tz - p.z : Math.sin(aim);
-    this.kick(p, dx, dz, 22 + power * 10, 1 + power * 3.2); this.ball.shot = true;
+    if (head) this.kick(p, dx, dz, 12 + power * 6, 0.3 + power); else this.kick(p, dx, dz, 22 + power * 10, 1 + power * 3.2);
+    this.ball.shot = true;
   }
 
   // ---- AI ----
@@ -457,6 +458,12 @@ export class Sim {
       return hold;
     }
     const best = this.bestPass(p), pressed = po < AI.pressedDist, L = pt.hx * 2;
+    if (!this.indirect && Math.abs(p.z) > pt.hz * AI.crossWide && dg < this.sc(AI.crossRange) && (gx - p.x) * d > 0 && this.rand() < AI.crossEager) { // cross dalla fascia verso un compagno in area
+      const box = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out && Math.abs(q.z) < pt.goalHalf * 2.5 && Math.abs(gx - q.x) < this.sc(12));
+      let tgt = null, to = -1;
+      for (const q of box) { const o = Math.min(...opps.map(x => dist(x.x, x.z, q.x, q.z))); if (o > to) { to = o; tgt = q; } }
+      if (tgt) { this.crossTo(p, tgt); return hold; }
+    }
     if (!pressed && !close && AI.longBall > 0 && this.rand() < AI.longBall) { // lancio lungo: palla alta verso un compagno avanzato e libero
       const q = this.bestLong(p);
       if (q) { this.lobTo(p, q, this.rand() < AI.passError * 3 * this.errMul(p, p.k.passErr)); return hold; }
@@ -524,6 +531,33 @@ export class Sim {
     this.ball.x = p.x + dx / D * 0.3; this.ball.z = clamp(p.z + dz / D * 0.3, -pt.hz + 0.05, pt.hz - 0.05); this.ball.y = 2.0; // parte da sopra la linea, mai gia' fuori
     p.pickT = 0; this.lastPass = null; p.throwT = 0.5; // la rimessa non entra nelle statistiche dei passaggi p.shieldT = 0;
     this.setKind = null; this.events.push({ t: 'throwin', team: p.team, player: p.id });
+  }
+
+  /** Cross: palla alta dalla fascia che arriva in area a ~1,8 m da terra; l'errore dipende da Cross. */
+  crossTo(p, q) {
+    const pt = this.pitch, D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 13, 0.9, 1.6);
+    let px = clamp(q.x + q.vx * T * 0.5, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.5, -pt.hz + 1, pt.hz - 1);
+    let dx = px - p.x, dz = pz - p.z;
+    if (this.rand() < AI.crossError * this.errMul(p, p.k.crossErr)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 0.7, l = Math.hypot(dx, dz) * (0.8 + this.rand() * 0.5); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
+    const D = Math.hypot(dx, dz);
+    this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (1.65 + 4.9 * T * T) / T);
+    this.ball.cross = true; this.lastPass = { team: p.team, id: p.id };
+    this.events.push({ t: 'cross', team: p.team, player: p.id });
+  }
+
+  /** Colpo di testa: in attacco e vicino alla porta tira (errore da ColpiTesta), altrimenti appoggia a un compagno libero o spazza. */
+  header(p) {
+    const b = this.ball, d = this.dir(p.team), pt = this.pitch, gx = d * pt.hx, dg = dist(p.x, p.z, gx, 0);
+    b.cross = false; b.vx = b.vy = b.vz = 0; this.events.push({ t: 'header', team: p.team, player: p.id });
+    if (dg < this.sc(14) && this.rand() < AI.headShot) {
+      const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * p.k.headErr * Math.PI / 180;
+      const g = this.players.find(q => q.team !== p.team && q.gk), away = g ? (g.z > 0 ? -1 : 1) : 1, tz = (this.rand() < AI.shotFarPost ? away : -away) * Math.max(0, pt.goalHalf - AI.shotMargin);
+      this.shoot(p, Math.atan2(tz - p.z, gx - p.x) + err, 0.3 + this.rand() * 0.4, true, true);
+      return;
+    }
+    const best = this.bestPass(p);
+    if (best) this.passTo(p, best, this.rand() < AI.passSlip * clamp(p.k.headErr, 0.5, 1.15));
+    else this.kick(p, d * (dg < this.sc(30) ? -0.3 : 1), (this.rand() - 0.5) * 1.2, 12, 3);
   }
 
   lobTo(p, q, miss) {
@@ -759,6 +793,18 @@ export class Sim {
         break;
       }
     }
+    if (b.cross && b.owner < 0 && b.y < 2.3 && b.y > 0.6 && b.vy < 1) { // palla di cross a portata di testa: duello aereo e uscita del portiere
+      let win = null, ws = -1;
+      for (const p of ps) {
+        if (p.out || p.stun > 0 || p.kickCd > 0) continue;
+        const d = dist(p.x, p.z, b.x, b.z);
+        if (d > (p.gk ? AI.keeperReach * p.k.reach * 1.3 : AI.headReach)) continue;
+        const sc = (p.gk ? 1.2 * p.k.exit : p.k.jump) * (0.6 + this.rand() * 0.8) - d * 0.1;
+        if (sc > ws) { ws = sc; win = p; }
+      }
+      if (win) { if (win.gk) { b.cross = false; b.vx = b.vy = b.vz = 0; this.giveBall(win); return; } this.header(win); return; }
+    }
+    if (b.cross && b.y <= 0.12 && b.vy <= 0) b.cross = false;
     // pickup
     if (b.y < (sp > 16 ? 2.4 : 1.1)) {
       let best = null, bd = 99;

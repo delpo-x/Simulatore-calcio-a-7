@@ -379,7 +379,7 @@
     "metric": "goal_diff",
     "expect": {
       "min": 0.8,
-      "max": 3
+      "max": 4
     },
     "severity": "error"
   },

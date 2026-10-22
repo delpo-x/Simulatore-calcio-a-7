@@ -442,9 +442,9 @@ export class Sim {
       return hold;
     }
     if (!this.setKind && this.state === 'play' && p.kickCd === 0 && this.rand() < AI.dribbleEager) { // dribbling: salta l'avversario davanti; esito da Dribbling contro Contrasti
-      const q = opps.filter(o => !o.gk && !o.shieldT && dist(o.x, o.z, p.x, p.z) < this.sc(AI.dribbleDist) && (o.x - p.x) * d > 0).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0];
+      const q = opps.filter(o => !o.gk && !o.shieldT && dist(o.x, o.z, p.x, p.z) < this.sc(AI.dribbleDist * p.k.dribRange) && (o.x - p.x) * d > 0).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0];
       if (q) {
-        const win = this.rand() < clamp(AI.dribbleBase + (p.attr && q.attr ? 0.02 * ((p.attr.Dribbling ?? 13) - (q.attr.Contrasti ?? 14)) : 0), 0.15, 0.85), side = q.z > p.z ? -1 : 1;
+        const win = this.rand() < clamp(AI.dribbleBase + (p.attr && q.attr ? 0.02 * ((p.attr.Dribbling ?? 13) - (q.attr.Contrasti ?? 14)) + 0.01 * ((p.attr.Agilita ?? 15) - (q.attr.Agilita ?? 15)) : 0), 0.15, 0.85), side = q.z > p.z ? -1 : 1;
         this.events.push({ t: 'dribble', team: p.team, player: p.id, ok: win });
         p.dribT = 0.5; p.dribDir = side;
         if (win) { q.stun = 0.7; p.vx += Math.cos(p.face) * 1.2; p.vz += Math.sin(p.face) * 1.2 + side * 0.6; } // avversario saltato: perde l'attimo, il portatore scatta via
@@ -751,7 +751,7 @@ export class Sim {
       for (const p of ps) {
         if (p.gk || p.out || p.team === st || p.stun > 0 || dist(p.x, p.z, b.x, b.z) > 0.7) continue;
         b.shot = false;
-        if (this.rand() < AI.blockProb) {
+        if (this.rand() < AI.blockProb * p.k.block) {
           b.last = p.id;
           if (this.rand() < AI.blockCorner) { b.vx = this.dir(st) * sp * 0.3; b.vz = (b.z >= 0 ? 1 : -1) * sp * 0.3; } else { const a = this.rand() * Math.PI * 2; b.vx = Math.cos(a) * sp * 0.3; b.vz = Math.sin(a) * sp * 0.3; }
           b.vy = 0; return;

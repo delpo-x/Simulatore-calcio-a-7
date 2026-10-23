@@ -10,7 +10,9 @@ export class MatchStats {
     this.s = { shots: pair(), onTarget: pair(), passOk: pair(), passLost: pair(), poss: pair(), fouls: pair(), yellow: pair(), blue: pair(), red: pair(), corners: pair(), offsides: pair(), saves: pair() };
     this.timeline = [];
     this.shotList = []; // { team, player, x, z, on, goal, min }
-    this.ps = sim.players.map(() => ({ goals: 0, own: 0, assists: 0, shots: 0, onTarget: 0, passOk: 0, passLost: 0, recoveries: 0, saves: 0, conceded: 0, fouls: 0, yellow: 0, blue: 0, red: 0 }));
+    this.blank = () => ({ goals: 0, own: 0, assists: 0, shots: 0, onTarget: 0, passOk: 0, passLost: 0, recoveries: 0, saves: 0, conceded: 0, fouls: 0, yellow: 0, blue: 0, red: 0 });
+    this.ps = sim.players.map(this.blank);
+    this.left = []; // pagelle di chi e' uscito per un cambio: il subentrato riparte da zero sullo stesso id
     this.lastPass = null; this.owner = sim.ball.owner; this.shotWait = null; this.dead = false;
     const s = this.s, ps = this.ps;
     const shoot = sim.shoot.bind(sim);
@@ -79,7 +81,12 @@ export class MatchStats {
       } else if (e.t === 'protest') { s.blue[e.team]++; ps[e.player].blue++; this.push({ t: 'blue', team: e.team, player: e.player, protest: true }); }
       else if (e.t === 'restart' && e.kind === 'corner') s.corners[e.team]++;
       else if (e.t === 'injury') this.push({ t: 'injury', team: e.team, player: e.player });
-      else if (e.t === 'sub') this.push({ t: 'sub', team: e.team, player: e.player, out: e.out, reason: e.reason });
+      else if (e.t === 'sub') {
+        const x = ps[e.player];
+        this.left.push({ id: e.player, team: e.team, name: e.out, num: e.outNumber ?? 0, gk: false, rating: this.ratingOf(sim.players[e.player], x), ...x });
+        ps[e.player] = this.blank();
+        this.push({ t: 'sub', team: e.team, player: e.player, out: e.out, reason: e.reason });
+      }
       else if (e.t === 'offside') { s.offsides[e.team]++; this.push({ t: 'offside', team: e.team, player: e.player }); }
       else if (e.t === 'half') this.push({ t: 'half', score: [...sim.score] });
       else if (e.t === 'full') this.push({ t: 'full', score: [...sim.score] });
@@ -100,8 +107,10 @@ export class MatchStats {
   }
 
   /** Voto in pagella (4-10) di un giocatore: base 6, contributi di gol, assist, tiri, passaggi, recuperi, parate, errori e risultato. */
-  rating(id) {
-    const p = this.sim.players[id], x = this.ps[id], sc = this.sim.score, my = sc[p.team], their = sc[1 - p.team];
+  rating(id) { return this.ratingOf(this.sim.players[id], this.ps[id]); }
+
+  ratingOf(p, x) {
+    const sc = this.sim.score, my = sc[p.team], their = sc[1 - p.team];
     const field = this.sim.players.filter(q => !q.gk), avgRec = field.reduce((a, q) => a + this.ps[q.id].recoveries, 0) / (field.length || 1);
     let v = 6 + (x.goals ? 1 + 0.7 * (x.goals - 1) : 0) - 0.5 * x.own + 0.6 * x.assists + 0.12 * x.onTarget - 0.04 * (x.shots - x.onTarget)
       + clamp(0.02 * (x.passOk - 2.2 * x.passLost), -0.5, 0.5) // a parita' con la media (circa 70% di passaggi riusciti) non cambia il voto

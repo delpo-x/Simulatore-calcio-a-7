@@ -62,6 +62,8 @@ Partita IA contro IA con campo 3D. Dalla barra in alto: numero di giocatori (5�
 | `npm run realism` | Pagella di realismo (31 cancelli: statistiche, fisica, gioco, coerenza di forza, determinismo). Semi nuovi a ogni giro; scrive `reports/realism.md`. `-- --fast` salta i cancelli lenti, `-- --seed N` fissa il seme. |
 | `npm run realism:fifa10` | Come sopra con il profilo "FIFA 10" (41 cancelli, soglie scalate sul 7 vs 7). Le soglie sono ipotesi del progetto, nessun dato di terzi. Vedi `wayfinder/LOOP.md`. |
 | `npm test` | Test del relay. |
+| `npm run test:core` | Test della simulazione (determinismo, partite IA contro IA). |
+| `npm run check` | Tutto in sequenza: relay, simulazione, app, test di gioco e prova di robustezza ridotta. È ciò che esegue la CI. |
 
 ## Regole modellate (calcio a 7)
 
@@ -77,7 +79,7 @@ Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropas
 
 ## Integrazione continua
 
-`.github/workflows/test.yml` esegue a ogni push i test del relay, della simulazione, dell'app, `npm run test:game` e una prova di robustezza ridotta; il rapporto dei test viene salvato come artefatto.
+`.github/workflows/test.yml` esegue a ogni push `npm run check` (relay, simulazione, app, `npm run test:game` e una prova di robustezza ridotta); il rapporto dei test viene salvato come artefatto.
 
 ## Parametri e taratura
 

@@ -16,6 +16,7 @@ export function createMatch(home, away, { perTeam = 7, half = 25, seed = 1 } = {
 export function summarize(stats, lineups) {
   const sim = stats.sim, byTeam = [0, 1].map(t => sim.players.filter(p => p.team === t));
   const players = sim.players.map(p => ({ id: p.id, team: p.team, name: stats.name(p.id), num: lineups?.[p.team][byTeam[p.team].indexOf(p)]?.number ?? 0, gk: p.gk, rating: stats.rating(p.id), ...stats.ps[p.id] }));
+  players.push(...stats.left.map(x => ({ ...x }))); // chi e' uscito per un cambio
   const goals = stats.timeline.filter(e => e.t === 'goal').map(e => ({ team: e.team, min: e.min, name: stats.name(e.player), own: e.own, assist: e.assist >= 0 ? stats.name(e.assist) : '' }));
   return { score: [...sim.score], goals, players, best: stats.best(), rows: stats.rows(), shots: stats.shotList.map(({ team, x, z, on, goal }) => ({ team, x, z, on, goal })) };
 }

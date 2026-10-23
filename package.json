@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node server/relay.js",
     "test": "node server/relay.test.js",
+    "test:core": "node public/core/sim.test.js",
+    "check": "npm test && npm run test:core && npm run test:app && npm run test:game && npm run stress -- --games 5",
     "test:game": "node tools/game-tests.mjs",
     "test:app": "node public/app/app.test.js",
     "matches": "node tools/run-matches.mjs",

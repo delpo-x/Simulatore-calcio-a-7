@@ -15,7 +15,7 @@ const [A, B] = PRESETS;
   while (sim.state !== 'full') { sim.step(); st.step(); }
   assert.equal(sim.hash(), plain.hash(), 'MatchStats non cambia la simulazione');
   for (const t of [0, 1]) {
-    const mine = sim.players.filter(p => p.team === t).map(p => st.ps[p.id]), sum = k => mine.reduce((a, x) => a + x[k], 0);
+    const mine = [...sim.players.filter(p => p.team === t).map(p => st.ps[p.id]), ...st.left.filter(x => x.team === t)], sum = k => mine.reduce((a, x) => a + x[k], 0);
     assert.equal(sum('passOk'), st.s.passOk[t], 'passaggi riusciti: giocatori = squadra');
     assert.equal(sum('passLost'), st.s.passLost[t], 'passaggi persi: giocatori = squadra');
     assert.equal(sum('shots'), st.s.shots[t], 'tiri: giocatori = squadra');
@@ -25,7 +25,7 @@ const [A, B] = PRESETS;
   }
   const goals = st.timeline.filter(e => e.t === 'goal');
   assert.equal(goals.length, sim.score[0] + sim.score[1], 'un evento per gol');
-  assert.equal(sim.players.reduce((a, p) => a + st.ps[p.id].goals + st.ps[p.id].own, 0), goals.filter(g => sim.players[g.player]).length, 'gol e autogol attribuiti');
+  assert.equal([...sim.players.map(p => st.ps[p.id]), ...st.left].reduce((a, x) => a + x.goals + x.own, 0), goals.filter(g => sim.players[g.player]).length, 'gol e autogol attribuiti');
   assert.ok(goals.every(g => g.own || st.shotList.some(s => s.goal && s.team === g.team)), 'ogni gol sulla mappa dei tiri');
   for (const p of sim.players) { const v = st.rating(p.id); assert.ok(v >= 4 && v <= 10 && v * 2 === Math.round(v * 2), `voto valido ${v}`); }
   assert.ok(sim.players.every(p => st.rating(p.id) <= st.rating(st.best())), 'migliore in campo = voto piu\' alto');

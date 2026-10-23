@@ -980,11 +980,11 @@ export class Sim {
     if (!bench.length || this.subs[team] >= RULES.maxSubs) return false;
     const i = bench.findIndex(q => q.position !== 'Goalkeeper');
     if (i < 0) return false;
-    const pl = bench.splice(i, 1)[0], out = p.name ?? `Giocatore ${p.id + 1}`;
+    const pl = bench.splice(i, 1)[0], out = p.name ?? `Giocatore ${p.id + 1}`, outNumber = p.number;
     p.k = deriveSkill(pl); p.attr = pl.attrs; p.foot = pl.foot; p.name = pl.name; p.number = pl.number;
     p.stam = 1; p.load = 0; p.yellow = 0; p.stun = 0; p.injured = false; p.plan = null;
     this.subs[team]++;
-    this.events.push({ t: 'sub', team, player: p.id, out, reason });
+    this.events.push({ t: 'sub', team, player: p.id, out, outNumber, reason });
     return true;
   }
 

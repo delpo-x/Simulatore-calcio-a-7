@@ -15,3 +15,5 @@
 **Test di gioco**: verifica concreta e misurabile su un parametro di sensazione (per esempio il tempo di un passaggio di 20 m).
 
 **Amichevole**: partita singola, contro IA o in locale. L'unica modalità nel perimetro.
+
+**Sostituzione**: cambio a gioco fermo (infortunio o a tempo, al massimo 3 per squadra). Il subentrato prende lo slot e l'id dell'uscito; le statistiche dell'uscito restano in una pagella a parte (`MatchStats.left`).

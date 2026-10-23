@@ -69,16 +69,19 @@ function boardTexture(len) {
   return tex(c, { repeat: [Math.max(1, len / 24), 1] });
 }
 
-/** Pubblico: puntini colorati su gradinate scure. */
+/** Pubblico: file di spettatori in colori spenti su gradinate scure, con poca variazione. */
 function crowdTexture() {
-  const [c, g] = canvas(512, 256);
-  g.fillStyle = '#2a2f36'; g.fillRect(0, 0, 512, 256);
+  const [c, g] = canvas(512, 256), hues = [212, 8, 40, 190, 0], rnd = (() => { let t = 7; return () => (t = (t * 1664525 + 1013904223) >>> 0) / 4294967296; })();
+  const bg = g.createLinearGradient(0, 0, 0, 256); bg.addColorStop(0, '#20252b'); bg.addColorStop(1, '#2c3239');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 256);
   for (let row = 0; row < 16; row++) {
-    g.fillStyle = row % 2 ? '#353b43' : '#30363d'; g.fillRect(0, row * 16 + 12, 512, 4);
+    g.fillStyle = row % 2 ? '#2b3138' : '#272c33'; g.fillRect(0, row * 16 + 12, 512, 4);
     for (let x = 0; x < 512; x += 8) {
-      if (Math.random() < 0.18) continue;
-      g.fillStyle = `hsl(${Math.random() * 360},${30 + Math.random() * 50}%,${35 + Math.random() * 40}%)`;
-      g.fillRect(x + Math.random() * 2, row * 16 + 3 + Math.random() * 2, 5, 9);
+      if (rnd() < 0.1) continue;
+      const hue = rnd() < 0.55 ? 215 + rnd() * 10 : hues[(rnd() * hues.length) | 0] + rnd() * 14;
+      g.fillStyle = `hsl(${hue},${12 + rnd() * 20}%,${26 + rnd() * 20}%)`;
+      g.fillRect(x + rnd() * 2, row * 16 + 3 + rnd() * 2, 6, 9);
+      g.fillStyle = `hsl(28,${20 + rnd() * 15}%,${38 + rnd() * 18}%)`; g.fillRect(x + 1.5 + rnd(), row * 16 + 1, 3, 3); // testa
     }
   }
   return tex(c, { repeat: [6, 1] });
@@ -197,7 +200,7 @@ function buildPlayer(kit, gk, num, id, blobMat) {
   const front = back.clone(); front.scale.setScalar(0.45); front.position.set(0.2, 1.36, 0.07); front.rotation.y = Math.PI / 2;
   body.add(torso, pants, head, hr, back, front);
   const blob = new THREE.Mesh(G.blob, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
-  root.userData = { body, legs, arms, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1 };
+  root.userData = { blob, body, legs, arms, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1 };
   return root;
 }
 
@@ -207,17 +210,22 @@ export class TVRenderer {
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? [];
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.outputColorSpace = THREE.SRGBColorSpace;
+    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     const scene = this.scene = new THREE.Scene();
     scene.background = skyTexture(); scene.fog = new THREE.Fog(0xc9dcee, 120 + pitch.hx * 2, 320 + pitch.hx * 4);
     scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x40603a, 1.25));
     const sun = new THREE.DirectionalLight(0xfff3dd, 1.5); sun.position.set(-30, 60, 25); scene.add(sun);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+    const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshLambertMaterial({ map: pitchTexture(pitch) }));
-    pm.rotation.x = -Math.PI / 2; scene.add(pm);
+    pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     stadium(pitch, scene);
     scene.add(goal(1, pitch), goal(-1, pitch));
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 12), new THREE.MeshLambertMaterial({ map: ballTexture() }));
     this.ballBlob = new THREE.Mesh(geo().blob, this.blobMat); this.ballBlob.rotation.x = -Math.PI / 2; this.ballBlob.position.y = 0.011;
+    this.ball.castShadow = true; this.ballBlob.visible = false; // ombra vera dal sole
     scene.add(this.ball, this.ballBlob);
     this.marker = new THREE.Mesh(geo().ring, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
     this.marker.rotation.x = -Math.PI / 2; this.marker.position.y = 0.02; scene.add(this.marker);
@@ -236,7 +244,7 @@ export class TVRenderer {
 
   build(players) {
     for (const m of this.meshes) this.scene.remove(m);
-    this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); this.scene.add(m); return m; });
+    this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); m.traverse(o => { if (o.isMesh) o.castShadow = !!o.material.isMeshLambertMaterial; }); m.userData.blob.visible = false; this.scene.add(m); return m; });
   }
 
   /** Animazione procedurale (nessun dato di terzi): andatura camminata/corsa/scatto, conduzione, finta, tiro, colpo di testa, rimessa. */

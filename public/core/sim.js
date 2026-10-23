@@ -26,7 +26,7 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.056, risk: 0.6,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.606, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  shootRange: 48, shootEager: 0.8, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.773, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
 };
@@ -159,11 +159,11 @@ export class Sim {
     }
   }
 
-  /** Fuorigioco nell'area piccola (dato del progetto): chi e' nell'area piccola avversaria quando un compagno calcia, e tocca per primo la palla, e' in fuorigioco. Esenti angolo, rinvio e rimessa. */
+  /** Fuorigioco nell'area piccola (dato del progetto): chi e' nell'area piccola avversaria quando un compagno calcia, e tocca per primo la palla, e' in fuorigioco. Esenti rinvio e rimessa; vale anche sugli angoli. */
   markOffside(p) {
     this.offsideMark = null;
     const k = this.setKind;
-    if (!RULES.offside || (k?.taker === p.id && (k.kind === 'corner' || k.kind === 'goalkick' || k.kind === 'throwin'))) return;
+    if (!RULES.offside || (k?.taker === p.id && (k.kind === 'goalkick' || k.kind === 'throwin'))) return;
     const pt = this.pitch, d = this.dir(p.team);
     const ids = this.players.filter(q => q.team === p.team && q.id !== p.id && !q.gk && !q.out && Math.sign(q.x) === d && Math.abs(q.x) > pt.hx - RULES.smallAreaDepth && Math.abs(q.z) < RULES.smallAreaWidth / 2).map(q => q.id);
     if (ids.length) this.offsideMark = { team: p.team, ids };
@@ -319,7 +319,7 @@ export class Sim {
     ];
     const n = atk ? Math.min(slots.length, team.length - 1) : slots.length, j = i % slots.length;
     if (atk && i >= n) return { x: e * (pt.hx - ad - 6), z: -cz * pt.hz * 0.3 }; // uno resta a coprire il contropiede
-    const [dep, side] = slots[j], jitter = ((p.id * 37) % 7 - 3) * 0.12;
+    const [dep0, side] = slots[j], dep = atk ? Math.max(dep0, RULES.smallAreaDepth + 0.8) : dep0, jitter = ((p.id * 37) % 7 - 3) * 0.12;
     const z = clamp(cz * side * (gh + 2) * 1.3 + jitter, -pt.areaWidth / 2 + 1, pt.areaWidth / 2 - 1);
     return { x: e * (pt.hx - dep - (atk ? 0 : 0.8)), z: z + (atk ? 0 : -Math.sign(z || 1) * 0.5) };
   }

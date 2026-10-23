@@ -304,7 +304,7 @@ export function turnTrial() {
   return out;
 }
 
-/** Fuorigioco nell'area piccola: passaggio a un compagno dentro l'area piccola avversaria -> fuorigioco e indiretta; fuori dall'area piccola -> nessuna infrazione; da angolo -> esente. */
+/** Fuorigioco nell'area piccola: passaggio a un compagno dentro l'area piccola avversaria -> fuorigioco e indiretta; fuori dall'area piccola -> nessuna infrazione; da angolo -> fuorigioco come in gioco. */
 export function offsideTrial() {
   const out = {}, run = (tag, rx, corner = false) => {
     const s = quiet(), k = s.players[3], r = s.players[4], pt = s.pitch;

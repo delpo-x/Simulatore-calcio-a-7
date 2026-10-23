@@ -35,7 +35,7 @@
     },
     "metric": "error_rate",
     "expect": {
-      "value": 0.0273,
+      "value": 0.0764,
       "abs": 0.01
     },
     "severity": "error"
@@ -55,7 +55,7 @@
     },
     "metric": "error_rate",
     "expect": {
-      "value": 0.0188,
+      "value": 0.0525,
       "abs": 0.01
     },
     "severity": "error"
@@ -402,6 +402,100 @@
     "expect": {
       "min": 0.04,
       "max": 0.2
+    },
+    "severity": "error"
+  },
+  {
+    "id": "tiri.giro.effetto_attivo",
+    "subsystem": "attributi",
+    "ticket": "09",
+    "requires": [
+      "attributes"
+    ],
+    "scenario": {
+      "type": "curveTrial"
+    },
+    "metric": "curved",
+    "expect": {
+      "value": 1,
+      "abs": 0
+    },
+    "severity": "error"
+  },
+  {
+    "id": "tiri.giro.previsione_coerente",
+    "subsystem": "attributi",
+    "ticket": "09",
+    "requires": [
+      "attributes"
+    ],
+    "scenario": {
+      "type": "curveTrial"
+    },
+    "metric": "miss_m",
+    "expect": {
+      "min": 0,
+      "max": 1
+    },
+    "severity": "error"
+  },
+  {
+    "id": "cambi.infortuni.frequenza",
+    "subsystem": "attributi",
+    "ticket": "09",
+    "requires": [
+      "attributes"
+    ],
+    "scenario": {
+      "type": "subsTrial",
+      "args": {
+        "games": 24
+      }
+    },
+    "metric": "injuries_per_match",
+    "expect": {
+      "min": 0.05,
+      "max": 1.5
+    },
+    "severity": "error"
+  },
+  {
+    "id": "cambi.massimo_tre_per_squadra",
+    "subsystem": "attributi",
+    "ticket": "09",
+    "requires": [
+      "attributes"
+    ],
+    "scenario": {
+      "type": "subsTrial",
+      "args": {
+        "games": 24
+      }
+    },
+    "metric": "max_subs_per_team",
+    "expect": {
+      "min": 0,
+      "max": 3
+    },
+    "severity": "error"
+  },
+  {
+    "id": "cambi.infortunato_sostituito",
+    "subsystem": "attributi",
+    "ticket": "09",
+    "requires": [
+      "attributes"
+    ],
+    "scenario": {
+      "type": "subsTrial",
+      "args": {
+        "games": 24
+      }
+    },
+    "metric": "unreplaced_injured",
+    "expect": {
+      "value": 0,
+      "abs": 0
     },
     "severity": "error"
   }

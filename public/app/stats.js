@@ -16,9 +16,9 @@ export class MatchStats {
     const shoot = sim.shoot.bind(sim);
     sim.shoot = (p, ...a) => { // tiro in porta: la traiettoria (senza resistenza) entra tra i pali sotto la traversa (come tools/lib/matches.mjs)
       s.shots[p.team]++; ps[p.id].shots++; const x = p.x, z = p.z;
-      const r = shoot(p, ...a), b = sim.ball, gx = sim.dir(p.team) * sim.pitch.hx, t = (gx - b.x) / (b.vx || 1e-9);
+      const r = shoot(p, ...a), b = sim.ball, gx = sim.dir(p.team) * sim.pitch.hx, c = sim.shotCross(gx), t = c?.t;
       let on = false;
-      if (t > 0 && Math.abs(b.z + b.vz * t) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) { s.onTarget[p.team]++; ps[p.id].onTarget++; on = true; } }
+      if (c && Math.abs(c.z) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) { s.onTarget[p.team]++; ps[p.id].onTarget++; on = true; } }
       const shot = { team: p.team, player: p.id, x, z, on, goal: false, sec: sim.matchTime, min: this.minute() };
       this.shotList.push(shot); this.shotWait = on ? shot : null;
       this.onShot?.(p, on);
@@ -78,6 +78,8 @@ export class MatchStats {
         if (e.card) { s[e.card][e.team]++; ps[e.player][e.card]++; this.push({ t: e.card, team: e.team, player: e.player, second: e.card === 'red' && sim.players[e.player]?.yellow >= 2 }); }
       } else if (e.t === 'protest') { s.blue[e.team]++; ps[e.player].blue++; this.push({ t: 'blue', team: e.team, player: e.player, protest: true }); }
       else if (e.t === 'restart' && e.kind === 'corner') s.corners[e.team]++;
+      else if (e.t === 'injury') this.push({ t: 'injury', team: e.team, player: e.player });
+      else if (e.t === 'sub') this.push({ t: 'sub', team: e.team, player: e.player, out: e.out, reason: e.reason });
       else if (e.t === 'offside') { s.offsides[e.team]++; this.push({ t: 'offside', team: e.team, player: e.player }); }
       else if (e.t === 'half') this.push({ t: 'half', score: [...sim.score] });
       else if (e.t === 'full') this.push({ t: 'full', score: [...sim.score] });

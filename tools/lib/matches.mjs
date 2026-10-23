@@ -9,8 +9,8 @@ export function runMatch({ players = 7, seed = 1, halfMinutes = 25, trace = fals
   const shoot = sim.shoot.bind(sim), pass = sim.pass.bind(sim);
   sim.shoot = (p, ...a) => {
     shots[p.team]++; const r = shoot(p, ...a), b = sim.ball, gx = sim.dir(p.team) * sim.pitch.hx;
-    const t = (gx - b.x) / (b.vx || 1e-9); // tiro in porta: la traiettoria (senza resistenza) entra tra i pali sotto la traversa
-    if (t > 0 && Math.abs(b.z + b.vz * t) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) onTarget[p.team]++; }
+    const c = sim.shotCross(gx), t = c?.t; // tiro in porta: la traiettoria (senza resistenza, con l'effetto) entra tra i pali sotto la traversa
+    if (c && Math.abs(c.z) < sim.pitch.goalHalf) { const y = b.y + b.vy * t - 4.9 * t * t; if (y > 0 && y < sim.pitch.goalH) onTarget[p.team]++; }
     return r;
   };
   sim.pass = (p, ...a) => { passes[p.team]++; return pass(p, ...a); };

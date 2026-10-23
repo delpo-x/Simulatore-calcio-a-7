@@ -441,3 +441,31 @@ export function levelMatches({ strong, weak, games = 16 }) {
   const acc = r => ok[r] / ((ok[r] + lost[r]) || 1);
   return { goal_diff: gd / games, acc_diff: acc(0) - acc(1) };
 }
+
+/** Cambi e infortuni su `games` partite con panchina (3 riserve per squadra): cambi per squadra al massimo, infortuni a partita, cambi di un uscito infortunato. */
+export function subsTrial({ games = 20 }) {
+  let inj = 0, maxSubs = 0, bad = 0;
+  for (let g = 0; g < games; g++) {
+    const teams = [0, 1].map(() => pickLineup(syntheticTeam('Prova', 15), SCHEMES[7][0]));
+    const s = new Sim({ perTeam: 7, seed: 300 + g, halfLength: 25 * 60, teams }), subs = [0, 0], hurt = new Set();
+    while (s.state !== 'full') { s.step(); for (const e of s.events) { if (e.t === 'injury') { inj++; hurt.add(e.player); } if (e.t === 'sub') { subs[e.team]++; if (e.reason === 'injury') hurt.delete(e.player); } } }
+    maxSubs = Math.max(maxSubs, ...subs); bad += hurt.size;
+  }
+  return { injuries_per_match: inj / games, max_subs_per_team: maxSubs, unreplaced_injured: bad };
+}
+
+/** Tiro a giro forzato da 20 m: l'effetto e' attivo, la previsione di shotCross coincide con dove la palla attraversa davvero la linea (m di scarto). */
+export function curveTrial() {
+  const prev = AI.curveEager; AI.curveEager = 1e6;
+  try {
+    const s = new Sim({ perTeam: 7, seed: 5, teams: [pickLineup(syntheticTeam('A', 15), SCHEMES[7][0]), null] });
+    s.state = 'play'; s.players.forEach((q, i) => { q.x = 900 + i * 3; q.z = 900; });
+    const p = s.players[3], gx = s.pitch.hx;
+    Object.assign(p, { x: gx - 20, z: 4, vx: 0, vz: 0, kickCd: 0 });
+    Object.assign(s.ball, { x: p.x, z: p.z, y: 0.11, owner: -1 });
+    for (let i = 0; i < 20 && !s.ball.curve; i++) { s.ball.owner = -1; Object.assign(s.ball, { x: p.x, z: p.z, y: 0.11, vx: 0, vz: 0 }); s.aimShot(p); }
+    const curved = s.ball.curve ? 1 : 0, pred = s.shotCross(gx);
+    let t = 0; while (s.ball.x < gx && t < 4) { s.stepBall(); t += DT; }
+    return { curved, miss_m: pred ? Math.abs(pred.z - s.ball.z) : 99 };
+  } finally { AI.curveEager = prev; }
+}

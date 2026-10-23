@@ -211,13 +211,15 @@ function onItems(items) {
     else if (it.t === 'red') showLower(`<span class="card red"></span>${esc(playerName(it.player))} <small>${it.second ? 'seconda ammonizione' : 'espulso'}</small>`, 'card');
     else if (it.t === 'blue') showLower(`<span class="card blue"></span>${esc(playerName(it.player))} <small>${it.protest ? 'proteste, ' : ''}fuori 5 minuti</small>`, 'card');
     else if (it.t === 'offside') showLower(`Fuorigioco · ${esc(playerName(it.player))}`, 'info', 2);
+    else if (it.t === 'injury') showLower(`Infortunio · ${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'info', 2.5);
+    else if (it.t === 'sub') showLower(`Cambio ${esc(teamName(it.team))}: entra ${esc(playerName(it.player))}, esce ${esc(it.out)}`, 'info', 3);
     else if (it.t === 'penalty') showLower(`Calcio di rigore per ${esc(teamName(it.team))}`, 'info', 2.5);
     else if (it.t === 'half') showBanner(`<div class="b-kicker">Intervallo</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div><div class="b-sub">Fine primo tempo</div>`, -1, 3);
     else if (it.t === 'full') { showBanner(`<div class="b-kicker">Fischio finale</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div>`, -1, 2.5); }
   }
   if (items.some(i => i.t === 'full')) { G.ended = true; updateControls(); if (!G.skipping) setTimeout(() => G?.ended && !G.replay && showEnd(), 2600); }
   refreshPanel();
-  if (items.some(i => ['yellow', 'red', 'blue'].includes(i.t))) renderLineups();
+  if (items.some(i => ['yellow', 'red', 'blue', 'sub'].includes(i.t))) renderLineups();
 }
 
 const FEED = {
@@ -227,6 +229,8 @@ const FEED = {
   blue: it => `<span class="card blue"></span>Cartellino azzurro a ${esc(playerName(it.player))}${it.protest ? ' per proteste' : ''}`,
   offside: it => `Fuorigioco di ${esc(playerName(it.player))}`,
   penalty: it => `Rigore per ${esc(teamName(it.team))}`,
+  injury: it => `Infortunio per ${esc(playerName(it.player))}`,
+  sub: it => `Cambio ${esc(teamName(it.team))}: entra ${esc(playerName(it.player))}, esce ${esc(it.out)}`,
   half: it => `<b>Fine primo tempo</b> <span class="sc">${it.score[0]}-${it.score[1]}</span>`,
   full: it => `<b>Fine partita</b> <span class="sc">${it.score[0]}-${it.score[1]}</span>`,
   cm: it => esc(it.text),

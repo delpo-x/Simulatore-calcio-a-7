@@ -17,18 +17,18 @@ export const MOVE = {
   turnRate0: 8, turnRateMax: 3, turnLoss: 0.3,  // rad/s da fermo, rad/s a velocita' massima, perdita sopra 90 gradi
   sprintSeconds: 25, recoverSeconds: 40, lowStaminaLoss: 0.15,
   ballGap: 0.5, ballGapPerSpeed: 0.08,          // distanza palla = 0,5 m + 0,08 s * velocita'
-  tackleRadius: 1.3, tackleBase: 0.4408,
+  tackleRadius: 1.3, tackleBase: 0.4832,
   minGap: 0.8, stunSpeed: 6, stunSeconds: 0.3,
   carryFactor: 0.85,                            // con la palla si scatta all'85% (parametro di taratura, non nel ticket 04)
 };
 
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
-  hz: 10, reaction: 0.1, passError: 0.02, risk: 0.6,
-  pressTrigger: 16, secondPress: 12, mateGap: 12, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.58, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.5976, shotFarPost: 0.7118, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.59, passPressed: 0.05, passMin: 0.451, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3691, crossEager: 0.3, crossWide: 0.4475, crossRange: 28, crossError: 0.3424, headShot: 0.3, headReach: 1.1, parryCorner: 1, parryExtra: 0.95, blockProb: 0.5, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 12, blockDepth: 0.6769, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.84, shieldSeconds: 0.3,
+  hz: 10, reaction: 0.1, passError: 0.056, risk: 0.6,
+  pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
+  shootRange: 48, shootEager: 0.606, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.773, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
+  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -86,7 +86,7 @@ export function layout(n, scheme, pitch) {
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
   foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
-  minPlayers: 5, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
+  minPlayers: 5, injuryProb: 0.04, maxSubs: 3, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
 import { NEUTRAL, deriveSkill } from './team.js';
@@ -120,6 +120,7 @@ export class Sim {
       p.k = deriveSkill(pl); p.attr = pl.attrs; p.foot = pl.foot; p.name = pl.name;
       p.posOff = [(this.rand() - 0.5) * 2 * p.k.placeErr, (this.rand() - 0.5) * 2 * p.k.placeErr]; // errore fisso di posizionamento (m)
     }));
+    this.bench = [0, 1].map(t => [...(teams[t]?.bench ?? [])]); this.subs = [0, 0]; // panchina e cambi fatti per squadra
     this.ball = { x: 0, y: 0.11, z: 0, vx: 0, vy: 0, vz: 0, owner: -1, last: -1 };
     this.resetPositions(0);
   }
@@ -254,7 +255,7 @@ export class Sim {
   kick(p, dx, dz, speed, lift) {
     const b = this.ball, l = Math.hypot(dx, dz) || 1;
     this.markOffside(p);
-    this.lastPass = null; b.shot = false; b.cross = false; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
+    this.lastPass = null; b.shot = false; b.cross = false; b.curve = 0; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
   }
 
@@ -285,12 +286,12 @@ export class Sim {
     return along > 0 && along < 30 && perp < 2.5;
   }
 
-  shoot(p, aim, power, raw = false, head = false) {
+  shoot(p, aim, power, raw = false, head = false, curve = 0) {
     const gx = this.dir(p.team) * this.pitch.hx, onGoal = !raw && Math.abs(Math.atan2(0 - p.z, gx - p.x) - aim) < 0.5;
     const tz = onGoal ? clamp((this.rand() - 0.5) * 2 * (this.pitch.goalHalf - 0.5), -3, 3) : null;
     const dx = onGoal ? gx - p.x : Math.cos(aim), dz = onGoal ? tz - p.z : Math.sin(aim);
     if (head) this.kick(p, dx, dz, 12 + power * 6, 0.3 + power); else this.kick(p, dx, dz, 22 + power * 10, 1 + power * 3.2);
-    this.ball.shot = true;
+    this.ball.shot = true; this.ball.curve = curve;
   }
 
   // ---- AI ----
@@ -487,7 +488,24 @@ export class Sim {
     const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * this.errMul(p, (this.setKind?.taker === p.id && this.setKind.kind === 'penalty' ? p.k.penaltyErr : this.setKind?.taker === p.id && this.setKind.kind === 'free' ? p.k.freeKickErr : dg < this.sc(16) ? p.k.shotNear : p.k.shotFar)) * Math.PI / 180;
     const g = opps.find(q => q.gk), away = g ? (g.z > 0 ? -1 : 1) : 1, side = this.rand() < AI.shotFarPost ? away : -away;
     const tz = side * Math.max(0, pt.goalHalf - AI.shotMargin);
-    this.shoot(p, Math.atan2(tz - p.z, gx - p.x) + err, 0.6 + this.rand() * 0.4, true);
+    const power = 0.6 + this.rand() * 0.4, pen = this.setKind?.taker === p.id && this.setKind.kind === 'penalty', free = this.setKind?.taker === p.id && this.setKind.kind === 'free';
+    let aim = Math.atan2(tz - p.z, gx - p.x) + err, w = 0;
+    if (!pen && dg > this.sc(9) && this.rand() < AI.curveEager * (free ? 2.2 : 1) * p.k.curve * p.k.curve) { // tiro a giro: parte largo e rientra; l'effetto vero ha un errore che cala con Tecnica
+      const T = dg / ((22 + power * 10) * 0.9);
+      w = (this.rand() < 0.5 ? -1 : 1) * AI.curveRate * p.k.curve * (0.8 + 0.4 * this.rand());
+      aim -= w * T / 2;
+      w *= 1 + (this.rand() - 0.5) * 0.4 / p.k.curve;
+    }
+    this.shoot(p, aim, power, true, false, w);
+  }
+
+  /** Dove la palla (con l'effetto, senza resistenza ne' rimbalzi) attraversa la linea x = gx: { t, z }, oppure null. */
+  shotCross(gx) {
+    const b = this.ball; let x = b.x, z = b.z, vx = b.vx, vz = b.vz, t = 0;
+    if (!vx || (gx - x) * vx <= 0) return null;
+    const w = b.curve || 0, c = Math.cos(w * DT), sn = Math.sin(w * DT);
+    while ((vx > 0 ? x < gx : x > gx) && t < 4) { x += vx * DT; z += vz * DT; const nx = vx * c - vz * sn; vz = vx * sn + vz * c; vx = nx; t += DT; }
+    return { t, z };
   }
 
   /** Compagno a cui lanciare lungo: avanzato di almeno longMin della lunghezza, a 14-34 m (scalati), con spazio libero attorno; con 'any' anche senza spazio. */
@@ -553,6 +571,10 @@ export class Sim {
       const err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * p.k.headErr * Math.PI / 180;
       const g = this.players.find(q => q.team !== p.team && q.gk), away = g ? (g.z > 0 ? -1 : 1) : 1, tz = (this.rand() < AI.shotFarPost ? away : -away) * Math.max(0, pt.goalHalf - AI.shotMargin);
       this.shoot(p, Math.atan2(tz - p.z, gx - p.x) + err, 0.3 + this.rand() * 0.4, true, true);
+      return;
+    }
+    if (dist(p.x, p.z, -gx, 0) < this.sc(14) && this.rand() < AI.headCorner) { // difensore in area: spizza la palla dietro la linea di fondo, angolo
+      this.kick(p, -d * 1, (p.z >= 0 ? 1 : -1) * 0.7, 11, 2.5);
       return;
     }
     const best = this.bestPass(p);
@@ -662,7 +684,7 @@ export class Sim {
     if (p.stam === undefined) p.stam = 1;
     const sprinting = c.sprint && (c.mx || c.mz) && p.stun <= 0;
     const kk = p.k, fm = 1 + this.form[p.team] * AI.formSpeed; // forma di giornata
-    if (sprinting) p.stam = Math.max(0, p.stam - DT / (MOVE.sprintSeconds * kk.stamina));
+    if (sprinting) { p.stam = Math.max(0, p.stam - DT / (MOVE.sprintSeconds * kk.stamina)); p.load = (p.load || 0) + DT; }
     else if (Math.hypot(p.vx, p.vz) < MOVE.run * kk.speed + 0.5) p.stam = Math.min(1, p.stam + DT * kk.stamina / MOVE.recoverSeconds);
     const top = MOVE.sprint * kk.speed * fm * (1 - MOVE.lowStaminaLoss * (1 - p.stam)) * (this.ball.owner === p.id ? MOVE.carryFactor : 1);
     const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run * kk.speed * fm;
@@ -763,6 +785,7 @@ export class Sim {
     const air = b.y > 0.12;
     if (air) { const f = Math.max(0, 1 - BALL.airDrag * DT); b.vx *= f; b.vz *= f; }
     if (!air) { const s = Math.hypot(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
+    if (b.curve) { const s2 = Math.hypot(b.vx, b.vz); if (s2 < 8 || b.owner >= 0) b.curve = 0; else { const c = Math.cos(b.curve * DT), sn = Math.sin(b.curve * DT), nx = b.vx * c - b.vz * sn; b.vz = b.vx * sn + b.vz * c; b.vx = nx; } } // effetto: la direzione ruota
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
@@ -885,6 +908,7 @@ export class Sim {
 
   /** Palla ferma da recuperare: il battitore piu' vicino va a prendere la palla (anche fuori, sulla ghiaia), la raccoglie e la porta al punto di ripresa. Il cronometro di gioco e' fermo. */
   deadBall(kind, team, x, z) {
+    this.makeSubs();
     if (kind === 'penalty') return this.setPiece(kind, team, x, z);
     const lp = this.lastPass; // palla uscita: l'ultimo passaggio si chiude qui (ripresa della stessa squadra = riuscito, altrimenti perso)
     if (lp && kind !== 'free' && kind !== 'indirect') { this.lastPass = null; this.events.push({ t: team === lp.team ? 'passOk' : 'passLost', team: lp.team, player: lp.id }); }
@@ -938,6 +962,32 @@ export class Sim {
     this.events.push({ t: 'restart', team, kind });
   }
 
+  /** Cambi a gioco fermo: sempre per un infortunato, poi uno a tempo (circa a meta' e ai tre quarti) per chi ha scattato di piu'; il subentrato prende il posto e la posizione dell'uscito. */
+  makeSubs() {
+    for (let team = 0; team < 2; team++) {
+      const mine = this.players.filter(p => p.team === team && !p.out && !p.gk);
+      for (const p of mine) if (p.injured) { this.substitute(p, 'injury'); p.injured = false; }
+      const n = this.subs[team], due = this.halfLength * (0.8 + 0.5 * n); // 1o cambio a 0,8 tempi, poi ogni 0,5
+      if (n < RULES.maxSubs && this.bench[team].length && this.matchTime > due) {
+        const tired = mine.filter(p => !p.injured).sort((a, c) => (c.load || 0) - (a.load || 0))[0];
+        if (tired) this.substitute(tired, 'tactical');
+      }
+    }
+  }
+
+  substitute(p, reason) {
+    const team = p.team, bench = this.bench[team];
+    if (!bench.length || this.subs[team] >= RULES.maxSubs) return false;
+    const i = bench.findIndex(q => q.position !== 'Goalkeeper');
+    if (i < 0) return false;
+    const pl = bench.splice(i, 1)[0], out = p.name ?? `Giocatore ${p.id + 1}`;
+    p.k = deriveSkill(pl); p.attr = pl.attrs; p.foot = pl.foot; p.name = pl.name; p.number = pl.number;
+    p.stam = 1; p.load = 0; p.yellow = 0; p.stun = 0; p.injured = false; p.plan = null;
+    this.subs[team]++;
+    this.events.push({ t: 'sub', team, player: p.id, out, reason });
+    return true;
+  }
+
   keepAway(p, x, z, R) {
     const d = dist(p.x, p.z, x, z);
     if (d >= R) return;
@@ -970,6 +1020,7 @@ export class Sim {
     if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
     this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
+    if (!o.gk && !o.out && this.rand() < RULES.injuryProb * o.k.stun) { o.injured = true; this.events.push({ t: 'injury', team: o.team, player: o.id }); } // chi subisce il fallo puo' farsi male; Integrita fisica protegge
     if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo
       const mates = this.players.filter(r => r.team === q.team && !r.out && !r.gk && !r.blueUntil);
       if (mates.length) { const m = mates[Math.floor(this.rand() * mates.length)]; this.suspend(m); this.events.push({ t: 'protest', team: m.team, player: m.id }); }

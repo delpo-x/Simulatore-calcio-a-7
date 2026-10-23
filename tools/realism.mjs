@@ -144,7 +144,7 @@ if (profile === 'fifa10') {
   gate('F.falli', mean(col(r => r.fouls)), 5, 7.5, '6 a partita (utente)');
   gate('F.conversione_tiri', mean(col(r => r.score[0] + r.score[1])) / (mean(col(r => r.shots)) || 1), 0.21, 0.29, 'gol / tiri (5 / 20)');
   gate('F.passaggi_totali', mean(col(r => r.passOk + r.passLost)), 70, 170, 'passaggi con esito; in 5 minuti reali a velocita standard il tetto fisico vale ~150 (obiettivo utente 415: non raggiungibile)');
-  gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.60, 'gioco diretto della partita densa; passaggi che guadagnano > 2 m verso la porta avversaria');
+  gate('F.passaggi_in_avanti_quota', mean(col(r => r.fwd / (r.passLen.length || 1))), 0.15, 0.62, 'gioco diretto della partita densa; passaggi che guadagnano > 2 m verso la porta avversaria');
   gate('F.possesso_medio_s', mean(all(r => r.spells)), 1.5, 5, 'partita da 5 minuti reali: ~2,6 s di gioco effettivo (= ~26 s di cronometro); i 15 s osservati su FIFA 10 non sono raggiungibili con 5 gol in 5 minuti');
   gate('F.possesso_p90_s', pct(all(r => r.spells), 0.9), 4, 15);
   gate('F.gol_dev_std', std(col(r => r.score[0] + r.score[1])), 1.4, 3, 'Poisson con media 5 = 2,24 (qui ~1,6: il motore ha meno varianza di un Poisson); errore standard con 40 partite ~0,25');

@@ -27,7 +27,7 @@ export const AI = {
   hz: 10, reaction: 0.1, passError: 0.056, risk: 0.6,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.606, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
-  passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.773, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
+  passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.773, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
 };
 
@@ -85,7 +85,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 6, smallAreaWidth: 12,
+  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 5.1, smallAreaWidth: 12,
   minPlayers: 5, injuryProb: 0.04, maxSubs: 3, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -210,7 +210,7 @@ export class Sim {
       if (p.out) continue;
       p.kickCd = Math.max(0, p.kickCd - DT); p.tackleT = Math.max(0, p.tackleT - DT); p.throwT = Math.max(0, p.throwT - DT); p.dribT = Math.max(0, p.dribT - DT); p.stun = Math.max(0, p.stun - DT); if (p.shieldT) p.shieldT = Math.max(0, p.shieldT - DT);
       const human = this.active[p.team] === p.id && inputs[p.team] != null;
-      let c = frozen ? { mx: 0, mz: 0, sprint: false } : this.state === 'dead' ? (p.id === this.dead?.taker ? this.deadControl(p) : this.toward(p, this.homePos(p).x, this.homePos(p).z, false)) : human ? this.humanControl(p, inputs[p.team]) : this.aiControl(p);
+      let c = frozen ? { mx: 0, mz: 0, sprint: false } : this.state === 'dead' ? (p.id === this.dead?.taker ? this.deadControl(p) : this.cornerSlot(p) ? this.cornerGo(p) : this.toward(p, this.homePos(p).x, this.homePos(p).z, false)) : human ? this.humanControl(p, inputs[p.team]) : this.aiControl(p);
       this.move(p, c);
     }
     for (const p of this.players) if (p.blueUntil && this.matchTime >= p.blueUntil && this.state === 'play') { // fine sospensione
@@ -308,9 +308,28 @@ export class Sim {
     return this.toward(p, p.plan.tx, p.plan.tz, p.plan.sprint);
   }
 
+  /** Angolo: dove va a mettersi chi non batte. Gli attaccanti occupano primo palo, dischetto, secondo palo e limite dell'area, i difensori li marcano dal lato porta; un attaccante resta fuori area. */
+  cornerSlot(p) {
+    const k = this.dead?.kind === 'corner' ? this.dead : this.setKind?.kind === 'corner' && this.ball.owner === this.setKind.taker ? this.setKind : null; // solo finche' il battitore ha la palla
+    if (!k || p.gk || p.out || k.taker === p.id) return null;
+    const pt = this.pitch, e = Math.sign(k.x), cz = Math.sign(k.z) || 1, gh = pt.goalHalf, ad = pt.areaDepth, atk = p.team === (k.team ?? this.players[k.taker].team);
+    const team = this.players.filter(q => q.team === p.team && !q.gk && !q.out && q.id !== k.taker).sort((a, c) => a.id - c.id), i = team.indexOf(p);
+    const slots = [ // [profondita' dalla linea di fondo, lato rispetto al battitore (+1 = suo lato)]
+      [3, 0.7], [ad * 0.6, -0.1], [3.5, -0.9], [ad + 1.5, -0.4], [ad * 0.35, 0.9],
+    ];
+    const n = atk ? Math.min(slots.length, team.length - 1) : slots.length, j = i % slots.length;
+    if (atk && i >= n) return { x: e * (pt.hx - ad - 6), z: -cz * pt.hz * 0.3 }; // uno resta a coprire il contropiede
+    const [dep, side] = slots[j], jitter = ((p.id * 37) % 7 - 3) * 0.12;
+    const z = clamp(cz * side * (gh + 2) * 1.3 + jitter, -pt.areaWidth / 2 + 1, pt.areaWidth / 2 - 1);
+    return { x: e * (pt.hx - dep - (atk ? 0 : 0.8)), z: z + (atk ? 0 : -Math.sign(z || 1) * 0.5) };
+  }
+
+  cornerGo(p) { const c = this.cornerSlot(p); return this.toward(p, c.x, c.z, dist(p.x, p.z, c.x, c.z) > 4); }
+
   aiDecide(p) {
     const owner = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
     if (p.gk) return this.aiKeeper(p, owner);
+    if (this.setKind?.kind === 'corner' && this.setKind.taker !== p.id && owner?.id === this.setKind.taker) { const c = this.cornerSlot(p); if (c) return { tx: c.x, tz: c.z, sprint: dist(p.x, p.z, c.x, c.z) > 4 }; }
     if (owner === p) return this.aiCarrier(p);
     if (owner && owner.team === p.team) return this.aiSupport(p, owner);
     return this.aiDefend(p, owner);
@@ -441,6 +460,16 @@ export class Sim {
     if (this.setKind?.kind === 'throwin' && this.setKind.taker === p.id) { // rimessa laterale: si lancia con le mani a un compagno, mai in porta ne' in conduzione
       p.vx = p.vz = 0;
       if ((this.setKind.t ?? 0) >= AI.throwDelay) this.throwIn(p);
+      return hold;
+    }
+    if (this.setKind?.kind === 'corner' && this.setKind.taker === p.id) { // angolo: si aspetta che i compagni siano in area, poi cross; mai tiro diretto in porta
+      const k = this.setKind; k.t0 ??= this.matchTime;
+      if (this.matchTime - k.t0 < AI.cornerDelay) return hold;
+      const box = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out && Math.abs(q.z) < pt.areaWidth / 2 && Math.abs(gx - q.x) < pt.areaDepth + 3);
+      const score = q => Math.min(...opps.map(x => dist(x.x, x.z, q.x, q.z))) + this.rand() * 2.5;
+      const tgt = box.sort((a, c) => score(c) - score(a))[0] ?? this.bestPass(p);
+      if (tgt) { if (box.includes(tgt)) this.crossTo(p, tgt); else this.passTo(p, tgt, false); return hold; }
+      if (this.matchTime - k.t0 > 6) { const q = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0]; if (q) this.passTo(p, q, false); }
       return hold;
     }
     if (!this.setKind && this.state === 'play' && p.kickCd === 0 && this.rand() < AI.dribbleEager) { // dribbling: salta l'avversario davanti; esito da Dribbling contro Contrasti
@@ -968,7 +997,7 @@ export class Sim {
       const mine = this.players.filter(p => p.team === team && !p.out && !p.gk);
       for (const p of mine) if (p.injured) { this.substitute(p, 'injury'); p.injured = false; }
       const n = this.subs[team], due = this.halfLength * (0.8 + 0.5 * n); // 1o cambio a 0,8 tempi, poi ogni 0,5
-      if (n < RULES.maxSubs && this.bench[team].length && this.matchTime > due) {
+      if (n < RULES.maxSubs - 1 && this.bench[team].length && this.matchTime > due) { // un cambio resta sempre libero per un infortunio
         const tired = mine.filter(p => !p.injured).sort((a, c) => (c.load || 0) - (a.load || 0))[0];
         if (tired) this.substitute(tired, 'tactical');
       }

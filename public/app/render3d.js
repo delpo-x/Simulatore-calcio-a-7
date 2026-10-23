@@ -308,6 +308,7 @@ export class TVRenderer {
       } else {
         b.position.z = 0;
         if (ctx.owns) { a0.rotation.z = a1.rotation.z = 1.5; a0.rotation.x = -0.45; a1.rotation.x = 0.45; lean = -0.12; } // palla tenuta al petto
+        else if (sp < 3 && !ctx.alert) { a0.rotation.x = 0.12; a1.rotation.x = -0.12; a0.rotation.z = a1.rotation.z = 0.08; lean = -0.04; drop = Math.min(drop, 0); } // palla lontana: braccia lungo i fianchi
         else if (sp < 3) { a0.rotation.x = 0.75; a1.rotation.x = -0.75; a0.rotation.z = a1.rotation.z = 0.35; lean = -0.15; drop = Math.min(drop, 0) - 0.08 + Math.sin(u.phase * 0.7) * 0.01; for (const l of u.legs) { l.hip.rotation.z = 0.35; l.knee.rotation.z = -0.6; } } // attesa: gambe piegate, braccia larghe
       }
     }
@@ -366,7 +367,7 @@ export class TVRenderer {
         }
       }
       if (!p.gk && u.headCd === 0 && v.ball.owner < 0 && v.ball.y > 1.1 && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 0.8) { u.headT = 0.45; u.headCd = 1.5; } // palla alta addosso: colpo di testa
-      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id });
+      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 22 && (v.ball.owner < 0 || v.players[v.ball.owner]?.team !== p.team) });
     });
     const b = v.ball, sp = Math.hypot(b.vx, b.vz);
     this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);

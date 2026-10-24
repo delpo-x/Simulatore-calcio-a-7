@@ -3,10 +3,10 @@ import { syntheticTeam, readTeam, pickLineup } from '../core/team.js';
 
 export const PRESETS = [
   { id: 'leoni', name: 'Leoni Rossi', short: 'LEO', kit: { shirt: '#c62828', shorts: '#ffffff', socks: '#c62828', gk: '#2e7d32' }, level: 15, scheme: '2-3-1' },
-  { id: 'squali', name: 'Squali Blu', short: 'SQU', kit: { shirt: '#1e5bb8', shorts: '#0d2b5c', socks: '#ffffff', gk: '#f9a825' }, level: 15, scheme: '3-2-1' },
+  { id: 'squali', name: 'Squali Blu', short: 'SQU', kit: { shirt: '#1e5bb8', shorts: '#0d2b5c', socks: '#ffffff', gk: '#f9a825', pattern: 'stripes', trim: '#0d3d8f' }, level: 15, scheme: '3-2-1' },
   { id: 'aquile', name: 'Aquile Verdi', short: 'AQU', kit: { shirt: '#2e8b57', shorts: '#ffffff', socks: '#2e8b57', gk: '#6a1b9a' }, level: 14, scheme: '2-2-2' },
-  { id: 'lupi', name: 'Lupi Neri', short: 'LUP', kit: { shirt: '#222222', shorts: '#222222', socks: '#ffffff', gk: '#ef6c00' }, level: 16, scheme: '2-3-1' },
-  { id: 'tigri', name: 'Tigri Arancio', short: 'TIG', kit: { shirt: '#f57c00', shorts: '#1a1a1a', socks: '#f57c00', gk: '#00838f' }, level: 13, scheme: '3-1-2' },
+  { id: 'lupi', name: 'Lupi Neri', short: 'LUP', kit: { shirt: '#222222', shorts: '#222222', socks: '#ffffff', gk: '#ef6c00', pattern: 'hoops', trim: '#444444' }, level: 16, scheme: '2-3-1' },
+  { id: 'tigri', name: 'Tigri Arancio', short: 'TIG', kit: { shirt: '#f57c00', shorts: '#1a1a1a', socks: '#f57c00', gk: '#00838f', pattern: 'bands', trim: '#1a1a1a' }, level: 13, scheme: '3-1-2' },
   { id: 'falchi', name: 'Falchi Gialli', short: 'FAL', kit: { shirt: '#fdd835', shorts: '#1565c0', socks: '#fdd835', gk: '#c2185b' }, level: 14, scheme: '1-3-2' },
   { id: 'orsi', name: 'Orsi Bianchi', short: 'ORS', kit: { shirt: '#f5f5f5', shorts: '#263238', socks: '#f5f5f5', gk: '#d84315' }, level: 15, scheme: '3-2-1' },
   { id: 'volpi', name: 'Volpi Viola', short: 'VOL', kit: { shirt: '#6a1b9a', shorts: '#ffffff', socks: '#6a1b9a', gk: '#43a047' }, level: 14, scheme: '2-3-1' },

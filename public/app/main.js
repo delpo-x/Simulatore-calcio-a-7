@@ -102,7 +102,7 @@ function kitsFor(defs) {
   const k0 = { ...defs[0].kit }, k1 = { ...defs[1].kit };
   if (colorDist(k0.shirt, k1.shirt) >= 110) return { kits: [k0, k1], alt: false };
   const c = [k1.shorts, '#ffffff', '#111111'].find(x => colorDist(x, k0.shirt) >= 110) ?? '#ffffff';
-  return { kits: [k0, { ...k1, shirt: c, socks: c, shorts: k1.shirt }], alt: true };
+  return { kits: [k0, { ...k1, shirt: c, socks: c, shorts: k1.shirt, pattern: 'plain', trim: undefined }], alt: true };
 }
 
 function updateNote() {
@@ -153,7 +153,7 @@ function startMatch(seed, ov = null) {
 
   $('#menu').hidden = true; $('#tour').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
   if (R) R.dispose();
-  R = new TVRenderer($('#view'), sim.pitch, { kits, nums: info.map(i => i.num) });
+  R = new TVRenderer($('#view'), sim.pitch, { kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   for (const side of [0, 1]) {
     const t = $(`.sb-team[data-side="${side}"]`);

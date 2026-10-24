@@ -229,25 +229,59 @@ export function contrast(hex) {
 const GEO = {};
 function geo() {
   if (GEO.torso) return GEO;
-  GEO.torso = new THREE.CylinderGeometry(0.21, 0.17, 0.6, 7);
-  GEO.shorts = new THREE.CylinderGeometry(0.18, 0.2, 0.24, 7);
+  GEO.torso = new THREE.CylinderGeometry(0.22, 0.17, 0.6, 14); GEO.torso.scale(1, 1, 0.78); // busto piu' largo che profondo
+  GEO.neck = new THREE.CylinderGeometry(0.05, 0.06, 0.1, 8); GEO.shoulder = new THREE.SphereGeometry(0.08, 10, 8); GEO.cuff = new THREE.CylinderGeometry(0.062, 0.062, 0.05, 8); GEO.sockTop = new THREE.CylinderGeometry(0.076, 0.072, 0.07, 8);
+  GEO.shorts = new THREE.CylinderGeometry(0.18, 0.2, 0.24, 12); GEO.shorts.scale(1, 1, 0.82);
   GEO.thigh = new THREE.CylinderGeometry(0.085, 0.075, 0.42, 6); GEO.thigh.translate(0, -0.21, 0);
   GEO.shin = new THREE.CylinderGeometry(0.07, 0.055, 0.5, 6); GEO.shin.translate(0, -0.25, 0);
   GEO.shoe = new THREE.BoxGeometry(0.24, 0.08, 0.11); GEO.shoe.translate(0.05, 0, 0);
   GEO.arm = new THREE.CylinderGeometry(0.055, 0.045, 0.55, 6); GEO.arm.translate(0, -0.27, 0);
   GEO.hand = new THREE.SphereGeometry(0.055, 6, 5);
-  GEO.head = new THREE.SphereGeometry(0.13, 10, 8);
-  GEO.hair = new THREE.SphereGeometry(0.137, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  GEO.head = new THREE.SphereGeometry(0.125, 14, 10);
+  GEO.hair = new THREE.SphereGeometry(0.132, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
   GEO.num = new THREE.PlaneGeometry(0.34, 0.34);
   GEO.blob = new THREE.PlaneGeometry(1.1, 1.1);
   GEO.ring = new THREE.RingGeometry(0.62, 0.74, 28);
   return GEO;
 }
 
+/** Colore secondario della maglia: bordini, strisce e fasce (kit.trim, altrimenti una tinta piu' scura o chiara della maglia). */
+function kitTrim(kit, gk) {
+  const base = gk ? kit.gk : kit.shirt;
+  if (!gk && kit.trim) return kit.trim;
+  const c = new THREE.Color(base), l = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+  return '#' + (l > 0.55 ? c.clone().multiplyScalar(0.62) : c.clone().lerp(new THREE.Color(0xffffff), 0.42)).getHexString();
+}
+
+const SHIRTS = new Map();
+/** Texture della maglia sul busto: tinta unita, strisce verticali, righe orizzontali o fasce, con colletto e orlo (kit.pattern: plain | stripes | hoops | bands). Una per divisa. */
+function shirtTexture(kit, gk) {
+  const pat = gk ? 'plain' : kit.pattern || 'plain', base = gk ? kit.gk : kit.shirt, trim = kitTrim(kit, gk), key = `${base}|${trim}|${pat}`;
+  if (SHIRTS.has(key)) return SHIRTS.get(key);
+  const [c, g] = canvas(256, 128); g.fillStyle = base; g.fillRect(0, 0, 256, 128); g.fillStyle = trim;
+  if (pat === 'stripes') { for (let i = 0; i < 8; i++) if (i % 2) g.fillRect(i * 32, 0, 32, 128); }
+  else if (pat === 'hoops') { for (let i = 0; i < 6; i++) if (i % 2) g.fillRect(0, 12 + i * 18, 256, 18); }
+  else if (pat === 'bands') g.fillRect(0, 50, 256, 26);
+  g.fillStyle = trim; g.fillRect(0, 0, 256, 9); g.fillRect(0, 122, 256, 6); // colletto in alto, orlo in basso
+  g.fillStyle = 'rgba(0,0,0,0.10)'; for (let i = 0; i < 2; i++) g.fillRect(i * 128, 0, 2, 128); // cuciture laterali
+  const t = tex(c); t.wrapS = THREE.RepeatWrapping; SHIRTS.set(key, t); return t;
+}
+
+/** Cartellino col nome: sfondo scuro semitrasparente arrotondato, numero a sinistra; una texture per testo. */
+const TAGS = new Map();
+function nameTag(text) {
+  if (TAGS.has(text)) return TAGS.get(text);
+  const [c, g] = canvas(384, 72), r = 22;
+  g.fillStyle = 'rgba(10,16,26,0.78)'; g.beginPath(); g.roundRect(4, 4, 376, 64, r); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 2; g.stroke();
+  g.fillStyle = '#fff'; g.font = '600 34px system-ui, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 192, 38, 350);
+  const t = tex(c); TAGS.set(text, t); return t;
+}
+
 /** Un giocatore low-poly: gambe, braccia, busto, testa; avanti = +x. */
 function buildPlayer(kit, gk, num, id, blobMat) {
-  const G = geo(), lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
-  const shirt = lam(gk ? kit.gk : kit.shirt), shorts = lam(gk ? 0x1d1d1d : kit.shorts), socks = lam(gk ? kit.gk : kit.socks);
+  const G = geo(), lam = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.82, metalness: 0 });
+  const shirt = lam(gk ? kit.gk : kit.shirt), torsoMat = new THREE.MeshStandardMaterial({ map: shirtTexture(kit, gk), roughness: 0.8, metalness: 0 }), trim = lam(kitTrim(kit, gk)), shorts = lam(gk ? 0x1d1d1d : kit.shorts), socks = lam(gk ? kit.gk : kit.socks);
   const skin = lam(SKINS[(id * 7 + 3) % SKINS.length]), hair = lam(HAIRS[(id * 5 + 1) % HAIRS.length]), shoe = lam(0x111111), glove = lam(gk ? 0xf0f0f0 : SKINS[(id * 7 + 3) % SKINS.length]);
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const legs = [], arms = [];
@@ -255,13 +289,15 @@ function buildPlayer(kit, gk, num, id, blobMat) {
     const hip = new THREE.Group(); hip.position.set(0, 0.92, side * 0.1);
     const thigh = new THREE.Mesh(G.thigh, shorts);
     const knee = new THREE.Group(); knee.position.y = -0.42;
-    const shin = new THREE.Mesh(G.shin, socks), foot = new THREE.Mesh(G.shoe, shoe); foot.position.y = -0.5;
-    knee.add(shin, foot); hip.add(thigh, knee); body.add(hip); legs.push({ hip, knee });
+    const shin = new THREE.Mesh(G.shin, socks), foot = new THREE.Mesh(G.shoe, shoe), band = new THREE.Mesh(G.sockTop, trim); foot.position.y = -0.5; band.position.y = -0.08;
+    knee.add(shin, foot, band); hip.add(thigh, knee); body.add(hip); legs.push({ hip, knee });
     const sh = new THREE.Group(); sh.position.set(0, 1.47, side * 0.25);
     const arm = new THREE.Mesh(G.arm, shirt), hand = new THREE.Mesh(G.hand, glove); hand.position.y = -0.56;
-    sh.add(arm, hand); body.add(sh); arms.push(sh);
+    const sho = new THREE.Mesh(G.shoulder, shirt), cuff = new THREE.Mesh(G.cuff, trim); cuff.position.y = -0.5;
+    sh.add(arm, hand, sho, cuff); body.add(sh); arms.push(sh);
   }
-  const torso = new THREE.Mesh(G.torso, shirt); torso.position.y = 1.23;
+  const torso = new THREE.Mesh(G.torso, torsoMat); torso.position.y = 1.23; torso.rotation.y = Math.PI / 2; // la cucitura del disegno resta di lato
+  const neck = new THREE.Mesh(G.neck, skin); neck.position.y = 1.56; body.add(neck);
   const pants = new THREE.Mesh(G.shorts, shorts); pants.position.y = 0.95;
   const head = new THREE.Mesh(G.head, skin); head.position.y = 1.7;
   const hr = new THREE.Mesh(G.hair, hair); hr.position.y = 1.72; hr.rotation.z = 0.25;
@@ -276,8 +312,8 @@ function buildPlayer(kit, gk, num, id, blobMat) {
 
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
-  constructor(canvas, pitch, { kits, nums } = {}) {
-    this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? [];
+  constructor(canvas, pitch, { kits, nums, label } = {}) {
+    this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? []; this.label = label;
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     ANISO = r.capabilities.getMaxAnisotropy();
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.outputColorSpace = THREE.SRGBColorSpace;
@@ -301,6 +337,10 @@ export class TVRenderer {
     scene.add(this.ball, this.ballBlob);
     this.marker = new THREE.Mesh(geo().ring, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
     this.marker.rotation.x = -Math.PI / 2; this.marker.position.y = 0.02; scene.add(this.marker);
+    const tri = new THREE.Shape(); tri.moveTo(0.34, 0); tri.lineTo(-0.2, 0.3); tri.lineTo(-0.08, 0); tri.lineTo(-0.2, -0.3); tri.closePath(); // freccia di direzione: punta in avanti
+    this.arrow = new THREE.Mesh(new THREE.ShapeGeometry(tri), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    this.arrow.rotation.x = -Math.PI / 2; this.arrow.position.y = 0.025; scene.add(this.arrow);
+    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false })); this.tag.scale.set(3, 0.56, 1); this.tag.renderOrder = 10; this.tag.visible = false; scene.add(this.tag);
     this.cam = new THREE.PerspectiveCamera(38, 1, 0.5, 900);
     this.mode = 'tv'; this.camPos = new THREE.Vector3(0, 30, 60); this.camLook = new THREE.Vector3(); this.snap = true; this.lastDir = 1;
     this.meshes = []; this.showMarker = true; this.w = 0; this.h = 0;
@@ -316,7 +356,7 @@ export class TVRenderer {
 
   build(players) {
     for (const m of this.meshes) this.scene.remove(m);
-    this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); m.traverse(o => { if (o.isMesh) o.castShadow = !!o.material.isMeshLambertMaterial; }); m.userData.blob.visible = false; this.scene.add(m); return m; });
+    this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m; });
   }
 
   /** Animazione procedurale (nessun dato di terzi): andatura camminata/corsa/scatto, conduzione, finta, tiro, colpo di testa, rimessa. */
@@ -447,7 +487,12 @@ export class TVRenderer {
     this.ballBlob.position.set(b.x + b.y * 0.25, 0.011, b.z - b.y * 0.15); this.ballBlob.scale.setScalar(clamp(0.45 - b.y * 0.05, 0.15, 0.45));
     const owner = b.owner >= 0 ? v.players[b.owner] : null;
     this.marker.visible = this.showMarker && !!owner && !owner.out;
-    if (owner) this.marker.position.set(owner.x, 0.02, owner.z);
+    if (owner) {
+      this.marker.position.set(owner.x, 0.02, owner.z);
+      this.arrow.visible = this.marker.visible; this.arrow.position.set(owner.x + Math.cos(owner.face) * 1.1, 0.025, owner.z + Math.sin(owner.face) * 1.1); this.arrow.rotation.z = -owner.face + 0; // l'asse x locale della freccia va in avanti
+      const txt = this.label?.(owner.id);
+      this.tag.visible = !!txt && this.marker.visible; if (txt) { this.tag.material.map = nameTag(txt); this.tag.material.needsUpdate = true; this.tag.position.set(owner.x, 2.5, owner.z); }
+    } else { this.arrow.visible = false; this.tag.visible = false; }
     this.updateCamera(v, dt);
     this.r.render(this.scene, this.cam);
   }

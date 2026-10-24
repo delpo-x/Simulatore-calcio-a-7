@@ -206,12 +206,24 @@ function blobTexture() {
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return tex(c);
 }
 
+/** Pallone a icosaedro troncato (12 pentagoni neri + 20 esagoni bianchi): ogni texel e' campionato sulla sfera, quindi nessuna distorsione ai poli. */
 function ballTexture() {
-  const [c, g] = canvas(256, 128);
-  g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 128); g.fillStyle = '#1b1b1b';
-  for (let i = 0; i < 12; i++) { const x = (i % 6) * 43 + (i > 5 ? 21 : 0), y = i > 5 ? 90 : 38; g.beginPath();
-    for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 - Math.PI / 2; g[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * 12, y + Math.sin(a) * 12); } g.fill(); }
-  return tex(c);
+  const W = 512, H = 256, [c, g] = canvas(W, H), img = g.createImageData(W, H), phi = (1 + Math.sqrt(5)) / 2, norm = v => { const l = Math.hypot(...v); return v.map(x => x / l); };
+  const pent = [], hexa = [];
+  for (const a of [-1, 1]) for (const b of [-phi, phi]) pent.push(norm([0, a, b]), norm([a, b, 0]), norm([b, 0, a])); // 12 vertici dell'icosaedro
+  for (const a of [-1, 1]) for (const b of [-1, 1]) for (const d of [-1, 1]) hexa.push(norm([a, b, d])); // 8 + 12 centri delle facce
+  for (const a of [-1, 1]) for (const b of [-phi, phi]) hexa.push(norm([a / phi, 0, b]), norm([b, a / phi, 0]), norm([0, b, a / phi]));
+  const cells = [...pent.map(v => ({ v, pent: true, r: 0.2875 })), ...hexa.map(v => ({ v, pent: false, r: 0.3648 }))]; // raggio inscritto angolare (rad): il confine e' dove i punteggi si eguagliano
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ph = (x + 0.5) / W * Math.PI * 2, th = (y + 0.5) / H * Math.PI, st = Math.sin(th), d = [-Math.cos(ph) * st, Math.cos(th), Math.sin(ph) * st];
+    let b1 = 9, b2 = 9, cell = null;
+    for (const q of cells) { const s = Math.acos(Math.min(1, d[0] * q.v[0] + d[1] * q.v[1] + d[2] * q.v[2])) - q.r; if (s < b1) { b2 = b1; b1 = s; cell = q; } else if (s < b2) b2 = s; }
+    const seam = Math.max(0, 1 - (b2 - b1) / 0.045), e = seam * seam * (3 - 2 * seam), o = (y * W + x) * 4;
+    const base = cell.pent ? 26 : 246 - Math.min(30, (b1 + cell.r) * 60); // esagono: leggermente piu' scuro verso il bordo
+    const v = base + (150 - base) * e * (cell.pent ? 0.15 : 0.9);
+    img.data[o] = v; img.data[o + 1] = v; img.data[o + 2] = v + (cell.pent ? 0 : 2); img.data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0); return tex(c);
 }
 
 function numberTexture(num, color, outline) {
@@ -310,6 +322,74 @@ function buildPlayer(kit, gk, num, id, blobMat) {
   return root;
 }
 
+const TRAIL_T = 0.3;
+/** Scia semitrasparente dietro la palla sui tiri forti: nastro rivolto verso la telecamera che svanisce con l'eta' dei campioni. */
+class Trail {
+  constructor(scene, n = 22) {
+    this.n = n; this.pts = []; this.k = 0;
+    const idx = []; for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    this.pos = new Float32Array(n * 6); this.col = new Float32Array(n * 8);
+    const g = this.g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(this.col, 4)); g.setIndex(idx);
+    this.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    this.mesh.frustumCulled = false; this.mesh.renderOrder = 3; this.mesh.visible = false; scene.add(this.mesh);
+  }
+  update(b, cam, dt, clock) {
+    const sp = Math.hypot(b.vx, b.vy, b.vz);
+    this.k += ((b.owner < 0 ? clamp((sp - 15) / 7, 0, 1) : 0) - this.k) * Math.min(1, dt * 12); // compare solo sui tiri di potenza: passaggi e conduzione restano puliti
+    if (dt > 0) {
+      const last = this.pts[this.pts.length - 1];
+      if (last && Math.hypot(last.x - b.x, last.y - b.y, last.z - b.z) > 4) this.pts.length = 0; // ripartenza dal dischetto, replay: nessun nastro attraverso il campo
+      this.pts.push({ x: b.x, y: Math.max(0.13, b.y + 0.02), z: b.z, t: clock });
+      while (this.pts.length > this.n || (this.pts.length && clock - this.pts[0].t > TRAIL_T)) this.pts.shift();
+    }
+    const m = this.pts.length; this.mesh.visible = this.k > 0.02 && m > 1;
+    if (!this.mesh.visible) return;
+    for (let i = 0; i < m; i++) {
+      const p = this.pts[i], a = this.pts[Math.max(0, i - 1)], c = this.pts[Math.min(m - 1, i + 1)], age = clamp((clock - p.t) / TRAIL_T, 0, 1);
+      const tx = c.x - a.x, ty = c.y - a.y, tz = c.z - a.z, vx = cam.x - p.x, vy = cam.y - p.y, vz = cam.z - p.z;
+      let sx = ty * vz - tz * vy, sy = tz * vx - tx * vz, sz = tx * vy - ty * vx; const l = Math.hypot(sx, sy, sz) || 1, w = (0.01 + 0.062 * (1 - age)) / l; sx *= w; sy *= w; sz *= w;
+      const o = i * 6, q = i * 8, al = 0.6 * Math.pow(1 - age, 1.4) * this.k;
+      this.pos.set([p.x + sx, p.y + sy, p.z + sz, p.x - sx, p.y - sy, p.z - sz], o); this.col.set([0.96, 0.98, 1, al, 0.96, 0.98, 1, al], q);
+    }
+    this.g.setDrawRange(0, (m - 1) * 6); this.g.attributes.position.needsUpdate = true; this.g.attributes.color.needsUpdate = true;
+  }
+}
+
+const PART_VS = 'attribute float aSize; attribute vec4 aColor; uniform float uScale; varying vec4 vC;\nvoid main() { vC = aColor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = aSize * uScale / max(0.1, -mv.z); }';
+const PART_FS = 'varying vec4 vC;\nvoid main() { float r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.25, r) * vC.a; if (a < 0.01) discard; gl_FragColor = vec4(vC.rgb, a);\n#include <colorspace_fragment>\n}';
+const _pc = new THREE.Color();
+/** Particelle (polvere, zolle, rete): un solo Points con shader proprio, dimensione e trasparenza per particella; anello di riuso, nessuna allocazione per fotogramma. */
+class Particles {
+  constructor(scene, n = 260) {
+    this.n = n; this.cur = 0;
+    this.pos = new Float32Array(n * 3); this.vel = new Float32Array(n * 3); this.size = new Float32Array(n); this.col = new Float32Array(n * 4);
+    this.life = new Float32Array(n); this.max = new Float32Array(n); this.grav = new Float32Array(n); this.drag = new Float32Array(n); this.s0 = new Float32Array(n); this.s1 = new Float32Array(n); this.a0 = new Float32Array(n);
+    const g = this.g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3)); g.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1)); g.setAttribute('aColor', new THREE.BufferAttribute(this.col, 4));
+    this.uni = { uScale: { value: 600 } };
+    this.pts = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: this.uni, vertexShader: PART_VS, fragmentShader: PART_FS, transparent: true, depthWrite: false }));
+    this.pts.frustumCulled = false; this.pts.renderOrder = 4; scene.add(this.pts);
+  }
+  emit(x, y, z, vx, vy, vz, { life = 0.6, size = 0.3, grow = 1, color = 0xffffff, alpha = 0.5, grav = 0, drag = 1.5 } = {}) {
+    const i = this.cur; this.cur = (this.cur + 1) % this.n; _pc.set(color);
+    this.pos.set([x, y, z], i * 3); this.vel.set([vx, vy, vz], i * 3); this.col.set([_pc.r, _pc.g, _pc.b, 0], i * 4);
+    this.life[i] = this.max[i] = life; this.s0[i] = size; this.s1[i] = size * grow; this.a0[i] = alpha; this.grav[i] = grav; this.drag[i] = drag;
+  }
+  update(dt, uScale) {
+    this.uni.uScale.value = uScale;
+    for (let i = 0; i < this.n; i++) {
+      if (this.life[i] <= 0) { this.size[i] = 0; this.col[i * 4 + 3] = 0; continue; }
+      this.life[i] -= dt; const t = clamp(1 - this.life[i] / this.max[i], 0, 1), o = i * 3, dr = Math.exp(-this.drag[i] * dt);
+      this.vel[o + 1] -= this.grav[i] * dt; this.vel[o] *= dr; this.vel[o + 2] *= dr;
+      this.pos[o] += this.vel[o] * dt; this.pos[o + 1] += this.vel[o + 1] * dt; this.pos[o + 2] += this.vel[o + 2] * dt;
+      if (this.pos[o + 1] < 0.02 && this.grav[i] > 0) { this.pos[o + 1] = 0.02; this.vel[o + 1] = 0; this.vel[o] *= 0.4; this.vel[o + 2] *= 0.4; } // le zolle si fermano a terra
+      this.size[i] = this.s0[i] + (this.s1[i] - this.s0[i]) * t; this.col[i * 4 + 3] = this.a0[i] * Math.min(1, t * 10) * Math.pow(1 - t, 1.3);
+    }
+    for (const a of ['position', 'aSize', 'aColor']) this.g.attributes[a].needsUpdate = true;
+  }
+}
+
+const TURF = [0x4c8a3a, 0x3a6b2c, 0x6b5233, 0x5a9a44];
+const rnd = (a, b) => a + Math.random() * (b - a), _ax = new THREE.Vector3();
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
   constructor(canvas, pitch, { kits, nums, label } = {}) {
@@ -331,7 +411,8 @@ export class TVRenderer {
     stadium(pitch, scene);
     scene.add(goal(1, pitch), goal(-1, pitch));
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
-    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 12), new THREE.MeshLambertMaterial({ map: ballTexture() }));
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 18), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45, metalness: 0 }));
+    this.trail = new Trail(scene); this.fx = new Particles(scene); this.clock = 0; this.spin = new THREE.Vector3(); this.pb = null; this.cv = { x: 0 }; this.zoom = 0; // scia, particelle, rotolamento libero e inquadratura dinamica
     this.ballBlob = new THREE.Mesh(geo().blob, this.blobMat); this.ballBlob.rotation.x = -Math.PI / 2; this.ballBlob.position.y = 0.011;
     this.ball.castShadow = true; this.ballBlob.visible = false; // ombra vera dal sole
     scene.add(this.ball, this.ballBlob);
@@ -432,6 +513,8 @@ export class TVRenderer {
   updateCamera(v, dt) {
     const P = this.P, b = v.ball, aspect = this.cam.aspect, owner = b.owner >= 0 ? v.players[b.owner] : null;
     if (owner) this.lastDir = owner.team === 0 ? 1 : -1;
+    const dg = P.hx - Math.abs(b.x), zt = clamp((P.areaDepth + 3 - dg) / (P.areaDepth + 1), 0, 1); // distanza dalla linea di porta: zoom pieno a 2 m, nullo oltre area + 3 m
+    this.zoom = this.snap ? zt : this.zoom + (zt - this.zoom) * Math.min(1, dt * 1.6); this.cv.x += (b.vx - this.cv.x) * Math.min(1, dt * 1.5);
     const pos = new THREE.Vector3(), look = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     let fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(64) / 2) / aspect) * 180 / Math.PI, 28, 78);
     if (this.mode === 'alto') {
@@ -445,9 +528,10 @@ export class TVRenderer {
       pos.set(sx * (P.hx + 9), 7, b.z * 0.3); look.set(b.x * 0.75, 0, b.z * 0.6); fov = clamp(fov, 45, 75);
     } else {
       const port = aspect < 0.9; // telefono in verticale: inquadratura piu' dall'alto, cosi' il campo riempie lo schermo invece delle tribune
-      const dist = Math.max(port ? 16 : 22, P.hz * (port ? 1.5 : 2.1)), hgt = Math.max(12, P.hz * (port ? 2 : 1.15)), k = P.hx * (port ? 0.1 : 0.22);
-      fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(50) / 2) / aspect) * 180 / Math.PI, 24, 64);
-      pos.set(clamp(b.x, -P.hx + k, P.hx - k), hgt, b.z * 0.3 + dist); look.set(pos.x, 0, b.z * 0.45 - 1);
+      const ze = this.zoom * this.zoom * (3 - 2 * this.zoom), lead = clamp(this.cv.x * 0.45, -5, 5); // ze: 0 a centrocampo, 1 sulla linea di porta
+      const dist = Math.max(port ? 16 : 22, P.hz * (port ? 1.5 : 2.1)) * (1 - 0.14 * ze), hgt = Math.max(12, P.hz * (port ? 2 : 1.15)) * (1 - 0.12 * ze), k = P.hx * (port ? 0.1 : 0.22) * (1 - 0.4 * ze); // piu' vicina e piu' bassa verso la porta
+      fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(50) / 2) / aspect) * 180 / Math.PI, 24, 64) * (1 - 0.24 * ze); // zoom negli ultimi metri dell'area
+      pos.set(clamp(b.x + lead * 0.4, -P.hx + k, P.hx - k), hgt, b.z * 0.3 + dist); look.set(pos.x + lead * 0.3, 0, b.z * 0.45 - 1); // anticipa leggermente la direzione del gioco
     }
     const k = this.snap ? 1 : 1 - Math.exp(-(this.blend < 1 ? 2.2 : 3.2) * dt);
     this.blend = Math.min(1, (this.blend ?? 1) + dt * 1.2); this.snap = false;
@@ -455,6 +539,38 @@ export class TVRenderer {
     this.cam.up.lerp(up, this.mode === 'alto' ? 1 : k).normalize();
     this.cam.fov += (fov - this.cam.fov) * k; this.cam.updateProjectionMatrix();
     this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
+  }
+
+  /** Sbuffo di polvere e zolle: rimbalzo della palla (power 0..1). */
+  puff(x, z, power) {
+    const n = 3 + Math.round(power * 5);
+    for (let i = 0; i < n; i++) { const a = rnd(0, 6.28), s = rnd(0.5, 1.4 + 2 * power); this.fx.emit(x + rnd(-0.1, 0.1), 0.06, z + rnd(-0.1, 0.1), Math.cos(a) * s, rnd(0.3, 0.9 + power), Math.sin(a) * s, { life: rnd(0.5, 0.9), size: rnd(0.22, 0.34), grow: 2.8, color: 0xd9d4b8, alpha: 0.4 }); }
+    for (let i = 0; i < n; i++) { const a = rnd(0, 6.28), s = rnd(0.4, 1.4); this.fx.emit(x, 0.08, z, Math.cos(a) * s, rnd(1.2, 2.6 + 3 * power), Math.sin(a) * s, { life: rnd(0.45, 0.75), size: rnd(0.07, 0.11), color: TURF[i % 4], alpha: 0.95, grav: 14, drag: 0.3 }); }
+  }
+
+  /** Palla in rete: scintille bianche e una nuvola leggera che segue la direzione del tiro. */
+  netBurst(b) {
+    const k = 0.12, e = Math.sign(b.x);
+    for (let i = 0; i < 16; i++) this.fx.emit(b.x, Math.max(0.15, b.y), b.z, b.vx * k + rnd(-1.2, 1.2), rnd(-0.2, 1.6), b.vz * k + rnd(-1.2, 1.2), { life: rnd(0.6, 1.1), size: rnd(0.11, 0.18), color: 0xffffff, alpha: 0.9, grav: 1.6, drag: 1.2 });
+    for (let i = 0; i < 5; i++) this.fx.emit(b.x + e * 0.3, Math.max(0.3, b.y), b.z, b.vx * 0.05 + rnd(-0.5, 0.5), rnd(0, 0.6), rnd(-0.6, 0.6), { life: rnd(0.7, 1.1), size: 0.5, grow: 2.2, color: 0xeef2f6, alpha: 0.26, drag: 2 });
+  }
+
+  /** Effetti legati agli eventi di gioco: rimbalzi, tiri forti, gol, scivolate. dt = 0 (pausa) non emette nulla. */
+  fxStep(v, dt) {
+    const b = v.ball, pb = this.pb, P = this.P;
+    if (dt > 0 && pb && Math.hypot(pb.x - b.x, pb.z - b.z) < 3) {
+      if (pb.vy < -2.5 && b.vy >= 0 && b.y < 0.4) this.puff(b.x, b.z, Math.min(1, -pb.vy / 9));
+      if (Math.abs(pb.x) <= P.hx && Math.abs(b.x) > P.hx && Math.abs(b.z) < P.goalHalf + 0.3 && b.y < P.goalH + 0.3 && Math.hypot(b.vx, b.vz) > 4) this.netBurst(b);
+      if (pb.owner >= 0 && b.owner < 0 && Math.hypot(b.vx, b.vz) > 12) { // tiro forte: zolle sollevate dal piede
+        const s = Math.hypot(b.vx, b.vz);
+        for (let i = 0; i < 6; i++) this.fx.emit(b.x, 0.08, b.z, b.vx / s * rnd(-0.6, 0.4) + rnd(-1, 1), rnd(1.5, 3.5), b.vz / s * rnd(-0.6, 0.4) + rnd(-1, 1), { life: rnd(0.45, 0.7), size: rnd(0.07, 0.11), color: TURF[i % 4], alpha: 0.95, grav: 14, drag: 0.3 });
+      }
+    }
+    if (dt > 0) for (const p of v.players) if (p.tackleT > 0 && !p.out && Math.random() < dt * 40) { // scivolata: polvere dietro il giocatore
+      const s = Math.hypot(p.vx, p.vz) || 1;
+      this.fx.emit(p.x + rnd(-0.2, 0.2), 0.08, p.z + rnd(-0.2, 0.2), -p.vx / s * rnd(0.3, 1) + rnd(-0.4, 0.4), rnd(0.3, 0.9), -p.vz / s * rnd(0.3, 1) + rnd(-0.4, 0.4), { life: rnd(0.5, 0.8), size: 0.28, grow: 2.8, color: 0xd9d4b8, alpha: 0.36 });
+    }
+    this.pb = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, owner: b.owner };
   }
 
   /** v: { players, ball } (la simulazione stessa o un fotogramma di replay). */
@@ -483,7 +599,12 @@ export class TVRenderer {
     });
     const b = v.ball, sp = Math.hypot(b.vx, b.vz);
     this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);
-    if (sp > 0.05) { const ax = new THREE.Vector3(b.vz, 0, -b.vx).normalize(); this.ball.rotateOnWorldAxis(ax, -sp * dt / 0.13); }
+    const roll = this.spin; // velocita' angolare (rad/s): a terra rotola senza slittare, in volo gira ancora e rallenta
+    if (b.y < 0.06 || b.owner >= 0) roll.set(b.vz, 0, -b.vx).multiplyScalar(1 / 0.13);
+    else { roll.multiplyScalar(Math.exp(-0.35 * dt)); if (roll.lengthSq() < 36 && sp > 3) roll.set(b.vz, 0, -b.vx).multiplyScalar(0.5 / 0.13); }
+    const w = roll.length(); if (w > 45) roll.multiplyScalar(45 / w); // oltre ~7 giri/s a 60 Hz l'occhio vede girare al contrario
+    if (dt > 0 && w > 0.01) this.ball.rotateOnWorldAxis(_ax.copy(roll).normalize(), Math.min(w, 45) * dt);
+    this.clock += dt; this.fxStep(v, dt);
     this.ballBlob.position.set(b.x + b.y * 0.25, 0.011, b.z - b.y * 0.15); this.ballBlob.scale.setScalar(clamp(0.45 - b.y * 0.05, 0.15, 0.45));
     const owner = b.owner >= 0 ? v.players[b.owner] : null;
     this.marker.visible = this.showMarker && !!owner && !owner.out;
@@ -494,6 +615,7 @@ export class TVRenderer {
       this.tag.visible = !!txt && this.marker.visible; if (txt) { this.tag.material.map = nameTag(txt); this.tag.material.needsUpdate = true; this.tag.position.set(owner.x, 2.5, owner.z); }
     } else { this.arrow.visible = false; this.tag.visible = false; }
     this.updateCamera(v, dt);
+    this.trail.update(b, this.cam.position, dt, this.clock); this.fx.update(dt, this.r.domElement.height * 0.5 * this.cam.projectionMatrix.elements[5]);
     this.r.render(this.scene, this.cam);
   }
 

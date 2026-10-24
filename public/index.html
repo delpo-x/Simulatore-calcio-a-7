@@ -68,7 +68,12 @@
   </div>
   <div id="state-tag" hidden></div>
 
-  <div id="replay-tag" hidden><span class="rp-label">REPLAY</span><span class="rp-bar"><i></i></span><button id="rp-skip" class="ghost small">Salta</button></div>
+  <div id="replay-tag" hidden>
+    <span class="rp-label"><i class="rp-dot"></i>REPLAY</span>
+    <span class="rp-who"><b id="rp-who"></b> <small id="rp-min"></small></span>
+    <button id="rp-skip" class="ghost small" title="Salta il replay (Spazio)">Salta Replay <kbd>Spazio</kbd></button>
+    <span class="rp-bar"><i></i></span>
+  </div>
 
   <div id="caption" hidden></div>
   <div id="banner" hidden></div>
@@ -79,7 +84,7 @@
     <button id="c-speed" title="Velocità (1-6)">1×</button>
     <button id="c-skip" title="Avanti di un minuto">+1′</button>
     <button id="c-end" title="Simula fino alla fine">Fine</button>
-    <button id="c-cam" title="Telecamera (C)">TV</button>
+    <div id="c-cams" role="group" aria-label="Telecamera (C)"><button title="Telecamera TV (Maiusc+1)">TV</button><button title="Telecamera tattica dall'alto (Maiusc+2)">Tattica</button><button title="Telecamera di fondo campo (Maiusc+3)">Fondo</button></div>
     <button id="c-panel" title="Cronaca e statistiche (S)">Dati</button>
     <button id="c-audio" title="Audio (M)"></button>
     <button id="c-full" title="Schermo intero (F)"></button>
@@ -142,12 +147,12 @@
   <table>
     <tr><td><kbd>Spazio</kbd></td><td>pausa / riprendi</td></tr>
     <tr><td><kbd>1</kbd>–<kbd>6</kbd></td><td>velocità 0,5×, 1×, 2×, 4×, 8×, 16×</td></tr>
-    <tr><td><kbd>C</kbd></td><td>telecamera: TV, alto, segui, porta</td></tr>
-    <tr><td><kbd>R</kbd></td><td>replay dell'ultimo gol</td></tr>
+    <tr><td><kbd>C</kbd></td><td>telecamera: TV, tattica (drone), fondo campo; <kbd>Maiusc</kbd>+<kbd>1</kbd>–<kbd>3</kbd> sceglie direttamente</td></tr>
+    <tr><td><kbd>R</kbd></td><td>replay dell'ultimo gol (rallentato, dietro la porta)</td></tr>
     <tr><td><kbd>S</kbd></td><td>cronaca, statistiche con mappa dei tiri, voti e formazioni</td></tr>
     <tr><td><kbd>F</kbd></td><td>schermo intero</td></tr>
     <tr><td><kbd>M</kbd></td><td>audio sì / no (pubblico, fischio, calci; i suoni dei singoli episodi solo fino a 2×)</td></tr>
-    <tr><td><kbd>Esc</kbd></td><td>chiude il replay o il pannello</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>chiude il replay o il pannello (durante un replay anche <kbd>Spazio</kbd> lo salta)</td></tr>
   </table>
   <p>La telecronaca racconta tiri, parate, lanci, recuperi, falli e angoli nella cronaca e, se vuoi, come sottotitolo sul campo (si attivano nella scheda Cronaca). Nella cronaca, tocca un gol per rivederlo. <b>+1′</b> avanza di un minuto di gioco, <b>Fine</b> simula il resto della partita.</p>
   <p><b>Tattica</b>: nella scheda Tattica puoi cambiare, per ciascuna squadra e anche a partita in corso, modulo, pressing, altezza della linea difensiva, ampiezza e ritmo di gioco. Le due squadre restano guidate dall'IA: tu cambi solo come si dispongono.</p>

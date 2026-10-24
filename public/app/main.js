@@ -16,7 +16,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const clone = o => JSON.parse(JSON.stringify(o));
-const SPEEDS = [0.5, 1, 2, 4, 8, 16], CAMS = [['tv', 'TV'], ['alto', 'Alto'], ['segui', 'Segui'], ['porta', 'Porta']];
+const SPEEDS = [0.5, 1, 2, 4, 8, 16], CAMS = [['tv', 'TV'], ['tattica', 'Tattica'], ['fondo', 'Fondo']];
 const ROLE = { Goalkeeper: 'POR', Defender: 'DIF', Midfielder: 'CEN', Forward: 'ATT' };
 const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
@@ -322,13 +322,13 @@ function showLower(html, kind, secs = 3) {
 function playClips(clips, auto = false) {
   if (!clips.length) return;
   G.queue = clips.slice(1); G.replay = new ReplayPlayer(clips[0]); G.replayAuto = auto;
-  $('#end').hidden = true; $('#replay-tag').hidden = false; hideBanner();
-  R.setCamera('segui'); R.snap = true; R.lastDir = clips[0].item.team === 0 ? 1 : -1;
-  showLower(`Replay · ${esc(playerName(clips[0].item.player))} ${clips[0].item.min}′`, 'info', 2.5);
+  $('#end').hidden = true; $('#replay-tag').hidden = false; $('#match').classList.add('replaying'); hideBanner(); $('#lower').hidden = true; lowerT = 0;
+  $('#rp-who').textContent = playerName(clips[0].item.player); $('#rp-min').textContent = `${clips[0].item.min}′`;
+  R.rdir = clips[0].side ?? (clips[0].item.team === 0 ? 1 : -1); R.rside = -(clips[0].zs ?? 1); R.setCamera('replay'); R.snap = true; // angolo inverso dietro la porta del gol, taglio netto
 }
 function endReplay() {
   if (G.queue.length) return playClips(G.queue);
-  G.replay = null; $('#replay-tag').hidden = true;
+  G.replay = null; $('#replay-tag').hidden = true; $('#match').classList.remove('replaying');
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   if (G.ended) showEnd();
 }
@@ -389,12 +389,13 @@ function updateControls() {
   if (!G) return;
   $('#c-play').innerHTML = G.paused ? ICON.play : ICON.pause; $('#c-play').title = G.paused ? 'Riprendi (spazio)' : 'Pausa (spazio)';
   $('#c-audio').innerHTML = A.muted ? ICON.mute : ICON.sound; $('#c-audio').title = A.muted ? 'Attiva l\'audio (M)' : 'Disattiva l\'audio (M)';
-  $('#c-speed').textContent = `${String(G.speed).replace('.', ',')}×`; $('#c-cam').textContent = CAMS[G.cam][1];
+  $('#c-speed').textContent = `${String(G.speed).replace('.', ',')}×`; $$('#c-cams button').forEach((b, i) => b.classList.toggle('on', i === G.cam));
   $('#c-skip').disabled = $('#c-end').disabled = G.ended;
   $('#match').classList.toggle('paused', G.paused);
 }
 function setSpeed(i) { G.speed = SPEEDS[i]; updateControls(); }
-function cycleCam() { G.cam = (G.cam + 1) % CAMS.length; if (!G.replay) R.setCamera(CAMS[G.cam][0]); updateControls(); }
+function setCam(i) { G.cam = i; if (!G.replay) R.setCamera(CAMS[i][0]); updateControls(); }
+function cycleCam() { setCam((G.cam + 1) % CAMS.length); }
 function setPanel(open) { $('#panel').classList.toggle('open', open); $('#match').classList.toggle('with-panel', open); if (open) { refreshPanel(); renderLineups(); } }
 /** Ridisegna la scheda aperta del pannello che cambia durante la partita. */
 function refreshPanel() {
@@ -417,7 +418,8 @@ function initControls() {
   $('#c-speed').onclick = () => setSpeed((SPEEDS.indexOf(G.speed) + 1) % SPEEDS.length);
   $('#c-skip').onclick = () => skipSeconds(60);
   $('#c-end').onclick = runToEnd;
-  $('#c-cam').onclick = cycleCam;
+  const phone = matchMedia('(max-width: 760px)'); // su telefono si vede solo la camera attiva e il tocco passa alla successiva
+  $$('#c-cams button').forEach((b, i) => b.onclick = () => (phone.matches ? cycleCam() : setCam(i)));
   $('#c-panel').onclick = () => setPanel(!$('#panel').classList.contains('open'));
   $('#panel-close').onclick = () => setPanel(false);
   $('#c-full').onclick = toggleFull;
@@ -438,7 +440,8 @@ function initControls() {
   addEventListener('keydown', e => {
     if (!G || $('#match').hidden || e.target.closest?.('input,select,textarea,dialog')) return;
     const k = e.key.toLowerCase();
-    if (k === ' ') { e.preventDefault(); $('#c-play').click(); }
+    if (k === ' ') { e.preventDefault(); if (G.replay) $('#rp-skip').click(); else $('#c-play').click(); }
+    else if (e.shiftKey && /^Digit[1-3]$/.test(e.code)) setCam(+e.code.slice(5) - 1);
     else if (k >= '1' && k <= '6') setSpeed(+k - 1);
     else if (k === 'c') cycleCam();
     else if (k === 's') $('#c-panel').click();

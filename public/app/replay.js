@@ -1,6 +1,6 @@
 // Registrazione degli ultimi secondi di gioco e replay dei gol.
 
-const FPS = 30, KEEP = 12; // fotogrammi al secondo registrati, secondi tenuti in memoria
+const FPS = 30, KEEP = 5, POST = 1.5; // fotogrammi al secondo registrati, secondi tenuti in memoria (anello), secondi registrati dopo il gol: la clip dura KEEP, di cui KEEP-POST prima del gol
 
 function snapshot(sim) {
   return {
@@ -19,9 +19,9 @@ export class Recorder {
   /** Da chiamare a ogni passo della simulazione (60 al secondo). */
   step(sim, newItems) {
     if (this.n++ % (60 / FPS) === 0) { this.buf.push(snapshot(sim)); if (this.buf.length > KEEP * FPS) this.buf.shift(); }
-    for (const it of newItems) if (it.t === 'goal') this.pending.push({ item: it, left: 2 * FPS }); // tiene anche 2 s dopo il gol
+    for (const it of newItems) if (it.t === 'goal') this.pending.push({ item: it, left: Math.round(POST * 60), side: Math.sign(sim.ball.x) || 1, zs: Math.sign(sim.ball.z) || 1 }); // il passo gira a 60 Hz; side: porta in cui e' entrata la palla, zs: da che lato
     for (const p of this.pending) if (--p.left <= 0 && !p.done) {
-      p.done = true; const clip = { item: p.item, frames: this.buf.slice(-10 * FPS) };
+      p.done = true; const clip = { item: p.item, side: p.side, zs: p.zs, frames: this.buf.slice() };
       this.clips.push(clip); this.onClip?.(clip);
     }
     this.pending = this.pending.filter(p => !p.done);
@@ -30,7 +30,7 @@ export class Recorder {
 
 /** Riproduce una clip: frame(dt) restituisce una vista { players, ball } interpolata, o null alla fine. */
 export class Player {
-  constructor(clip, speed = 0.6) { this.clip = clip; this.i = 0; this.speed = speed; }
+  constructor(clip, speed = 0.65) { this.clip = clip; this.i = 0; this.speed = speed; }
   get progress() { return this.i / Math.max(1, this.clip.frames.length - 1); }
   frame(dt) {
     const f = this.clip.frames; if (!f.length) return null;

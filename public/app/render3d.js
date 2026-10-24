@@ -8,19 +8,28 @@ const SKINS = [0xf1c7a1, 0xe0ac7e, 0xc68a5c, 0x8d5a3b, 0x6b4129];
 const HAIRS = [0x2b1d14, 0x4a2f1b, 0x111111, 0x8a6236, 0xc9a35f];
 
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
-function tex(c, { repeat } = {}) {
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+let ANISO = 8; // anisotropia massima della scheda, impostata alla creazione del renderer
+function tex(c, { repeat, linear } = {}) {
+  const t = new THREE.CanvasTexture(c); if (!linear) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = ANISO;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
   return t;
 }
 
-/** Campo: strisce di taglio, linee, aree, area piccola, dischetto, archi d'angolo. */
+/** Campo: strisce di taglio con pettinatura e grana dei fili d'erba, poi linee nitide, aree, area piccola, dischetto, archi d'angolo. Risoluzione alta (fino a 4096 px). */
 function pitchTexture(P) {
-  const s = 20, W = Math.round(P.hx * 2 * s), H = Math.round(P.hz * 2 * s), cx = W / 2, cz = H / 2;
+  const s = clamp(Math.floor(4096 / (P.hx * 2)), 20, 40), W = Math.round(P.hx * 2 * s), H = Math.round(P.hz * 2 * s), cx = W / 2, cz = H / 2;
   const [c, g] = canvas(W, H), n = Math.max(8, Math.round(P.hx * 2 / 5));
-  for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#3d9c46' : '#36903e'; g.fillRect(i * W / n, 0, W / n + 1, H); }
-  for (let i = 0; i < W * H / 220; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,40,0'},0.035)`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
-  g.strokeStyle = 'rgba(255,255,255,0.95)'; g.fillStyle = '#fff'; g.lineWidth = 0.12 * s;
+  for (let i = 0; i < n; i++) { // ogni fascia ha un lieve gradiente nel senso di taglio: da lontano si legge la direzione del rasaerba
+    const x0 = i * W / n, gr = g.createLinearGradient(x0, 0, x0 + W / n, 0), a = i % 2 ? [58, 156, 70] : [50, 142, 62];
+    gr.addColorStop(0, `rgb(${a[0] - 4},${a[1] - 6},${a[2] - 4})`); gr.addColorStop(1, `rgb(${a[0] + 4},${a[1] + 6},${a[2] + 4})`);
+    g.fillStyle = gr; g.fillRect(x0, 0, W / n + 1, H);
+  }
+  const img = g.getImageData(0, 0, W, H), d = img.data; // grana: ogni pixel varia, a macchie larghe e a puntini
+  let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  for (let i = 0; i < d.length; i += 4) { const v = (rnd() - 0.5) * 16; d[i] += v * 0.6; d[i + 1] += v; d[i + 2] += v * 0.6; }
+  g.putImageData(img, 0, 0);
+  for (let i = 0; i < W * H / 900; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,200' : '0,40,0'},${0.015 + rnd() * 0.025})`; g.beginPath(); g.ellipse(rnd() * W, rnd() * H, (2 + rnd() * 5) * s / 20, (1.5 + rnd() * 3) * s / 20, rnd() * 3, 0, 7); g.fill(); }
+  g.strokeStyle = 'rgba(255,255,255,0.96)'; g.fillStyle = '#fff'; g.lineWidth = 0.12 * s;
   const R = (x, z, w, h) => g.strokeRect(cx + x * s, cz + z * s, w * s, h * s);
   const dot = (x, z, r = 0.18) => { g.beginPath(); g.arc(cx + x * s, cz + z * s, r * s, 0, 7); g.fill(); };
   R(-P.hx + 0.06, -P.hz + 0.06, P.hx * 2 - 0.12, P.hz * 2 - 0.12);
@@ -36,17 +45,29 @@ function pitchTexture(P) {
   return tex(c);
 }
 
+/** Mappa di rilievo e rugosita' dell'erba: fili e grumi in toni chiari (il valore e' una rugosita' tra 0,7 e 1), ripetuta su tutto il campo. */
+function turfRelief() {
+  const [c, g] = canvas(256, 256);
+  g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, 256, 256);
+  let seed = 777; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  for (let i = 0; i < 5200; i++) { const v = 170 + rnd() * 85 | 0, x = rnd() * 256, y = rnd() * 256, l = 3 + rnd() * 6, a = -0.5 + rnd(); g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 0.8 + rnd(); g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.sin(a) * l, y - Math.cos(a) * l); g.stroke(); }
+  for (let i = 0; i < 700; i++) { const v = 150 + rnd() * 40 | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.beginPath(); g.arc(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 0, 7); g.fill(); }
+  return tex(c, { repeat: [1, 1], linear: true });
+}
+
+/** Rete: maglie a rombo su fondo trasparente (canale alpha, usato con alphaTest). */
 function netTexture() {
   const [c, g] = canvas(64, 64);
-  g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 7; // maglie larghe e linee spesse: a distanza di telecamera una rete fine sparisce
-  g.beginPath(); g.moveTo(0, 3.5); g.lineTo(64, 3.5); g.moveTo(3.5, 0); g.lineTo(3.5, 64); g.stroke();
+  g.clearRect(0, 0, 64, 64); g.strokeStyle = '#fff'; g.lineWidth = 5; g.lineCap = 'square'; // maglie larghe e linee spesse: a distanza di telecamera una rete fine sparisce
+  g.beginPath(); g.moveTo(-8, 32); g.lineTo(32, -8); g.moveTo(32, 72); g.lineTo(72, 32); g.moveTo(0, 0); g.lineTo(64, 64); g.moveTo(0, 64); g.lineTo(64, 0); g.stroke();
   return tex(c);
 }
 
 function goal(dir, P) {
-  const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), grp = new THREE.Group(), D = Math.min(2.2, P.goalH * 1.0);
+  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.3 }), grp = new THREE.Group(), D = Math.min(2.2, P.goalH * 1.0);
   const cyl = (len, x, y, z, axis) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, len, 10), white);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, len, 16), white);
+    m.castShadow = true;
     if (axis === 'z') m.rotation.x = Math.PI / 2; if (axis === 'x') m.rotation.z = Math.PI / 2;
     m.position.set(x, y, z); grp.add(m);
   };
@@ -54,7 +75,7 @@ function goal(dir, P) {
   cyl(h, 0, h / 2, -P.goalHalf); cyl(h, 0, h / 2, P.goalHalf); cyl(w, 0, h, 0, 'z');
   cyl(D, dir * D / 2, h, -P.goalHalf, 'x'); cyl(D, dir * D / 2, h, P.goalHalf, 'x'); cyl(w, dir * D, 0.03, 0, 'z');
   const net = (wd, ht, rep) => { const t = netTexture(); t.repeat.set(...rep); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    return new THREE.Mesh(new THREE.PlaneGeometry(wd, ht), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.05 })); };
+    return new THREE.Mesh(new THREE.PlaneGeometry(wd, ht), new THREE.MeshBasicMaterial({ map: t, transparent: true, side: THREE.DoubleSide, alphaTest: 0.5 })); };
   const back = net(w, h, [w * 2.5, h * 2.5]); back.rotation.y = Math.PI / 2; back.position.set(dir * D, h / 2, 0); grp.add(back);
   const top = net(D, w, [D * 2.5, w * 2.5]); top.rotation.x = -Math.PI / 2; top.position.set(dir * D / 2, h, 0); grp.add(top);
   for (const e of [-1, 1]) { const side = net(D, h, [D * 2.5, h * 2.5]); side.position.set(dir * D / 2, h / 2, e * P.goalHalf); grp.add(side); }
@@ -209,6 +230,7 @@ export class TVRenderer {
   constructor(canvas, pitch, { kits, nums } = {}) {
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? [];
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    ANISO = r.capabilities.getMaxAnisotropy();
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -218,7 +240,8 @@ export class TVRenderer {
     const sun = new THREE.DirectionalLight(0xfff3dd, 1.5); sun.position.set(-30, 60, 25); scene.add(sun);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
     const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
-    const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshLambertMaterial({ map: pitchTexture(pitch) }));
+    const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;
+    const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch), roughness: 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     stadium(pitch, scene);
     scene.add(goal(1, pitch), goal(-1, pitch));

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>Calcio a 7 — Simulatore</title>
+<link rel="stylesheet" href="app/app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Calcio a 7">
+</head>
+<body>
+
+<!-- Menu: scelta delle squadre e opzioni -->
+<main id="menu" class="screen">
+  <header class="menu-head">
+    <div class="logo"><span class="logo-ball"></span>Calcio a 7 <small>Simulatore IA contro IA</small></div>
+    <button class="ghost icon-btn" data-open="help" title="Guida">?</button>
+  </header>
+  <div class="teams">
+    <section class="team-card" data-side="0"></section>
+    <div class="vs">VS</div>
+    <section class="team-card" data-side="1"></section>
+  </div>
+  <section class="options">
+    <label>Giocatori per squadra
+      <select id="opt-n"></select>
+    </label>
+    <label>Durata di un tempo
+      <select id="opt-half">
+        <option value="3">3 minuti</option><option value="5">5 minuti</option><option value="10">10 minuti</option>
+        <option value="15">15 minuti</option><option value="20">20 minuti</option><option value="25">25 minuti (regolamentare)</option>
+      </select>
+    </label>
+    <label>Seme della partita
+      <input id="opt-seed" inputmode="numeric" placeholder="casuale">
+    </label>
+    <label class="check"><input type="checkbox" id="opt-replay"> Replay automatico dei gol</label>
+  </section>
+  <p id="menu-note" class="note"></p>
+  <div class="menu-actions">
+    <button id="start" class="primary big">Calcio d'inizio</button>
+    <button id="tour-open" class="ghost big">Torneo</button>
+  </div>
+  <footer class="menu-foot"><a href="debug.html">Vista di debug</a></footer>
+</main>
+
+<!-- Torneo -->
+<main id="tour" class="screen" hidden>
+  <header class="menu-head">
+    <div class="logo"><span class="logo-ball"></span>Torneo <small>campionato e coppa tra le tue squadre</small></div>
+    <button class="ghost" id="t-back">Menu</button>
+  </header>
+  <div id="tour-body"></div>
+</main>
+
+<!-- Partita -->
+<div id="match" class="screen" hidden>
+  <canvas id="view"></canvas>
+
+  <div id="scorebug">
+    <div class="sb-team" data-side="0"><i></i><span class="sb-name"></span></div>
+    <div class="sb-score"><span id="sc0">0</span><span class="sb-dash">-</span><span id="sc1">0</span></div>
+    <div class="sb-team" data-side="1"><span class="sb-name"></span><i></i></div>
+    <div class="sb-clock"><span id="clock">00:00</span><span id="period">1T</span></div>
+  </div>
+  <div id="state-tag" hidden></div>
+
+  <div id="replay-tag" hidden>
+    <span class="rp-label"><i class="rp-dot"></i>REPLAY</span>
+    <span class="rp-who"><b id="rp-who"></b> <small id="rp-min"></small></span>
+    <button id="rp-skip" class="ghost small" title="Salta il replay (Spazio)">Salta Replay <kbd>Spazio</kbd></button>
+    <span class="rp-bar"><i></i></span>
+  </div>
+
+  <div id="caption" hidden></div>
+  <div id="banner" hidden></div>
+  <div id="lower" hidden></div>
+
+  <nav id="controls">
+    <button id="c-play" title="Pausa (spazio)"></button>
+    <button id="c-speed" title="Velocità (1-6)">1×</button>
+    <button id="c-skip" title="Avanti di un minuto">+1′</button>
+    <button id="c-end" title="Simula fino alla fine">Fine</button>
+    <div id="c-cams" role="group" aria-label="Telecamera (C)"><button title="Telecamera TV (Maiusc+1)">TV</button><button title="Telecamera tattica dall'alto (Maiusc+2)">Tattica</button><button title="Telecamera di fondo campo (Maiusc+3)">Fondo</button></div>
+    <button id="c-panel" title="Cronaca e statistiche (S)">Dati</button>
+    <button id="c-audio" title="Audio (M)"></button>
+    <button id="c-full" title="Schermo intero (F)"></button>
+    <button id="c-menu" title="Torna al menu">Menu</button>
+  </nav>
+
+  <aside id="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="feed" class="on">Cronaca</button>
+      <button role="tab" data-tab="stats">Statistiche</button>
+      <button role="tab" data-tab="ratings">Voti</button>
+      <button role="tab" data-tab="lineups">Formazioni</button>
+      <button role="tab" data-tab="bench">Panchina</button>
+      <button role="tab" data-tab="tactics">Tattica</button>
+      <button class="close" id="panel-close" title="Chiudi">×</button>
+    </div>
+    <div class="tab-body" data-body="feed">
+      <div class="feed-opts"><label><input type="checkbox" id="opt-cm"> Telecronaca</label><label><input type="checkbox" id="opt-cap"> Sottotitoli sul campo</label></div>
+      <ol id="feed"></ol>
+    </div>
+    <div class="tab-body" data-body="stats" hidden><div id="stats"></div></div>
+    <div class="tab-body" data-body="ratings" hidden><div id="ratings"></div></div>
+    <div class="tab-body" data-body="lineups" hidden><div id="lineups"></div></div>
+    <div class="tab-body" data-body="bench" hidden>
+      <div class="bn-top"><span>Lavagna tattica 3D <kbd>T</kbd></span><button id="tac-toggle" class="ghost small" title="Lavagna tattica 3D: automatica (in pausa), sempre, spenta (T)"></button></div>
+      <div id="bench"></div>
+      <p class="note">Stamina in tempo reale (verde riposato, rosso esausto). I cambi li decide la simulazione: a gioco fermo, per infortunio o stanchezza.</p>
+    </div>
+    <div class="tab-body" data-body="tactics" hidden><div id="tactics"></div></div>
+  </aside>
+
+  <div id="busy" hidden><div class="busy-box"><span>Simulazione in corso…</span><span class="rp-bar"><i></i></span></div></div>
+
+  <div id="end" hidden>
+    <div class="end-box">
+      <div class="end-title">Finale</div>
+      <div class="end-score"></div>
+      <div class="end-scorers"></div>
+      <div class="end-motm"></div>
+      <div class="end-map"></div>
+      <div class="end-stats"></div>
+      <div class="end-seed"></div>
+      <div class="end-actions">
+        <button id="e-replays" class="ghost">Rivedi i gol</button>
+        <button id="e-ratings" class="ghost">Pagelle</button>
+        <button id="e-view" class="ghost">Guarda il campo</button>
+        <button id="e-again" class="primary">Rigioca</button>
+        <button id="e-menu" class="ghost">Menu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="help">
+  <h2>Guida</h2>
+  <p>Due squadre guidate dall'intelligenza artificiale giocano una partita di calcio a 7 secondo il regolamento modellato dal simulatore. Tu fai la regia.</p>
+  <h3>Prima della partita</h3>
+  <ul>
+    <li>Scegli una squadra per lato, oppure modificane nome, sigla, colori, modulo e livello (8-20) e salvala: resta nel browser.</li>
+    <li><b>Carica file squadra</b> legge un file JSON nel formato del progetto: parti dal <a href="app/esempio-squadra.json" download>file di esempio</a> (ruoli Goalkeeper, Defender, Midfielder, Forward; attributi 1-20).</li>
+    <li>Lo stesso seme con le stesse squadre produce sempre la stessa partita. Solo il calcio a 7 è tarato sui dati reali.</li>
+  </ul>
+  <h3>Torneo</h3>
+  <ul><li>Dal menu, <b>Torneo</b>: campionato o coppa tra 3 e 8 squadre. Ogni partita si guarda o si simula; il torneo resta nel browser. In coppa i pareggi vanno ai rigori.</li></ul>
+  <h3>Durante la partita</h3>
+  <table>
+    <tr><td><kbd>Spazio</kbd></td><td>pausa / riprendi</td></tr>
+    <tr><td><kbd>1</kbd>–<kbd>6</kbd></td><td>velocità 0,5×, 1×, 2×, 4×, 8×, 16×</td></tr>
+    <tr><td><kbd>C</kbd></td><td>telecamera: TV, tattica (drone), fondo campo; <kbd>Maiusc</kbd>+<kbd>1</kbd>–<kbd>3</kbd> sceglie direttamente</td></tr>
+    <tr><td><kbd>R</kbd></td><td>replay dell'ultimo gol (rallentato, dietro la porta)</td></tr>
+    <tr><td><kbd>S</kbd></td><td>cronaca, statistiche con mappa dei tiri, voti, formazioni e panchina con Stamina in tempo reale</td></tr>
+    <tr><td><kbd>T</kbd></td><td>lavagna tattica 3D: linee di reparto e posti della formazione con frecce dalla posizione reale (automatica in pausa, sempre, spenta)</td></tr>
+    <tr><td><kbd>F</kbd></td><td>schermo intero</td></tr>
+    <tr><td><kbd>M</kbd></td><td>audio sì / no (pubblico, fischio, calci, pali e rete; i suoni dei singoli episodi solo fino a 2×)</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>chiude il replay o il pannello (durante un replay anche <kbd>Spazio</kbd> lo salta)</td></tr>
+  </table>
+  <p>La telecronaca racconta tiri, parate, lanci, recuperi, falli e angoli nella cronaca e, se vuoi, come sottotitolo sul campo (si attivano nella scheda Cronaca). Nella cronaca, tocca un gol per rivederlo. <b>+1′</b> avanza di un minuto di gioco, <b>Fine</b> simula il resto della partita.</p>
+  <p><b>Tattica</b>: nella scheda Tattica puoi cambiare, per ciascuna squadra e anche a partita in corso, modulo, pressing, altezza della linea difensiva, ampiezza e ritmo di gioco. Le due squadre restano guidate dall'IA: tu cambi solo come si dispongono.</p>
+  <p><b>Voti</b>: pagella da 4 a 10 per ogni giocatore (base 6; contano gol, assist, tiri in porta, passaggi, palloni recuperati, parate, gol subiti, falli, cartellini e risultato), provvisoria fino al fischio finale. A fine partita: migliore in campo e <b>mappa dei tiri</b> (pieno = gol, anello = in porta, sbiadito = fuori; la squadra di casa attacca a destra).</p>
+  <form method="dialog"><button class="primary">Ho capito</button></form>
+</dialog>
+
+<script type="module" src="app/main.js"></script>
+</body>
+</html>

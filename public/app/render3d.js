@@ -424,6 +424,60 @@ class Particles {
 
 const TURF = [0x4c8a3a, 0x3a6b2c, 0x6b5233, 0x5a9a44];
 const rnd = (a, b) => a + Math.random() * (b - a), _ax = new THREE.Vector3(), _iv = new THREE.Vector3(), _ip = new THREE.Vector3();
+/** Lavagna tattica 3D: linee di reparto traslucide (compattezza) e, per ogni giocatore, un cerchio sul posto della formazione con la freccia dalla posizione reale. Solo disegno: legge i dati, non tocca la simulazione. */
+class TacticBoard {
+  constructor(scene, kits) {
+    this.kits = kits; this.k = 0; this.t0 = performance.now(); this.max = 96; // segmenti disponibili (quadrilateri a terra)
+    this.pos = new Float32Array(this.max * 12); this.col = new Float32Array(this.max * 16);
+    const g = new THREE.BufferGeometry(), idx = []; for (let i = 0; i < this.max; i++) idx.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('color', new THREE.BufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage)); g.setIndex(idx);
+    this.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+    this.mesh.frustumCulled = false; this.mesh.renderOrder = 4; this.mesh.visible = false; scene.add(this.mesh);
+    this.rings = []; this.scene = scene; this.n = 0;
+  }
+
+  /** Quadrilatero piatto a terra tra (x1,z1) e (x2,z2), largo w, colore [r,g,b,a]. */
+  seg(x1, z1, x2, z2, w, [r, g, b, a]) {
+    if (this.n >= this.max) return;
+    const dx = x2 - x1, dz = z2 - z1, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2, o = this.n * 12, c = this.n * 16;
+    this.pos.set([x1 + nx, 0.06, z1 + nz, x1 - nx, 0.06, z1 - nz, x2 - nx, 0.06, z2 - nz, x2 + nx, 0.06, z2 + nz], o);
+    for (let i = 0; i < 4; i++) this.col.set([r, g, b, a], c + i * 4);
+    this.n++;
+  }
+
+  /** data: per giocatore { team, gk, out, hx, hz, line } (posto della formazione e reparto); v: vista con le posizioni reali; null = lavagna spenta. */
+  update(data, v) {
+    const now = performance.now(), rd = Math.min(0.1, (now - this.t0) / 1000); this.t0 = now; // tempo reale: la lavagna compare anche con il gioco in pausa
+    this.k += ((data ? 1 : 0) - this.k) * Math.min(1, rd * 9);
+    const on = this.k > 0.02; this.mesh.visible = on; for (const r of this.rings) r.visible = false;
+    if (!on || !data) return;
+    this.n = 0; const col = t => { const c = new THREE.Color(this.kits[t].shirt); return [c.r, c.g, c.b]; };
+    while (this.rings.length < data.length) { // cerchio pieno traslucido + anello, colorati con la maglia
+      const grp = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide }), ring = new THREE.Mesh(new THREE.RingGeometry(0.44, 0.56, 28), mat), disc = new THREE.Mesh(new THREE.CircleGeometry(0.44, 28), mat.clone());
+      disc.material.opacity = 0.16; ring.rotation.x = disc.rotation.x = -Math.PI / 2; ring.position.y = disc.position.y = 0.055; grp.add(disc, ring); grp.renderOrder = 4; this.scene.add(grp); this.rings.push(grp);
+    }
+    const lines = new Map();
+    data.forEach((d, i) => {
+      const p = v.players[i], grp = this.rings[i]; if (!p || d.out) return;
+      const [r, g, b] = col(d.team); grp.visible = true; grp.position.set(d.hx, 0, d.hz);
+      grp.children[0].material.color.setRGB(r, g, b); grp.children[1].material.color.setRGB(r, g, b); grp.children[1].material.opacity = 0.85 * this.k; grp.children[0].material.opacity = 0.16 * this.k;
+      if (!d.gk) { const key = `${d.team}:${d.line}`; (lines.get(key) ?? lines.set(key, []).get(key)).push({ x: p.x, z: p.z, t: d.team }); }
+      const dx = d.hx - p.x, dz = d.hz - p.z, dist = Math.hypot(dx, dz);
+      if (dist > 1.2) { // freccia dal giocatore al suo posto: filo e punta a V
+        const ux = dx / dist, uz = dz / dist, tx = d.hx - ux * 0.5, tz = d.hz - uz * 0.5, white = [1, 1, 1, 0.7 * this.k];
+        this.seg(p.x, p.z, tx, tz, 0.07, white);
+        for (const s of [-1, 1]) { const a = s * 0.5, hxv = ux * Math.cos(a) - uz * Math.sin(a), hzv = ux * Math.sin(a) + uz * Math.cos(a); this.seg(tx, tz, tx - hxv * 0.45, tz - hzv * 0.45, 0.07, white); }
+      }
+    });
+    for (const pts of lines.values()) { // linea di reparto: collega i giocatori del reparto da un lato all'altro
+      pts.sort((a, b) => a.z - b.z); const [r, g, b] = col(pts[0].t);
+      for (let i = 1; i < pts.length; i++) this.seg(pts[i - 1].x, pts[i - 1].z, pts[i].x, pts[i].z, 0.2, [r, g, b, 0.5 * this.k]);
+    }
+    for (let i = this.n * 12; i < this.max * 12; i++) this.pos[i] = 0; // quadrilateri inutilizzati: degeneri
+    const gm = this.mesh.geometry; gm.attributes.position.needsUpdate = true; gm.attributes.color.needsUpdate = true;
+  }
+}
+
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
   constructor(canvas, pitch, { kits, nums, label } = {}) {
@@ -457,7 +511,8 @@ export class TVRenderer {
     this.arrow.rotation.x = -Math.PI / 2; this.arrow.position.y = 0.025; scene.add(this.arrow);
     this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false })); this.tag.scale.set(3, 0.56, 1); this.tag.renderOrder = 10; this.tag.visible = false; scene.add(this.tag);
     this.cam = new THREE.PerspectiveCamera(38, 1, 0.5, 900);
-    this.mode = 'tv'; this.camPos = new THREE.Vector3(0, 30, 60); this.camLook = new THREE.Vector3(); this.snap = true; this.lastDir = 1; this.camDir = 1; this.dirT = 0; this.shake = 0; this.rdir = 1; this.rside = 1; // rdir: lato della porta in cui e' entrato il gol, rside: lato da cui la camera del replay guarda
+    this.mode = 'tv'; this.camPos = new THREE.Vector3(0, 30, 60); this.camLook = new THREE.Vector3(); this.snap = true; this.lastDir = 1; this.camDir = 1; this.dirT = 0; this.board = new TacticBoard(scene, kits); this.boardData = null; this.ghosts = []; this.entering = new Map(); // lavagna tattica e cambi volanti (uscenti verso la panchina, entranti dalla panchina)
+    this.shake = 0; this.rdir = 1; this.rside = 1; // rdir: lato della porta in cui e' entrato il gol, rside: lato da cui la camera del replay guarda
     this.meshes = []; this.showMarker = true; this.w = 0; this.h = 0;
   }
 
@@ -471,7 +526,33 @@ export class TVRenderer {
 
   build(players) {
     for (const m of this.meshes) this.scene.remove(m);
-    this.meshes = players.map(p => { const m = buildPlayer(this.kits[p.team], p.gk, this.nums[p.id] ?? p.id + 1, p.id, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m; });
+    this.meshes = players.map(p => this.mkMesh(p.team, p.gk, this.nums[p.id] ?? p.id + 1, p.id));
+  }
+
+  mkMesh(team, gk, num, id) {
+    const m = buildPlayer(this.kits[team], gk, num, id, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
+  }
+
+  /** Cambio: il giocatore id prende il numero inNum. Con instant = false l'uscente (copia con outNum) corre alla panchina sul lato lontano e l'entrante arriva di corsa dalla stessa zona; la simulazione ha gia' fatto il cambio, qui e' solo scena. */
+  substitution(team, id, outNum, inNum, instant = false) {
+    const old = this.meshes[id]; if (!old) return;
+    const from = { x: old.position.x, z: old.position.z, ry: old.rotation.y }, was = outNum ?? this.nums[id] ?? id + 1;
+    this.scene.remove(old); this.nums[id] = inNum ?? id + 1; this.meshes[id] = this.mkMesh(team, false, this.nums[id], id);
+    if (instant) return;
+    const spot = { x: (team === 0 ? -8 : 8) + ((id % 3) - 1) * 1.3, z: -(this.P.hz + 1.1) }, ghost = this.mkMesh(team, false, was, id);
+    ghost.position.set(from.x, 0, from.z); ghost.rotation.y = from.ry;
+    this.ghosts.push({ m: ghost, tx: spot.x, tz: spot.z, hold: 0, p: { x: from.x, z: from.z, vx: 0, vz: 0, face: -from.ry, gk: false, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 0, stun: 0 } });
+    this.entering.set(id, { t: 0, sx: spot.x, sz: spot.z });
+  }
+
+  /** Uscenti: trotto verso la panchina, poi fermi a guardare il campo per un paio di secondi e spariscono. */
+  stepGhosts(dt) {
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      const g = this.ghosts[i], p = g.p, dx = g.tx - p.x, dz = g.tz - p.z, d = Math.hypot(dx, dz);
+      if (d > 0.5) { p.vx = dx / d * 4.4; p.vz = dz / d * 4.4; p.face = Math.atan2(dz, dx); if (dt > 0) { p.x += p.vx * dt; p.z += p.vz * dt; } }
+      else { p.vx = p.vz = 0; p.face = Math.PI / 2; g.hold += dt; if (g.hold > 2.5) { this.scene.remove(g.m); this.ghosts.splice(i, 1); continue; } }
+      g.m.position.set(p.x, 0, p.z); g.m.rotation.y = -p.face; this.animate(g.m, p, dt);
+    }
   }
 
   /** Animazione procedurale (nessun dato di terzi): andatura camminata/corsa/scatto, conduzione, finta, tiro, colpo di testa, rimessa. */
@@ -670,9 +751,18 @@ export class TVRenderer {
       if (!p.gk && u.headCd === 0 && v.ball.owner < 0 && v.ball.y > 1.1 && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 0.8) { u.headT = 0.45; u.headCd = 1.5; } // palla alta addosso: colpo di testa
       const bx = v.ball.x - p.x, bz = v.ball.z - p.z, bd = Math.hypot(bx, bz), opp = v.ball.owner < 0 || v.players[v.ball.owner]?.team !== p.team;
       let look = 0; if (bd > 1.2 && bd < 45) { const rel = Math.atan2(bz, bx) - p.face; look = -clamp(Math.atan2(Math.sin(rel), Math.cos(rel)), -0.9, 0.9); } // testa verso la palla (rotazione locale opposta all'angolo nel mondo)
+      const ent = this.entering.get(i);
+      if (ent) { // subentrato: arriva di corsa dalla panchina al suo posto in ~2,4 s (partenza e arrivo dolci)
+        ent.t += dt; const k = clamp(ent.t / 2.4, 0, 1), e = k * k * (3 - 2 * k), dx = p.x - ent.sx, dz = p.z - ent.sz, d = Math.hypot(dx, dz) || 1, sp = Math.min(6, d * 6 * k * (1 - k) / 2.4);
+        if (k >= 1) this.entering.delete(i);
+        const q = { ...p, x: ent.sx + dx * e, z: ent.sz + dz * e, vx: dx / d * sp, vz: dz / d * sp, face: Math.atan2(dz, dx) };
+        m.position.set(q.x, 0, q.z); m.rotation.y = -q.face; this.animate(m, q, dt);
+        return;
+      }
       m.position.set(p.x, 0, p.z); m.rotation.y = -p.face;
       this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && bd < 30 && opp, near: clamp((24 - bd) / 18, 0, 1), rush: p.gk && bd < 9 && v.ball.owner < 0 && Math.hypot(p.vx, p.vz) > 3.5, look });
     });
+    this.stepGhosts(dt); this.board.update(this.boardData, v);
     const b = v.ball, sp = Math.hypot(b.vx, b.vz);
     this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);
     const roll = this.spin; // velocita' angolare (rad/s): a terra rotola senza slittare, in volo gira ancora e rallenta

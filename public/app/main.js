@@ -1,5 +1,5 @@
 // App del simulatore: menu, partita in 3D con tabellone, regia, cronaca, statistiche, replay dei gol.
-import { Sim, DT, SCHEMES } from '../core/sim.js';
+import { Sim, DT, SCHEMES, RULES } from '../core/sim.js';
 import { readTeam } from '../core/team.js';
 import { TVRenderer, contrast } from './render3d.js';
 import { MatchStats } from './stats.js';
@@ -10,7 +10,7 @@ import { Commentary } from './commentary.js';
 import { summarize } from './headless.js';
 import { initTour } from './tourui.js';
 import { matchSeed } from './tournament.js';
-import { shotMap, ratingsTable, fmtVote, voteClass } from './views.js';
+import { shotMap, ratingsTable, fmtVote, voteClass, benchPanel } from './views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -144,7 +144,7 @@ function startMatch(seed, ov = null) {
   const byTeam = [0, 1].map(t => sim.players.filter(p => p.team === t));
   const info = sim.players.map(p => { const i = byTeam[p.team].indexOf(p), l = lineups[p.team][i]; return { num: l.number, role: ROLE[l.position] ?? '', offRole: l.offRole }; });
   const { kits } = kitsFor(defs);
-  G = { ov, sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
+  G = { ov, sim, defs, kits, schemes, seed, info, stats: new MatchStats(sim), rec: new Recorder(), speed: 1, paused: false, cam: 0, tac: 'auto', replay: null, queue: [], skipping: false, ended: false, acc: 0, panelT: 0 };
   A.start();
   const kick = sim.kick.bind(sim); sim.kick = (p, dx, dz, sp, ...r) => { if (sounds()) A.kick(sp); return kick(p, dx, dz, sp, ...r); };
   G.cm = new Commentary(sim, { name: id => G.stats.name(id), team: t => defs[t].name });
@@ -179,6 +179,7 @@ const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
 function tick() {
   const s = G.sim, before = s.state; s.step();
   const items = G.stats.step(); G.rec.step(s, items);
+  for (const e of s.events) if (e.t === 'sub') R.substitution(e.team, e.player, e.outNumber, s.players[e.player].number, G.skipping || G.speed > 4); // il cambio e' gia' nella simulazione: qui si aggiorna la maglia e, a velocita' normale, si vede la corsa
   if (sounds()) {
     if (before !== 'play' && before !== 'full' && s.state === 'play') A.whistle(1, 0.35); // calcio d'inizio
     if (s.events.some(e => WHISTLE.has(e.t))) A.whistle();
@@ -298,9 +299,27 @@ function renderLineups() {
   $('#lineups').innerHTML = [0, 1].map(t => `<div class="lu"><div class="lu-head" style="--c:${G.kits[t].shirt}">${esc(G.defs[t].name)} <small>${G.schemes[t]}</small></div><ul>${
     s.players.filter(p => p.team === t).map(p => {
       const i = G.info[p.id], st = p.blueUntil > s.matchTime ? '<span class="card blue"></span>' : p.out ? '<span class="card red"></span>' : p.yellow ? '<span class="card yellow"></span>' : '';
-      return `<li class="${p.out ? 'out' : ''}"><span class="num" style="background:${p.gk ? G.kits[t].gk : G.kits[t].shirt};color:${contrast(p.gk ? G.kits[t].gk : G.kits[t].shirt)}">${i.num}</span><span class="nm">${esc(p.name ?? '')}</span><span class="role">${i.role}${i.offRole ? '*' : ''}</span>${st}</li>`;
+      return `<li class="${p.out ? 'out' : ''}"><span class="num" style="background:${p.gk ? G.kits[t].gk : G.kits[t].shirt};color:${contrast(p.gk ? G.kits[t].gk : G.kits[t].shirt)}">${p.number ?? i.num}</span><span class="nm">${esc(p.name ?? '')}</span><span class="role">${i.role}${i.offRole ? '*' : ''}</span>${st}</li>`;
     }).join('')}</ul></div>`).join('') + '<p class="note">* fuori ruolo</p>';
 }
+
+/** Scheda Panchina: titolari con Stamina in tempo reale, panchinari e cambi fatti (i cambi li decide la simulazione). */
+function renderBench() {
+  if (!G) return;
+  const s = G.sim, face = (t, gk) => { const bg = gk ? G.kits[t].gk : G.kits[t].shirt; return { bg, fg: contrast(bg) }; };
+  $('#bench').innerHTML = [0, 1].map(t => benchPanel({
+    head: esc(G.defs[t].name), color: G.kits[t].shirt, subs: s.subs[t], maxSubs: RULES.maxSubs,
+    starters: s.players.filter(p => p.team === t).map(p => ({ num: p.number ?? G.info[p.id].num, name: p.name ?? '', role: G.info[p.id].role, stam: p.stam ?? 1, out: p.out, ...face(t, p.gk) })),
+    bench: s.bench[t].map(q => ({ num: q.number, name: q.name, role: ROLE[q.position] ?? '', ...face(t, false) })),
+  })).join('');
+}
+
+const TAC_LABEL = { auto: 'Automatica', on: 'Sempre', off: 'Spenta' };
+/** Lavagna tattica 3D: automatica (appare in pausa), sempre accesa, spenta. */
+function cycleTac() { G.tac = { auto: 'on', on: 'off', off: 'auto' }[G.tac]; updateTac(); showLower(`Lavagna tattica: ${G.tac === 'auto' ? 'si vede in pausa' : G.tac === 'on' ? 'sempre accesa' : 'spenta'}`, 'info', 2); }
+function updateTac() { const b = $('#tac-toggle'); if (b) b.textContent = TAC_LABEL[G?.tac ?? 'auto']; }
+/** Per giocatore: posto della formazione (dalla simulazione), reparto, squadra; letto ogni fotogramma solo a lavagna visibile. */
+function boardData() { const s = G.sim; return s.players.map(p => { const h = s.homePos(p); return { team: p.team, gk: p.gk, out: p.out, hx: h.x, hz: h.z, line: p.home.x }; }); }
 
 // ---------------------------------------------------------------- banner
 
@@ -392,7 +411,7 @@ function updateControls() {
   $('#c-play').innerHTML = G.paused ? ICON.play : ICON.pause; $('#c-play').title = G.paused ? 'Riprendi (spazio)' : 'Pausa (spazio)';
   $('#c-audio').innerHTML = A.muted ? ICON.mute : ICON.sound; $('#c-audio').title = A.muted ? 'Attiva l\'audio (M)' : 'Disattiva l\'audio (M)';
   $('#c-speed').textContent = `${String(G.speed).replace('.', ',')}×`; $$('#c-cams button').forEach((b, i) => b.classList.toggle('on', i === G.cam));
-  $('#c-skip').disabled = $('#c-end').disabled = G.ended;
+  $('#c-skip').disabled = $('#c-end').disabled = G.ended; updateTac();
   $('#match').classList.toggle('paused', G.paused);
 }
 function setSpeed(i) { G.speed = SPEEDS[i]; updateControls(); }
@@ -403,12 +422,12 @@ function setPanel(open) { $('#panel').classList.toggle('open', open); $('#match'
 function refreshPanel() {
   if (!G || !$('#panel').classList.contains('open')) return;
   const tab = $('#panel [data-tab].on')?.dataset.tab;
-  if (tab === 'stats') renderStats(); else if (tab === 'ratings') renderRatings();
+  if (tab === 'stats') renderStats(); else if (tab === 'ratings') renderRatings(); else if (tab === 'bench') renderBench();
 }
 function showTab(name) {
   $$('#panel [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
   $$('#panel [data-body]').forEach(x => { x.hidden = x.dataset.body !== name; });
-  if (name === 'lineups') renderLineups(); else if (name === 'tactics') renderTactics(); else refreshPanel();
+  if (name === 'lineups') renderLineups(); else if (name === 'tactics') renderTactics(); else { if (name === 'bench') updateTac(); refreshPanel(); }
 }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
 function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
@@ -424,6 +443,7 @@ function initControls() {
   $$('#c-cams button').forEach((b, i) => b.onclick = () => (phone.matches ? cycleCam() : setCam(i)));
   $('#c-panel').onclick = () => setPanel(!$('#panel').classList.contains('open'));
   $('#panel-close').onclick = () => setPanel(false);
+  $('#tac-toggle').onclick = cycleTac;
   $('#c-full').onclick = toggleFull;
   $('#c-audio').onclick = () => { A.start(); A.setMuted(!A.muted); updateControls(); };
   $('#c-menu').onclick = toMenu;
@@ -446,6 +466,7 @@ function initControls() {
     else if (e.shiftKey && /^Digit[1-3]$/.test(e.code)) setCam(+e.code.slice(5) - 1);
     else if (k >= '1' && k <= '6') setSpeed(+k - 1);
     else if (k === 'c') cycleCam();
+    else if (k === 't') cycleTac();
     else if (k === 's') $('#c-panel').click();
     else if (k === 'f') toggleFull();
     else if (k === 'm') $('#c-audio').click();
@@ -461,6 +482,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (G && R && !G.skipping) {
+    R.boardData = !G.replay && (G.tac === 'on' || (G.tac === 'auto' && G.paused)) ? boardData() : null;
     if (G.replay) {
       const v = G.replay.frame(dt);
       if (v) { R.draw(v, dt * G.replay.speed); $('#replay-tag .rp-bar i').style.width = `${100 * G.replay.progress}%`; $('#clock').textContent = mmss(v.t / G.sim.pace); }

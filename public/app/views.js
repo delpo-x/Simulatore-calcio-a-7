@@ -19,6 +19,22 @@ export function shotMap(shots, pitch, colors) {
     <div class="sm-legend"><span><i class="sm-goal"></i>Gol</span><span><i class="sm-on"></i>In porta</span><span><i class="sm-off"></i>Fuori</span></div>`;
 }
 
+/** Colore della barra Stamina: verde (riposato), giallo, rosso (esausto). */
+export const staminaColor = s => `hsl(${Math.round(120 * Math.max(0, Math.min(1, s)))} 72% 42%)`;
+
+/**
+ * Scheda Panchina di una squadra: i titolari con la barra Stamina (0..1, in tempo reale), poi i panchinari e i cambi fatti.
+ * starters: { num, name, role, stam, out, bg, fg }; bench: { num, name, role, bg, fg }.
+ */
+export function benchPanel({ head, color, starters, bench, subs, maxSubs }) {
+  const badge = r => `<span class="num" style="background:${r.bg};color:${r.fg}">${r.num ?? ''}</span><span class="nm">${esc(r.name)}</span><span class="role">${esc(r.role)}</span>`;
+  const bar = s => { const p = Math.round(100 * Math.max(0, Math.min(1, s ?? 1))); return `<span class="stam" title="Stamina ${p}%"><i style="width:${p}%;background:${staminaColor(p / 100)}"></i></span>`; };
+  return `<div class="lu bn"><div class="lu-head" style="--c:${color}">${head} <small>cambi ${subs}/${maxSubs}</small></div>
+    <ul>${starters.map(r => `<li class="${r.out ? 'out' : ''}">${badge(r)}${bar(r.stam)}</li>`).join('')}</ul>
+    <div class="bn-sub">Panchina</div>
+    <ul>${bench.length ? bench.map(r => `<li class="bench">${badge(r)}</li>`).join('') : '<li class="bench none">nessuno in panchina</li>'}</ul></div>`;
+}
+
 /** Classe di colore del voto. */
 export const voteClass = v => v >= 7.5 ? 'v-hi' : v >= 6 ? 'v-ok' : v >= 5.5 ? 'v-mid' : 'v-lo';
 export const fmtVote = v => (Number.isInteger(v) ? String(v) : v.toFixed(1)).replace('.', ',');

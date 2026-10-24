@@ -125,4 +125,20 @@ for (const n of [3, 4, 5, 6, 7, 8]) for (const double of [false, true]) {
   delete globalThis.window;
 }
 
+// scheda Panchina: barra Stamina (verde riposato, rosso esausto), panchinari, cambi e testo sicuro
+{
+  const { benchPanel, staminaColor } = await import('./views.js');
+  assert.equal(staminaColor(1), 'hsl(120 72% 42%)');
+  assert.equal(staminaColor(0), 'hsl(0 72% 42%)');
+  assert.equal(staminaColor(5), staminaColor(1), 'oltre il massimo = pieno');
+  assert.equal(staminaColor(-1), staminaColor(0), 'sotto lo zero = vuoto');
+  const look = { bg: '#c33', fg: '#fff' };
+  const html = benchPanel({ head: 'Rossi', color: '#c33', subs: 1, maxSubs: 3, starters: [{ num: 1, name: 'A <b>', role: 'POR', stam: 0.5, ...look }, { num: 9, name: 'B', role: 'ATT', stam: 0, out: true, ...look }], bench: [{ num: 12, name: 'C', role: 'CEN', ...look }] });
+  assert.ok(html.includes('cambi 1/3') && html.includes('width:50%') && html.includes('width:0%'), 'barre in percentuale');
+  assert.ok(html.includes('A &lt;b&gt;') && !html.includes('A <b>'), 'nomi con escape');
+  assert.equal((html.match(/<li/g) ?? []).length, 3, 'titolari + panchinari');
+  assert.ok(html.includes('class="out"') && html.includes('class="bench"'));
+  assert.ok(benchPanel({ head: 'X', color: '#000', subs: 3, maxSubs: 3, starters: [], bench: [] }).includes('nessuno in panchina'));
+}
+
 console.log('app tests ok');

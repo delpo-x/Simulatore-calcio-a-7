@@ -30,13 +30,16 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | +1′ | | avanza di un minuto di gioco |
 | Fine | | simula il resto della partita |
 | TV / Tattica / Fondo | C, Maiusc+1–3 | telecamera: TV in broadcast, drone inclinato su tutto il campo, asse lungo dietro la porta di chi attacca |
-| Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni, tattica |
+| Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni, panchina con Stamina in tempo reale, tattica |
+| Lavagna tattica | T | sul campo 3D: linee di reparto traslucide (compattezza) e, per ogni giocatore, cerchio sul posto della formazione con freccia dalla posizione reale; automatica quando la partita è in pausa, sempre accesa o spenta (T cambia, anche il pulsante nella scheda Panchina) |
 | Audio | M | pubblico che cresce in area e sui gol, fischio (singolo, doppio a fine primo tempo, triplo a fine partita), calci con tonfo proporzionale alla potenza, palo e traversa metallici con tremolio della camera, rete, esultanza (tutto sintetizzato con Web Audio, nessun file audio) |
 | Schermo intero | F | |
 | | R | replay dell'ultimo gol |
 | Salta Replay | Spazio (durante il replay), Esc | chiude replay o pannello |
 
 Gol, cartellini, rigori, fuorigioco, intervallo e fine compaiono come grafiche in sovrimpressione. La telecronaca testuale (tiri, parate, assist, lanci, recuperi, ingressi in area, falli, angoli; circa 3 frasi al minuto) scorre nella cronaca e come sottotitolo sopra la regia; si attiva o disattiva nella scheda Cronaca. Dopo ogni gol parte il replay (se attivo e a velocità fino a 4×): gli ultimi 5 secondi (3,5 prima del gol, 1,5 dopo) al rallentatore 0,65× da un angolo inverso dietro la linea di porta, con il badge REPLAY lampeggiante e il nome del marcatore; nella cronaca si tocca un gol per rivederlo. A fine partita: risultato, marcatori, migliore in campo, mappa dei tiri, statistiche principali, seme, **Rivedi i gol**, **Pagelle**, **Rigioca**, **Menu**.
+
+**Panchina e cambi.** La scheda Panchina mostra i titolari di entrambe le squadre con la barra Stamina in tempo reale (verde riposato, giallo, rosso esausto), i panchinari e i cambi fatti (n/3). I cambi li decide la simulazione (a gioco fermo, per infortunio o stanchezza) e non si comandano da qui: la grafica li mostra in campo con il giocatore uscente che trotta alla panchina sul lato lontano e l'entrante che arriva di corsa; oltre 4× il cambio è istantaneo. La lavagna tattica, le animazioni e l'audio sono solo presentazione: leggono lo stato della simulazione e non lo modificano.
 
 **Tattica.** Nella scheda Tattica del pannello Dati, per ciascuna squadra e anche a partita in corso: modulo, pressing (basso/medio/alto), linea difensiva (bassa/media/alta), ampiezza e ritmo. Le squadre restano guidate dall'IA; cambia solo la disposizione. Un cambio di modulo riassegna i posti in ordine (portiere, difesa, centrocampo, attacco) e finisce nella cronaca. Sono scelte di gioco, non tarate: le statistiche di riferimento valgono con i valori predefiniti (pressing medio, linea media, ampiezza e ritmo normali).
 

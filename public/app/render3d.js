@@ -114,9 +114,11 @@ function stadium(P, scene) {
   run.rotation.x = -Math.PI / 2; run.position.y = -0.01; scene.add(run);
   const gc = document.createElement('canvas'); gc.width = gc.height = 128; const g2 = gc.getContext('2d'); g2.fillStyle = '#b4a58d'; g2.fillRect(0, 0, 128, 128); // ghiaia attorno al campo: la palla uscita rallenta
   for (let i = 0; i < 900; i++) { g2.fillStyle = `hsl(${30 + Math.random() * 15} ${10 + Math.random() * 15}% ${45 + Math.random() * 30}%)`; g2.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
-  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set((W + 5) / 3, (Hz + 5) / 3); gt.colorSpace = THREE.SRGBColorSpace;
-  const gravel = new THREE.Mesh(new THREE.PlaneGeometry(W + 5, Hz + 5), new THREE.MeshLambertMaterial({ map: gt }));
-  gravel.rotation.x = -Math.PI / 2; gravel.position.y = -0.004; scene.add(gravel);
+  const gt = new THREE.CanvasTexture(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set((W + 8) / 3, (Hz + 8) / 3); gt.colorSpace = THREE.SRGBColorSpace;
+  const gravel = new THREE.Mesh(new THREE.PlaneGeometry(W + 8, Hz + 8), new THREE.MeshLambertMaterial({ map: gt }));
+  gravel.rotation.x = -Math.PI / 2; gravel.position.y = -0.004; gravel.receiveShadow = true; scene.add(gravel);
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(W + 4, Hz + 4), new THREE.MeshLambertMaterial({ color: 0x2e7f36 })); // 2 m di erba tra le linee e la ghiaia
+  strip.rotation.x = -Math.PI / 2; strip.position.y = -0.002; strip.receiveShadow = true; scene.add(strip);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * 6 + 300, Hz * 6 + 300), new THREE.MeshLambertMaterial({ color: 0x4d545c }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -0.03; scene.add(floor);
   const board = (len, x, z, ry) => {

@@ -28,7 +28,7 @@ export const AI = {
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.2, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
+  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.1, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -821,9 +821,9 @@ export class Sim {
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
-    if (Math.abs(b.x) > hx || Math.abs(b.z) > hz) { // fuori dal campo c'e' la ghiaia: la palla rallenta di colpo e non va oltre 2,5 m
+    if (Math.abs(b.x) > hx + 2 || Math.abs(b.z) > hz + 2) { // la ghiaia parte a 2 m dal campo (prima c'e' erba): la palla rallenta di colpo e non va oltre 2 m di ghiaia
       const f = Math.max(0, 1 - (b.y < 0.2 ? 7 : 0.5) * DT); b.vx *= f; b.vz *= f;
-      if (Math.abs(b.x) > hx + 2.5) { b.x = Math.sign(b.x) * (hx + 2.5); b.vx = 0; } if (Math.abs(b.z) > hz + 2.5) { b.z = Math.sign(b.z) * (hz + 2.5); b.vz = 0; }
+      if (Math.abs(b.x) > hx + 4) { b.x = Math.sign(b.x) * (hx + 4); b.vx = 0; } if (Math.abs(b.z) > hz + 4) { b.z = Math.sign(b.z) * (hz + 4); b.vz = 0; }
     }
     if (this.state === 'goal') { // gol segnato: la palla resta nella rete (profondita' come nel disegno 3D), non la attraversa
       const D = Math.min(2.2, this.pitch.goalH), pt = this.pitch, sx = Math.sign(b.x);

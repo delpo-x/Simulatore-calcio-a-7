@@ -75,7 +75,7 @@
     }
   },
   "portiere": {
-    "raggio_parata_m": 1.2,
+    "raggio_parata_m": 1.1,
     "distanza_uscita_m": 9,
     "errore_bisettrice_m": 0.5,
     "piazzamento_dalla_linea_m": [

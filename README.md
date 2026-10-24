@@ -95,7 +95,7 @@ Giocatori con attributi 1–20 (velocità, passaggi, finalizzazione, portiere, e
 ## Struttura
 
 - `public/core/`: motore (`sim.js`, `team.js`, `params.js`, `render.js`).
-- `public/index.html` e `public/app/`: app (menu, torneo `tournament.js` e `tourui.js`, `worker.js`, grafica 3D `render3d.js`, statistiche e voti `stats.js`, mappa dei tiri e pagelle `views.js`, partita senza grafica `headless.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
+- `public/index.html` e `public/app/`: app (menu, torneo `tournament.js` e `tourui.js`, `worker.js`, grafica 3D `render3d.js` (renderer e telecamere) con i pezzi in `gfx/`: `textures.js`, `stadium.js`, `player.js`, `effects.js` (scia, particelle, lavagna tattica), `util.js`; statistiche e voti `stats.js`, mappa dei tiri e pagelle `views.js`, partita senza grafica `headless.js`, replay `replay.js`, squadre `teams.js`, audio `audio.js`, telecronaca `commentary.js`, `main.js`).
 - `public/debug.html`: vista di debug.
 - `tests/game/*.json` e `tools/`: test dichiarativi e registratore di partite.
 - `wayfinder/`: mappa, ticket e decisioni di progetto (`MAP.md`; glossario in `CONTEXT.md`).

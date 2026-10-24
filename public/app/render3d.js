@@ -142,6 +142,53 @@ function stadium(P, scene) {
     const x = d * (P.hx + m + depth * 0.7), z = e * (P.hz + m + (e < 0 ? depth : 4));
     const p = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, h, 8), pole); p.position.set(x, h / 2, z); scene.add(p);
     const l = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 0.5), lamp); l.position.set(x, h + 1, z); l.lookAt(0, 0, 0); scene.add(l);
+    const sp = new THREE.SpotLight(0xfff1d6, 1, 0, 0.75, 0.6, 2); // torre faro: cono largo e morbido sul campo, senza ombre proprie (l'ombra nitida viene dal sole)
+    sp.position.set(x, h + 1, z); sp.target.position.set(0, 0, 0); sp.intensity = Math.hypot(x, z, h) ** 2 * 0.55; scene.add(sp, sp.target);
+  }
+  fence(P, m, scene); benches(P, scene);
+}
+
+/** Rete metallica: maglie a rombo su fondo trasparente. */
+function fenceTexture() {
+  const [c, g] = canvas(32, 32);
+  g.strokeStyle = 'rgba(190,198,206,0.95)'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(32, 32); g.moveTo(0, 32); g.lineTo(32, 0); g.stroke();
+  return tex(c);
+}
+
+/** Recinzione perimetrale: bassa lungo il lato della telecamera (non copre il gioco), alta dietro le porte, con paletti. */
+function fence(P, m, scene) {
+  const post = new THREE.MeshStandardMaterial({ color: 0x2f3a44, roughness: 0.6, metalness: 0.5 });
+  const wire = (len, h, x, z, ry) => {
+    const t = fenceTexture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(len / 0.5, h / 0.5);
+    const m1 = new THREE.Mesh(new THREE.PlaneGeometry(len, h), new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }));
+    m1.position.set(x, h / 2 + 0.05, z); m1.rotation.y = ry; scene.add(m1);
+    const n = Math.max(2, Math.round(len / 4)); // paletti e corrimano
+    for (let i = 0; i <= n; i++) {
+      const o = (i / n - 0.5) * len, px = x + Math.cos(ry) * o, pz = z - Math.sin(ry) * o;
+      const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, h + 0.1, 8), post); pm.position.set(px, h / 2 + 0.05, pz); pm.castShadow = true; scene.add(pm);
+    }
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, len, 8), post); rail.rotation.z = Math.PI / 2; rail.rotation.y = ry; rail.position.set(x, h + 0.1, z); scene.add(rail);
+  };
+  const fz = P.hz + m + 0.8, fx = P.hx + m + 1.2;
+  wire(P.hx * 2 + m * 2 + 2.4, 1.2, 0, fz, 0); // lato telecamera: bassa
+  for (const d of [-1, 1]) wire((P.hz + m + 0.8) * 2, 4, d * fx, 0, Math.PI / 2); // dietro le porte: alta
+}
+
+/** Panchine a bordo campo (lato opposto alla telecamera): due panche con tettoia trasparente e sedute. */
+function benches(P, scene) {
+  const seat = new THREE.MeshStandardMaterial({ color: 0x2b3a55, roughness: 0.7 }), frame = new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.4, metalness: 0.5 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xcfe6f2, roughness: 0.1, metalness: 0, transparent: true, opacity: 0.28, side: THREE.DoubleSide });
+  const z = -(P.hz + 2.2);
+  for (const sx of [-1, 1]) {
+    const g = new THREE.Group(), L = 4.2;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(L, 0.08, 0.42), seat); b.position.set(0, 0.46, 0.5); g.add(b);
+    for (const e of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.46, 0.06), frame); leg.position.set(e * (L / 2 - 0.2), 0.23, 0.5); g.add(leg); }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(L, 0.55, 0.05), seat); back.position.set(0, 0.8, 0.28); g.add(back);
+    for (const e of [-1, 1]) { const po = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 8), frame); po.position.set(e * (L / 2 + 0.1), 1.15, 0.1); g.add(po); }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(L + 0.5, 0.05, 1.3), glass); roof.position.set(0, 2.3, 0.45); roof.rotation.x = 0.08; g.add(roof);
+    const back2 = new THREE.Mesh(new THREE.BoxGeometry(L + 0.2, 1.9, 0.03), glass); back2.position.set(0, 1.2, 0.05); g.add(back2);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = o.material !== glass; o.receiveShadow = true; } });
+    g.position.set(sx * 8, 0, z); scene.add(g);
   }
 }
 
@@ -237,7 +284,7 @@ export class TVRenderer {
     const scene = this.scene = new THREE.Scene();
     scene.background = skyTexture(); scene.fog = new THREE.Fog(0xc9dcee, 120 + pitch.hx * 2, 320 + pitch.hx * 4);
     scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x40603a, 1.25));
-    const sun = new THREE.DirectionalLight(0xfff3dd, 1.5); sun.position.set(-30, 60, 25); scene.add(sun);
+    const sun = new THREE.DirectionalLight(0xfff3dd, 1.1); sun.position.set(-30, 60, 25); scene.add(sun);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
     const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
     const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;

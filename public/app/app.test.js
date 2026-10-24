@@ -35,7 +35,7 @@ const [A, B] = PRESETS;
 {
   const r = playMatch(A, B, { seed: 7, half: 3 }), r2 = playMatch(A, B, { seed: 7, half: 3 });
   assert.deepEqual(r, r2, 'stesso seme, stesso riassunto');
-  assert.equal(r.players.length, 14);
+  assert.ok(r.players.length >= 14 && r.players.length <= 14 + 6, 'in campo e sostituiti');
   assert.equal(r.goals.length, r.score[0] + r.score[1]);
   assert.ok(r.players.every(p => p.name && p.num > 0), 'nomi e numeri di maglia');
 }

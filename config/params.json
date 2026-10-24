@@ -205,13 +205,13 @@
   },
   "palla_modello": {
     "resistenza_aria_1_s": 0.15,
-    "rotolamento_decel_m_s2": 1.725,
+    "rotolamento_decel_m_s2": 2.07,
     "rotolamento_quadratico_1_m": 0.012765,
     "rimbalzo": 0.5
   },
   "ia_taratura": {
     "shootRange": 48,
-    "shootEager": 0.8,
+    "shootEager": 0.95,
     "shotAngle": 1,
     "shotAnglePerM": 0.5,
     "tackleEager": 0.0438,

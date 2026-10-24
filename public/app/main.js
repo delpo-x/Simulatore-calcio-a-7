@@ -255,7 +255,7 @@ function renderStats() {
 
 /** Righe delle pagelle di una squadra (voti calcolati sul momento: durante la partita sono provvisori). */
 function playerRows(t) {
-  return [...G.sim.players.filter(p => p.team === t).map(p => ({ id: p.id, num: G.sim.players[p.id].number ?? G.info[p.id].num, name: playerName(p.id), gk: p.gk, rating: G.stats.rating(p.id), ...G.stats.ps[p.id] })), ...G.stats.left.filter(x => x.team === t)];
+  return [...G.sim.players.filter(p => p.team === t).map(p => ({ id: p.id, num: G.sim.players[p.id].number ?? G.info[p.id].num, name: playerName(p.id), gk: p.gk, rating: G.stats.rating(p.id), ...G.stats.ps[p.id] })), ...G.stats.left.filter(x => x.team === t).map(x => ({ ...x, num: x.num || G.info[x.id].num }))];
 }
 
 function renderRatings() {

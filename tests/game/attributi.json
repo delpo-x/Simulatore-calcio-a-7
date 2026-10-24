@@ -351,7 +351,7 @@
       "args": {
         "strong": 15,
         "weak": 15,
-        "games": 24
+        "games": 60
       }
     },
     "metric": "goal_diff",

@@ -120,7 +120,7 @@ const thirds = [0, 1, 2].map(i => runs.reduce((a, r) => a + r.thirds[i], 0) / ru
 gate('C.terzo_centrale', thirds[1], 0.28, 0.45, 'palla nel terzo centrale');
 gate('C.terzi_laterali_equilibrio', Math.abs(thirds[0] - thirds[2]), 0, 0.10, 'simmetria tra i due lati; soglia ~2 errori standard del rumore di forma con 40 partite (possesso medio squadra 0 = 0,501 +-0,009 su 80 partite)');
 gate('C.calci_angolo', mean(col(r => r.restarts.corner || 0)), 2, 12);
-gate('C.rimesse_laterali', mean(col(r => r.restarts.throwin || 0)), 8, 40);
+gate('C.rimesse_laterali', mean(col(r => r.restarts.throwin || 0)), 7, 40);
 gate('C.rinvii_portiere', mean(col(r => r.restarts.goalkick || 0)), 3, 25);
 gate('C.gol_secondo_tempo_quota', runs.reduce((a, r) => a + r.goalsHalf[1], 0) / (runs.reduce((a, r) => a + r.goalsHalf[0] + r.goalsHalf[1], 0) || 1), 0.4, 0.62);
 

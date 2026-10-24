@@ -367,7 +367,7 @@ export class TVRenderer {
         }
       }
       if (!p.gk && u.headCd === 0 && v.ball.owner < 0 && v.ball.y > 1.1 && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 0.8) { u.headT = 0.45; u.headCd = 1.5; } // palla alta addosso: colpo di testa
-      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 22 && (v.ball.owner < 0 || v.players[v.ball.owner]?.team !== p.team) });
+      m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && Math.hypot(v.ball.x - p.x, v.ball.z - p.z) < 30 && (v.ball.owner < 0 || v.players[v.ball.owner]?.team !== p.team) });
     });
     const b = v.ball, sp = Math.hypot(b.vx, b.vz);
     this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);

@@ -31,7 +31,7 @@ Poi apri http://localhost:8080/ (app) oppure http://localhost:8080/debug.html (v
 | Fine | | simula il resto della partita |
 | TV / Tattica / Fondo | C, Maiusc+1–3 | telecamera: TV in broadcast, drone inclinato su tutto il campo, asse lungo dietro la porta di chi attacca |
 | Dati | S | cronaca, statistiche con mappa dei tiri, voti, formazioni, tattica |
-| Audio | M | pubblico, fischio, calci, esultanza (sintetizzati, nessun file audio) |
+| Audio | M | pubblico che cresce in area e sui gol, fischio (singolo, doppio a fine primo tempo, triplo a fine partita), calci con tonfo proporzionale alla potenza, palo e traversa metallici con tremolio della camera, rete, esultanza (tutto sintetizzato con Web Audio, nessun file audio) |
 | Schermo intero | F | |
 | | R | replay dell'ultimo gol |
 | Salta Replay | Spazio (durante il replay), Esc | chiude replay o pannello |

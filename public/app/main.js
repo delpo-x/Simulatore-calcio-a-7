@@ -5,7 +5,7 @@ import { TVRenderer, contrast } from './render3d.js';
 import { MatchStats } from './stats.js';
 import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
-import { MatchAudio } from './audio.js';
+import { SoundEngine } from './audio.js';
 import { Commentary } from './commentary.js';
 import { summarize } from './headless.js';
 import { initTour } from './tourui.js';
@@ -155,6 +155,8 @@ function startMatch(seed, ov = null) {
   if (R) R.dispose();
   R = new TVRenderer($('#view'), sim.pitch, { kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
+  R.onWood = (power, bar) => { if (sounds()) A.clang(power, bar); }; // palo/traversa: il suono parte insieme al tremolio della camera
+  R.onNet = power => { if (sounds()) A.net(power); };
   for (const side of [0, 1]) {
     const t = $(`.sb-team[data-side="${side}"]`);
     $('i', t).style.background = kits[side].shirt; $('i', t).style.borderColor = kits[side].shorts;
@@ -169,7 +171,7 @@ function startMatch(seed, ov = null) {
   showLower(`${esc(defs[0].name)} <span class="vs-mini">contro</span> ${esc(defs[1].name)}`, 'intro', 3.5);
 }
 
-const A = new MatchAudio();
+const A = new SoundEngine();
 const WHISTLE = new Set(['foul', 'offside', 'backpass', 'gkHold', 'dangerous', 'obstruction']);
 /** Suoni dei singoli episodi solo a velocita' normale (a 16x sarebbero un rumore continuo). */
 const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
@@ -182,7 +184,7 @@ function tick() {
     if (s.events.some(e => WHISTLE.has(e.t))) A.whistle();
   }
   if (!G.skipping && !G.replay && G.speed <= 4) for (const e of s.events) {
-    if (e.t === 'goal') A.roar('goal');
+    if (e.t === 'goal') { A.roar('goal'); A.swell(1, 7); }
     else if (e.t === 'half') A.whistle(2, 0.45);
     else if (e.t === 'full') A.whistle(3, 0.5);
   }
@@ -191,11 +193,11 @@ function tick() {
   if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); }
 }
 
-/** Pubblico: piu' rumoroso quando la palla e' vicina a una porta. */
+/** Pubblico: piu' rumoroso quando la palla e' vicina a una porta, e ancora di piu' dentro l'area di rigore. */
 function crowdLevel() {
   if (!G || G.paused || G.ended) return G?.ended ? 0.25 : 0.12;
-  const s = G.sim, x = Math.abs(s.ball.x) / s.pitch.hx;
-  return 0.3 + 0.7 * Math.max(0, Math.min(1, (x - 0.45) / 0.5));
+  const s = G.sim, P = s.pitch, x = Math.abs(s.ball.x) / P.hx, inBox = Math.abs(s.ball.x) > P.hx - P.areaDepth && Math.abs(s.ball.z) < P.areaWidth / 2;
+  return Math.min(1, 0.3 + 0.7 * Math.max(0, Math.min(1, (x - 0.45) / 0.5)) + (inBox ? 0.25 : 0));
 }
 
 const teamName = t => G.defs[t].name;

@@ -102,4 +102,27 @@ for (const n of [3, 4, 5, 6, 7, 8]) for (const double of [false, true]) {
   assert.deepEqual(shootout(A, B, { seed: 3 }), shootout(A, B, { seed: 3 }));
 }
 
+// audio sintetizzato: con un AudioContext finto si controlla che i suoni si costruiscano, rispettino il mute e che l'ondata del pubblico decada
+{
+  const made = [], param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} });
+  const node = () => { const n = { connect: x => x, start() {}, stop() {}, frequency: param(), gain: param(), Q: param(), threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() }; made.push(n); return n; };
+  class Ctx {
+    constructor() { this.sampleRate = 8000; this.currentTime = 0; this.state = 'running'; this.destination = {}; }
+    createBuffer(ch, n) { const d = new Float32Array(n); return { getChannelData: () => d }; }
+    resume() {} suspend() {}
+  }
+  for (const k of ['createGain', 'createOscillator', 'createBiquadFilter', 'createBufferSource', 'createDynamicsCompressor']) Ctx.prototype[k] = node;
+  globalThis.window = { AudioContext: Ctx };
+  const { SoundEngine } = await import('./audio.js'), e = new SoundEngine();
+  e.start();
+  const noise = e.noise.getChannelData(0), rms = Math.sqrt(noise.reduce((a, x) => a + x * x, 0) / noise.length);
+  assert.ok(noise.every(Number.isFinite) && rms > 0.05 && rms < 0.6, `rumore rosa ${rms.toFixed(3)}`);
+  const sounds = [() => e.whistle(3), () => e.kick(25), () => e.clang(0.9, true), () => e.clang(0.4, false), () => e.net(0.6), () => e.roar('goal'), () => e.roar('ooh')];
+  for (const s of sounds) { const n = made.length; s(); assert.ok(made.length > n, 'ogni suono crea i suoi nodi'); }
+  e.setCrowd(0.5); e.swell(1, 5); assert.equal(e.boost, 1);
+  e.setMuted(true);
+  const n = made.length; for (const s of sounds) s(); assert.equal(made.length, n, 'in muto non nasce nessun suono');
+  delete globalThis.window;
+}
+
 console.log('app tests ok');

@@ -457,7 +457,7 @@ export class TVRenderer {
     this.arrow.rotation.x = -Math.PI / 2; this.arrow.position.y = 0.025; scene.add(this.arrow);
     this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false })); this.tag.scale.set(3, 0.56, 1); this.tag.renderOrder = 10; this.tag.visible = false; scene.add(this.tag);
     this.cam = new THREE.PerspectiveCamera(38, 1, 0.5, 900);
-    this.mode = 'tv'; this.camPos = new THREE.Vector3(0, 30, 60); this.camLook = new THREE.Vector3(); this.snap = true; this.lastDir = 1; this.camDir = 1; this.dirT = 0; this.rdir = 1; this.rside = 1; // rdir: lato della porta in cui e' entrato il gol, rside: lato da cui la camera del replay guarda
+    this.mode = 'tv'; this.camPos = new THREE.Vector3(0, 30, 60); this.camLook = new THREE.Vector3(); this.snap = true; this.lastDir = 1; this.camDir = 1; this.dirT = 0; this.shake = 0; this.rdir = 1; this.rside = 1; // rdir: lato della porta in cui e' entrato il gol, rside: lato da cui la camera del replay guarda
     this.meshes = []; this.showMarker = true; this.w = 0; this.h = 0;
   }
 
@@ -588,7 +588,12 @@ export class TVRenderer {
     const kt = this.mode === 'replay' ? Math.max(k, 1 - Math.exp(-12 * dt)) : k; // il replay insegue la palla da vicino: niente ritardo con fov stretto
     this.camPos.lerp(pos, k); this.camLook.lerp(look, kt);
     this.cam.fov += (fov - this.cam.fov) * kt; this.cam.updateProjectionMatrix();
-    this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
+    this.cam.position.copy(this.camPos);
+    if (this.shake > 0.002) { // tremolio breve (palo o traversa): ampiezza quadratica che si spegne in ~0,4 s; fermo in pausa
+      const a = this.shake * this.shake * 0.4, c = this.clock; this.cam.position.x += Math.sin(c * 83) * a; this.cam.position.y += Math.sin(c * 97 + 1) * a; this.cam.position.z += Math.sin(c * 71 + 2) * a;
+      this.shake *= Math.exp(-8 * dt);
+    } else this.shake = 0;
+    this.cam.lookAt(this.camLook);
   }
 
   /** Sbuffo di polvere e zolle: rimbalzo della palla (power 0..1). */
@@ -605,12 +610,23 @@ export class TVRenderer {
     for (let i = 0; i < 5; i++) this.fx.emit(b.x + e * 0.3, Math.max(0.3, b.y), b.z, b.vx * 0.05 + rnd(-0.5, 0.5), rnd(0, 0.6), rnd(-0.6, 0.6), { life: rnd(0.7, 1.1), size: 0.5, grow: 2.2, color: 0xeef2f6, alpha: 0.26, drag: 2 });
   }
 
+  /** Palo o traversa colpiti: scintille, tremolio della camera e (per l'app) il suono metallico. */
+  woodwork(x, y, z, power, bar) {
+    for (let i = 0; i < 10; i++) this.fx.emit(x, y, z, rnd(-2.5, 2.5) * (0.4 + power), rnd(-1.5, 2.5), rnd(-2.5, 2.5) * (0.4 + power), { life: rnd(0.25, 0.5), size: rnd(0.05, 0.09), color: 0xfff4c8, alpha: 1, grav: 9, drag: 0.5 });
+    this.shake = Math.max(this.shake, 0.35 + 0.65 * power); this.onWood?.(power, bar);
+  }
+
   /** Effetti legati agli eventi di gioco: rimbalzi, tiri forti, gol, scivolate. dt = 0 (pausa) non emette nulla. */
   fxStep(v, dt) {
     const b = v.ball, pb = this.pb, P = this.P;
     if (dt > 0 && pb && Math.hypot(pb.x - b.x, pb.z - b.z) < 3) {
       if (pb.vy < -2.5 && b.vy >= 0 && b.y < 0.4) this.puff(b.x, b.z, Math.min(1, -pb.vy / 9));
-      if (Math.abs(pb.x) <= P.hx && Math.abs(b.x) > P.hx && Math.abs(b.z) < P.goalHalf + 0.3 && b.y < P.goalH + 0.3 && Math.hypot(b.vx, b.vz) > 4) this.netBurst(b);
+      if (Math.abs(pb.x) <= P.hx && Math.abs(b.x) > P.hx) { // passaggio sulla linea di porta: la fisica non ha urti con i legni, qui si vede e si sente solo se la palla passa a un raggio da palo o traversa
+        const s = Math.hypot(b.vx, b.vz), f = (P.hx - Math.abs(pb.x)) / (Math.abs(b.x) - Math.abs(pb.x)), zc = pb.z + (b.z - pb.z) * f, yc = pb.y + (b.y - pb.y) * f;
+        if (Math.abs(b.z) < P.goalHalf + 0.3 && b.y < P.goalH + 0.3 && s > 4) { this.netBurst(b); this.onNet?.(Math.min(1, s / 28)); }
+        const post = Math.abs(Math.abs(zc) - P.goalHalf) < 0.2 && yc < P.goalH + 0.1, bar = Math.abs(yc - P.goalH) < 0.2 && Math.abs(zc) < P.goalHalf + 0.1;
+        if ((post || bar) && s > 6) this.woodwork(Math.sign(b.x) * P.hx, yc, zc, Math.min(1, s / 28), !post);
+      }
       if (Math.abs(b.x) > P.hx && Math.abs(b.x) < P.hx + 2.6 && Math.abs(b.z) <= P.goalHalf + 0.05 && b.y <= P.goalH + 0.1) { // palla dentro la porta: ogni inversione di velocita' e' un urto contro un pannello della rete
         for (const [k, ax] of [['vx', 0], ['vy', 1], ['vz', 2]]) {
           if (Math.abs(pb[k]) < 2.5 || pb[k] * b[k] >= 0 || (k === 'vy' && pb.vy < 0)) continue; // il rimbalzo a terra non tocca la rete

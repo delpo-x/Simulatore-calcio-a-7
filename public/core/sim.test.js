@@ -38,4 +38,11 @@ assert.equal(t.schemes[0], '3-1-2'); assert.equal(t.tac[0].press, 20); assert.eq
 assert.equal(t.players.filter(q => q.team === 0).map(q => q.home.x).filter(x => Math.abs(x + t.pitch.hx - 0.25 * t.pitch.hx * 2) < 1e-9).length, 3, 'tre difensori');
 for (let i = 0; i < 60 * 60; i++) t.step();
 for (const q of t.players) assert.ok(Number.isFinite(q.x + q.z), 'giocatore finito dopo cambio tattico');
+
+// controllo dello spazio: le due mappe sono complementari e ogni squadra domina vicino ai propri giocatori
+const m = new Sim({ perTeam: 7, seed: 3 }), m0 = m.spaceMap(0), m1 = m.spaceMap(1);
+for (let i = 0; i < m0.length; i++) assert.ok(Math.abs(m0[i] + m1[i] - 1) < 1e-6, 'controllo complementare');
+const own = m.players.find(q => q.team === 0 && !q.gk);
+assert.ok(m.control(0, own.x, own.z, m.arrival(0, own.x, own.z)) > 0.5, 'spazio sotto i piedi di un giocatore e\' della sua squadra');
+assert.equal(m.spaceMap(0), m0, 'mappa ricalcolata al piu\' una volta per passo');
 console.log('sim tests ok');

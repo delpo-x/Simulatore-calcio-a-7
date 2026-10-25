@@ -4,8 +4,8 @@ export const PITCH = { hx: 52.5, hz: 34, goalHalf: 3.66, goalH: 2.44 };
 export const DT = 1 / 60;
 
 /**
- * Funzionalità supportate dal motore. Il banco di prova (tools/game-tests.mjs) salta i test che
- * richiedono una funzionalità assente; ogni sessione della roadmap aggiunge qui le sue.
+ * FunzionalitÃ  supportate dal motore. Il banco di prova (tools/game-tests.mjs) salta i test che
+ * richiedono una funzionalitÃ  assente; ogni sessione della roadmap aggiunge qui le sue.
  * Esempi attesi: 'stamina', 'tackleProbability', 'collisionStun', 'fouls', 'setPieces',
  * 'schemes', 'configurablePitch', 'attributes'.
  */
@@ -29,6 +29,8 @@ export const AI = {
   shootRange: 48, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.1, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
+  // controllo dello spazio (arriveT/control/findSpace): reazione e ripidita' della curva tempo->controllo, raggio dei punti di smarcamento (scalato) e pesi della scelta
+  ctrlReact: 0.25, ctrlK: 3, spaceRadius: 9, spaceWeight: 1, spaceLane: 0.5, spaceFwd: 0.3, spaceStick: 0.3, passSpace: 0,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -37,8 +39,8 @@ export const MATCH = { pace: 0.1 };
 /** Fisica della palla (ticket 02; specchio di config/params.json, sezione "palla"). */
 export const BALL = {
   airDrag: 0.15,     // 1/s, resistenza in volo
-  rollDecel: 2.07,     // m/s², attrito di rotolamento (palla lenta: 1-2 m/s²)
-  rollQuad: 0.012765,  // 1/m, resistenza a terra ~v²: un passaggio da 18 m/s copre 20 m in ~1,3 s
+  rollDecel: 2.07,     // m/sÂ², attrito di rotolamento (palla lenta: 1-2 m/sÂ²)
+  rollQuad: 0.012765,  // 1/m, resistenza a terra ~vÂ²: un passaggio da 18 m/s copre 20 m in ~1,3 s
   restitution: 0.5,  // rimbalzo: un lob fa al massimo un rimbalzo significativo
 };
 
@@ -353,16 +355,78 @@ export class Sim {
     const near = mates.reduce((m, q) => dist(q.x, q.z, carrier.x, carrier.z) < dist(m.x, m.z, carrier.x, carrier.z) ? q : m, mates[0]);
     const counter = this.possTeam === p.team && this.possT < 1.5; // transizione: palla appena recuperata
     let tx, tz;
-    if (near === p) { tx = carrier.x + d * this.sc(8); tz = carrier.z + (carrier.z > 0 ? -1 : 1) * this.sc(8); }
-    else {
+    if (near === p) { // appoggio: sul cerchio attorno al portatore, dove lo spazio e' nostro e la linea di passaggio e' libera
+      const r = this.sc(8), a0 = d > 0 ? 0 : Math.PI, ring = [];
+      for (let k = -3; k <= 3; k++) { const a = a0 + k * Math.PI / 4; ring.push([carrier.x + Math.cos(a) * r, carrier.z + Math.sin(a) * r]); }
+      [tx, tz] = this.findSpace(p, carrier, ring, carrier.x + d * r, carrier.z + (carrier.z > 0 ? -1 : 1) * r);
+    } else {
       tx = h.x + d * (this.sc(10) * p.k.offBall + (t.line - 0.25) * L) + (carrier.x - h.x) * 0.3 + (counter && h.x * d > 0 ? d * this.sc(8) : 0);
       tz = h.z * t.width + (carrier.z - h.z) * 0.2;
+      const r = this.sc(AI.spaceRadius), ring = [[tx, tz]];
+      for (let k = 0; k < 8; k++) ring.push([tx + Math.cos(k * Math.PI / 4) * r, tz + Math.sin(k * Math.PI / 4) * r]);
+      [tx, tz] = this.findSpace(p, carrier, ring, tx, tz);
     }
     if (h.x * d < -0.1 * L) tx = d * Math.min(d * tx, AI.defenderLimit * L); // i difensori non oltrepassano la meta' campo
     [tx, tz] = this.spread(p, tx, tz);
     if (p.posOff) { tx += p.posOff[0]; tz += p.posOff[1]; }
     const lim = pt.hx - this.sc(AI.attackDepth); // gli attaccanti non si piazzano sulla linea di porta
     return { tx: clamp(tx, d > 0 ? -pt.hx + 2 : -lim, d > 0 ? lim : pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: counter };
+  }
+
+  /** Secondi perche' q arrivi in (x, z): reazione (piu' l'eventuale stordimento) proseguendo con la velocita' attuale, poi corsa alla sua velocita' massima. */
+  arriveT(q, x, z) {
+    const r = AI.ctrlReact + Math.max(0, q.stun), px = q.x + q.vx * r, pz = q.z + q.vz * r;
+    return r + dist(px, pz, x, z) / (MOVE.sprint * q.k.speed);
+  }
+
+  /** Il piu' rapido della squadra a raggiungere (x, z), escluso skip: il portiere conta solo nella propria area (fuori non esce a contendere lo spazio). */
+  arrival(team, x, z, skip) {
+    const pt = this.pitch, gx = -this.dir(team) * pt.hx, box = Math.abs(x - gx) < pt.areaDepth && Math.abs(z) < pt.areaWidth / 2;
+    let best = 1e9;
+    for (const q of this.players) {
+      if (q.team !== team || q.out || q === skip || (q.gk && !box)) continue;
+      const t = this.arriveT(q, x, z); if (t < best) best = t;
+    }
+    return best;
+  }
+
+  /** Controllo dello spazio in (x, z) per la squadra team, se ci arriva in tOwn secondi: 1 = arriva prima di sicuro, 0,5 = alla pari, 0 = prima l'avversario. */
+  control(team, x, z, tOwn) { return 1 / (1 + Math.exp(-AI.ctrlK * (this.arrival(1 - team, x, z) - tOwn))); }
+
+  /** Mappa di controllo dello spazio (nx x nz celle, riga per riga lungo z): per ogni cella il controllo della squadra team con il suo giocatore piu' rapido. Calcolata al piu' una volta per passo. */
+  spaceMap(team, nx = 20, nz = 12) {
+    const c = this.smCache ??= [null, null];
+    if (c[team] && c[team].tick === this.tickN && c[team].nx === nx && c[team].nz === nz) return c[team].m;
+    const pt = this.pitch, m = new Float32Array(nx * nz);
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const x = -pt.hx + (i + 0.5) * 2 * pt.hx / nx, z = -pt.hz + (j + 0.5) * 2 * pt.hz / nz;
+      m[j * nx + i] = this.control(team, x, z, this.arrival(team, x, z));
+    }
+    c[team] = { tick: this.tickN, nx, nz, m };
+    return m;
+  }
+
+  /** Smarcamento: tra i punti candidati sceglie quello dove p arriva prima degli avversari, servibile dal portatore con linea libera e non in area piccola avversaria (fuorigioco).
+   *  Un piccolo premio a restare vicino al punto scelto alla decisione precedente evita che il giocatore oscilli tra due punti equivalenti. */
+  findSpace(p, carrier, pts, bx, bz) {
+    if (!AI.spaceWeight) return [bx, bz];
+    const pt = this.pitch, d = this.dir(p.team), R = this.sc(AI.spaceRadius), lw = this.sc(6), gx = d * pt.hx;
+    const opps = this.players.filter(q => q.team !== p.team && !q.out && !q.gk);
+    let best = [bx, bz], bs = -1e9;
+    for (const [x0, z0] of pts) {
+      const x = clamp(x0, -pt.hx + 2, pt.hx - 2), z = clamp(z0, -pt.hz + 2, pt.hz - 2);
+      const sx = x - carrier.x, sz = z - carrier.z, l2 = sx * sx + sz * sz || 1;
+      let lane = lw;
+      for (const o of opps) {
+        const t = clamp(((o.x - carrier.x) * sx + (o.z - carrier.z) * sz) / l2, 0, 1);
+        lane = Math.min(lane, dist(o.x, o.z, carrier.x + sx * t, carrier.z + sz * t));
+      }
+      let s = AI.spaceWeight * this.control(p.team, x, z, this.arriveT(p, x, z)) + AI.spaceLane * lane / lw + AI.spaceFwd * clamp(d * (x - bx) / R, -1, 1);
+      if (p.plan) s -= AI.spaceStick * Math.min(1, dist(x, z, p.plan.tx, p.plan.tz) / R);
+      if (RULES.offside && Math.abs(x - gx) < RULES.smallAreaDepth && Math.abs(z) < RULES.smallAreaWidth / 2) s -= 1;
+      if (s > bs) { bs = s; best = [x, z]; }
+    }
+    return best;
   }
 
   /** Chi della squadra arriva prima sulla traiettoria della palla calciata (esclude chi ha appena calciato): { p, x, z, sprint }. */
@@ -651,7 +715,8 @@ export class Sim {
       const g = this.players.find(r => r.gk && r.team === p.team && !r.out);
       if (g && dist(g.x, g.z, q.x, q.z) < 4) continue; // compagno attaccato al portiere: il portiere prenderebbe la palla con le mani
       if (g) { const tt = clamp(((g.x - p.x) * (q.x - p.x) + (g.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1); if (dist(g.x, g.z, p.x + (q.x - p.x) * tt, p.z + (q.z - p.z) * tt) < 2.5) continue; } // mai attraverso il proprio portiere
-      const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + open / 8 * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0) - (Math.abs(q.z) > this.pitch.hz - 2.5 ? AI.edgePenalty : 0); // compagno sulla linea laterale: passaggio piu' rischioso (palla fuori)
+      const tb = dd / clamp(AI.passSpeed0 + dd * 0.45, AI.passSpeed0 + 1.5, 20), room = AI.passSpace * this.control(p.team, q.x, q.z, tb) + (1 - AI.passSpace) * open / 8; // spazio del ricevitore: la palla arriva prima dell'avversario piu' rapido? (miscelato con la distanza del piu' vicino)
+      const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + room * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0) - (Math.abs(q.z) > this.pitch.hz - 2.5 ? AI.edgePenalty : 0); // compagno sulla linea laterale: passaggio piu' rischioso (palla fuori)
       if (score > bestScore) { bestScore = score; best = q; }
     }
     return best;

@@ -241,6 +241,14 @@
     "formSpread": 0.15,
     "formSpeed": 0,
     "formTackle": 1,
-    "decisionNoise": 1
+    "decisionNoise": 1,
+    "ctrlReact": 0.25,
+    "ctrlK": 3,
+    "spaceRadius": 9,
+    "spaceWeight": 1,
+    "spaceLane": 0.5,
+    "spaceFwd": 0.3,
+    "spaceStick": 0.3,
+    "passSpace": 0
   }
 }

@@ -44,7 +44,7 @@ export const AI = {
   // effetto dei riflessi sul raggio di parata (m per unita' di attributo; additivo)
   keeperAttr: 1.1,
   // quanto il passatore mette in conto la propria imprecisione nella scelta del passaggio
-  passSelf: 0.5,
+  passSelf: 0.75,
   // ruoli in possesso (attackRole): incursore runBeyond oltre l'ultimo difensore (scalato) se il portatore ha superato runFrom x lunghezza dalla meta' campo verso la propria porta
   roles: 1, runBeyond: 4, runFrom: 0,
   // quanto la stima del passaggio anticipa la corsa del ricevitore (1 = come passTo, 0 = posizione attuale)
@@ -109,7 +109,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, smallAreaDepth: 5.1, smallAreaWidth: 12,
+  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, offsideDead: 1, smallAreaDepth: 5.1, smallAreaWidth: 12,
   minPlayers: 5, injuryProb: 0.04, maxSubs: 3, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -183,11 +183,17 @@ export class Sim {
     }
   }
 
-  /** Fuorigioco nell'area piccola (dato del progetto): chi e' nell'area piccola avversaria quando un compagno calcia, e tocca per primo la palla, e' in fuorigioco. Esenti rinvio e rimessa; vale anche sugli angoli. */
+  /** Fuorigioco nell'area piccola (dato del progetto): chi e' nell'area piccola avversaria quando un compagno calcia, e tocca per primo la palla, e' in fuorigioco. Esenti rinvio e rimessa; vale anche sugli angoli.
+   *  Con offsideDead (default) vale solo sul primo calcio di una ripresa da fermo, battuto dal punto della ripresa: a gioco in corso non si fischia. */
   markOffside(p) {
     this.offsideMark = null;
     const k = this.setKind;
     if (!RULES.offside || (k?.taker === p.id && (k.kind === 'goalkick' || k.kind === 'throwin'))) return;
+    if (RULES.offsideDead) {
+      const dead = k?.taker === p.id && !k.kicked && dist(this.ball.x, this.ball.z, k.x ?? 0, k.z ?? 0) < 1.5;
+      if (k?.taker === p.id) k.kicked = true;
+      if (!dead) return;
+    }
     const pt = this.pitch, d = this.dir(p.team);
     const ids = this.players.filter(q => q.team === p.team && q.id !== p.id && !q.gk && !q.out && Math.sign(q.x) === d && Math.abs(q.x) > pt.hx - RULES.smallAreaDepth && Math.abs(q.z) < RULES.smallAreaWidth / 2).map(q => q.id);
     if (ids.length) this.offsideMark = { team: p.team, ids };
@@ -457,7 +463,7 @@ export class Sim {
     return m;
   }
 
-  /** Smarcamento: tra i punti candidati sceglie quello dove p arriva prima degli avversari, servibile dal portatore con linea libera e non in area piccola avversaria (fuorigioco).
+  /** Smarcamento: tra i punti candidati sceglie quello dove p arriva prima degli avversari, servibile dal portatore con linea libera e non in area piccola avversaria (se il fuorigioco vale anche in gioco).
    *  Un piccolo premio a restare vicino al punto scelto alla decisione precedente evita che il giocatore oscilli tra due punti equivalenti. */
   findSpace(p, carrier, pts, bx, bz) {
     if (!AI.spaceWeight) return [bx, bz];
@@ -474,7 +480,7 @@ export class Sim {
       }
       let s = AI.spaceWeight * this.control(p.team, x, z, this.arriveT(p, x, z)) + AI.spaceLane * lane / lw + AI.spaceFwd * clamp(d * (x - bx) / R, -1, 1);
       if (p.plan) s -= AI.spaceStick * Math.min(1, dist(x, z, p.plan.tx, p.plan.tz) / R);
-      if (RULES.offside && Math.abs(x - gx) < RULES.smallAreaDepth && Math.abs(z) < RULES.smallAreaWidth / 2) s -= 1;
+      if (RULES.offside && !RULES.offsideDead && Math.abs(x - gx) < RULES.smallAreaDepth && Math.abs(z) < RULES.smallAreaWidth / 2) s -= 1;
       if (s > bs) { bs = s; best = [x, z]; }
     }
     return best;
@@ -1147,12 +1153,22 @@ export class Sim {
     this.indirect = kind === 'indirect' ? { team, taker: taker.id } : null;
     this.setKind = { kind, taker: taker.id, x, z, t: kind === 'throwin' ? 1.0 : 0 }; // rimessa: il battitore arriva gia' con la palla in mano, resta da sollevarla
     if (kind === 'throwin') { taker.throwT = 9; taker.shieldT = 9; taker.aiT = 1; this.throwWait = 0; this.indirect = { team, taker: taker.id }; } // la rimessa non vale come gol diretto; chi la batte non si contrasta
-    const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : kind === 'throwin' ? 2 : 0, end = Math.sign(x);
+    const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : kind === 'throwin' ? 2 : 0, end = Math.sign(x), moved = [];
     for (const p of this.players) {
       if (p === taker || p.out) continue;
       if (R && p.team !== team) this.keepAway(p, x, z, R);
       const barred = kind === 'penalty' ? !(p.gk && p.team !== team) : kind === 'goalkick' && p.team !== team;
-      if (barred && Math.abs(p.x) > pt.hx - pt.areaDepth && Math.sign(p.x) === end && Math.abs(p.z) < pt.areaWidth / 2) p.x = end * (pt.hx - pt.areaDepth - 1);
+      if (barred && Math.abs(p.x) > pt.hx - pt.areaDepth && Math.sign(p.x) === end && Math.abs(p.z) < pt.areaWidth / 2) { p.x = end * (pt.hx - pt.areaDepth - 1); moved.push(p); }
+    }
+    // chi esce dall'area finisce sulla stessa linea: lo si scosta lungo la linea, altrimenti al passo dopo l'urto lo sposterebbe di colpo (fino a ~1 m)
+    for (let it = 0; it < 10 && moved.length; it++) {
+      let any = false;
+      for (const p of moved) for (const q of this.players) {
+        if (q === p || q.out || dist(p.x, p.z, q.x, q.z) >= MOVE.minGap) continue;
+        const s = Math.sign(p.z - q.z) || (p.id < q.id ? -1 : 1), dx = p.x - q.x;
+        p.z = clamp(q.z + s * (Math.sqrt(Math.max(0, MOVE.minGap * MOVE.minGap - dx * dx)) + 0.02), -pt.hz + 0.5, pt.hz - 0.5); any = true;
+      }
+      if (!any) break;
     }
     this.events.push({ t: 'restart', team, kind });
   }

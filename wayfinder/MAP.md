@@ -77,7 +77,7 @@ Sessioni separate, in questo ordine; ognuna ha già i test di gioco nel proprio 
 
 ## Fuorigioco (area piccola)
 
-Attivo di default (`regole.fuorigioco_attivo` = 1), solo nell'area piccola avversaria (6 × 12 m, ipotesi confermata dall'utente come valore da usare): chi è nell'area piccola quando un compagno calcia e tocca per primo la palla è in fuorigioco → indiretta agli avversari. Esenti angolo, rinvio e rimessa. Misurato: ~0,2 fuorigiochi a partita. Test `regole.fuorigioco.*`.
+Attivo di default (`regole.fuorigioco_attivo` = 1), solo nell'area piccola avversaria (6 × 12 m, ipotesi confermata dall'utente come valore da usare): chi è nell'area piccola quando un compagno calcia e tocca per primo la palla è in fuorigioco → indiretta agli avversari. Esenti rinvio e rimessa. Dal ciclo 11 vale solo sul primo calcio di una ripresa da fermo (`regole.fuorigioco_solo_da_fermo` = 1, segnalazione dell'utente: "in area piccola viene fischiato il fallo anche in gioco non da fermo"); a gioco in corso l'area piccola è libera anche per l'IA. Misurato: 0 fuorigiochi a partita su 40 (prima della riscrittura dell'IA ~0,2). Test `regole.fuorigioco.*`, compreso `in_gioco_lecito`.
 
 ## Bias tra le squadre (risolto)
 

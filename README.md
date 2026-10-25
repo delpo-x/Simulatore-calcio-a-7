@@ -76,7 +76,7 @@ Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti sul cronometro, senza sos
 - Falli, ammonizione, espulsione, rigore, punizione, angolo, rinvio, rimessa.
 - Cartellino azzurro: 5 minuti fuori, poi rientro. Nasce da un fallo o da proteste.
 - Punizione indiretta per: retropassaggio al portiere, portiere che trattiene la palla oltre 6 s, gioco pericoloso (avversario addosso al portiere in possesso), ostruzione, fuorigioco.
-- Fuorigioco solo nell'area piccola avversaria (6 × 12 m): valore scelto dal progetto, non verificato su un regolamento ufficiale. Si disattiva con `regole.fuorigioco_attivo` = 0.
+- Fuorigioco solo nell'area piccola avversaria (6 × 12 m) e solo sulle riprese da fermo (punizione, angolo, calcio d'inizio; esenti rinvio e rimessa): a gioco in corso non si fischia. Valore scelto dal progetto, non verificato su un regolamento ufficiale. Si disattiva con `regole.fuorigioco_attivo` = 0; con `regole.fuorigioco_solo_da_fermo` = 0 vale anche a gioco in corso.
 
 Il regolamento CSI ufficiale non è stato trovato: durata dell'azzurro, retropassaggio e rinvio nell'area seguono le scelte del progetto.
 

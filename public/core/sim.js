@@ -1232,7 +1232,7 @@ export class Sim {
     const pt = this.pitch, d = this.dir(o.team);
     let card = foul.card;
     const lastMan = RULES.lastManBlue && card !== 'red' && this.lastManFoul(q, o);
-    if (lastMan) card = 'blue'; // fallo da ultimo uomo: azzurro (al posto di un eventuale giallo)
+    if (lastMan) card = card === 'yellow' ? 'red' : 'blue'; // fallo da ultimo uomo: azzurro; se il fallo valeva anche il giallo, giallo + azzurro = rosso
     if (card === 'yellow' && ++q.yellow >= 2) card = 'red'; // seconda ammonizione
     const full = this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers;
     if (card === 'blue' && full) this.suspend(q);

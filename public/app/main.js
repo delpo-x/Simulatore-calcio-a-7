@@ -211,7 +211,7 @@ function onItems(items) {
     if (G.skipping) continue;
     if (it.t === 'goal') showBanner(`<div class="b-kicker">${it.own ? 'Autogol' : 'Gol'}</div><div class="b-big">GOL!</div><div class="b-sub">${esc(playerName(it.player))}${it.own ? ' (aut.)' : ''} · ${esc(teamName(it.team))} · ${it.score[0]}-${it.score[1]}</div>`, it.team, 3);
     else if (it.t === 'yellow') showLower(`<span class="card yellow"></span>${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'card');
-    else if (it.t === 'red') showLower(`<span class="card red"></span>${esc(playerName(it.player))} <small>${it.second ? 'seconda ammonizione' : 'espulso'}</small>`, 'card');
+    else if (it.t === 'red') showLower(`<span class="card red"></span>${esc(playerName(it.player))} <small>${it.second ? 'seconda ammonizione' : it.lastMan ? 'giallo + azzurro da ultimo uomo' : 'espulso'}</small>`, 'card');
     else if (it.t === 'blue') showLower(`<span class="card blue"></span>${esc(playerName(it.player))} <small>${it.protest ? 'proteste, ' : it.lastMan ? 'ultimo uomo, ' : ''}fuori 5 minuti</small>`, 'card');
     else if (it.t === 'offside') showLower(`Fuorigioco · ${esc(playerName(it.player))}`, 'info', 2);
     else if (it.t === 'injury') showLower(`Infortunio · ${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'info', 2.5);

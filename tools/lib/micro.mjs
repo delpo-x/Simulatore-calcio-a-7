@@ -270,7 +270,7 @@ export function sendOffTrial() {
   return out;
 }
 
-/** Fallo da ultimo uomo: l'attaccante con palla nella meta' avversaria e nessun altro difensore di movimento tra lui e la porta -> azzurro (anche al posto di un giallo); con un difensore in copertura o nella propria meta' campo -> nessun azzurro. */
+/** Fallo da ultimo uomo: l'attaccante con palla nella meta' avversaria e nessun altro difensore di movimento tra lui e la porta -> azzurro; se il fallo valeva anche il giallo, giallo + azzurro = rosso; con un difensore in copertura o nella propria meta' campo -> nessun azzurro. */
 export function lastManTrial() {
   const run = (ox, coverX, card = null) => {
     const s = quiet(), o = s.players[10], q = s.players[3], d = s.dir(o.team);
@@ -280,10 +280,10 @@ export function lastManTrial() {
     Object.assign(s.ball, { x: o.x + d * 0.5, z: 0, y: 0.11, owner: o.id, vx: 0, vz: 0 });
     s.callFoul(q, o, { card });
     const e = s.events.find(x => x.t === 'foul');
-    return { blue: Number(e?.card === 'blue'), lastMan: Number(!!e?.lastMan), yellow: q.yellow };
+    return { blue: Number(e?.card === 'blue'), red: Number(e?.card === 'red' && q.out), lastMan: Number(!!e?.lastMan) };
   };
   const last = run(10, null), yel = run(10, null, 'yellow'), cover = run(10, 16), own = run(-5, null);
-  return { ultimo_uomo_azzurro: last.blue * last.lastMan, giallo_diventa_azzurro: yel.blue * (yel.yellow === 0 ? 1 : 0), coperto: cover.blue + cover.lastMan, propria_meta: own.blue + own.lastMan };
+  return { ultimo_uomo_azzurro: last.blue * last.lastMan, giallo_diventa_rosso: yel.red * yel.lastMan, coperto: cover.blue + cover.lastMan, propria_meta: own.blue + own.lastMan };
 }
 
 function quiet(n = 7) {

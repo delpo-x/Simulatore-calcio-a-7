@@ -74,7 +74,7 @@ Campo 50 × 30 m, porta 6 × 2 m, 2 tempi da 25 minuti sul cronometro, senza sos
 
 - Calcio d'inizio (anche dopo ogni gol e a inizio ripresa, intervallo di 3 s): il battitore passa a un compagno.
 - Falli, ammonizione, espulsione, rigore, punizione, angolo, rinvio, rimessa.
-- Cartellino azzurro: 5 minuti fuori, poi rientro. Nasce da un fallo, da proteste o da un fallo da ultimo uomo (l'attaccante ha la palla nella metà campo avversaria e tra lui e la porta non resta nessun difensore di movimento; vale anche al posto di un giallo). Si disattiva con `regole.azzurro_ultimo_uomo` = 0.
+- Cartellino azzurro: 5 minuti fuori, poi rientro. Nasce da un fallo, da proteste o da un fallo da ultimo uomo (l'attaccante ha la palla nella metà campo avversaria e tra lui e la porta non resta nessun difensore di movimento). Se quel fallo valeva anche il giallo, giallo + azzurro = rosso. Si disattiva con `regole.azzurro_ultimo_uomo` = 0.
 - Punizione indiretta per: retropassaggio al portiere, portiere che trattiene la palla oltre 6 s, gioco pericoloso (avversario addosso al portiere in possesso), ostruzione, fuorigioco.
 - Fuorigioco solo nell'area piccola avversaria (6 × 12 m) e solo sulle riprese da fermo (punizione, angolo, calcio d'inizio; esenti rinvio e rimessa): a gioco in corso non si fischia. Valore scelto dal progetto, non verificato su un regolamento ufficiale. Si disattiva con `regole.fuorigioco_attivo` = 0; con `regole.fuorigioco_solo_da_fermo` = 0 vale anche a gioco in corso.
 

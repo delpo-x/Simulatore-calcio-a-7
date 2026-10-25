@@ -286,6 +286,23 @@ export function lastManTrial() {
   return { ultimo_uomo_azzurro: last.blue * last.lastMan, giallo_diventa_rosso: yel.red * yel.lastMan, coperto: cover.blue + cover.lastMan, propria_meta: own.blue + own.lastMan };
 }
 
+/** Conteggio delle ammonizioni: l'azzurro vale come un giallo, la seconda ammonizione (giallo o azzurro, in qualsiasi ordine) e' rosso; un solo giallo resta giallo. */
+export function cautionTrial() {
+  const run = (first, then, lastMan = false) => {
+    const s = quiet(), o = s.players[10], q = s.players[3], d = s.dir(o.team);
+    const foul = (card, lm) => {
+      s.state = 'play'; q.out = false; q.blueUntil = 0;
+      s.players.filter(p => p.team === q.team && !p.gk && p !== q).forEach((p, i) => Object.assign(p, { out: false, x: d * (lm ? 0 : 20), z: -10 + i * 5 }));
+      Object.assign(o, { x: d * (lm ? 10 : -5), z: 0 }); Object.assign(q, { x: o.x + d * 0.6, z: 0 });
+      Object.assign(s.ball, { x: o.x + d * 0.5, z: 0, y: 0.11, owner: o.id, vx: 0, vz: 0 });
+      s.events = []; s.callFoul(q, o, { card }); return s.events.find(e => e.t === 'foul');
+    };
+    const e1 = foul(first, false), e = then === undefined ? e1 : foul(then, lastMan);
+    return Number(e?.card === 'red' && q.out && !q.blueUntil);
+  };
+  return { giallo_azzurro: run('yellow', 'blue'), azzurro_giallo: run('blue', 'yellow'), azzurro_azzurro: run('blue', 'blue'), giallo_ultimo_uomo: run('yellow', null, true), giallo_solo: run('yellow') };
+}
+
 function quiet(n = 7) {
   const s = new Sim({ perTeam: n, seed: 1, halfLength: 1e6 });
   s.state = 'play'; s.form = [0, 0];

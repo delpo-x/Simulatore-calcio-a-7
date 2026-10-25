@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { FEATURES } from '../public/core/sim.js';
 import { runMatch, summarize } from './lib/matches.mjs';
 import { configSync } from './lib/config.mjs';
-import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, levelMatches, subsTrial, curveTrial, teamValidation, teamDeterminism, equalTeams, sendOffTrial, lastManTrial, backPassTrial, gkHoldTrial, offsideTrial, kickoffTrial, turnTrial, indirectInfractionTrial, opponentPassToKeeper, indirectKickTrial, skillFormula, throwInTrial } from './lib/micro.mjs';
+import { pitchSize, schemeLines, scaleDiff, foulTrials, setPieceDistances, anyPlayerCounts, staminaRun, tackleTrials, collisionTrial, carryGap, launchBall, shotSpeed, sprintRun, formationLayout, measureSpeed, pressingTrigger, sprintAttr, passErrorTrials, levelMatches, subsTrial, curveTrial, teamValidation, teamDeterminism, equalTeams, sendOffTrial, lastManTrial, cautionTrial, backPassTrial, gkHoldTrial, offsideTrial, kickoffTrial, turnTrial, indirectInfractionTrial, opponentPassToKeeper, indirectKickTrial, skillFormula, throwInTrial } from './lib/micro.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -40,6 +40,7 @@ const scenarios = {
   configSync: () => configSync(),
   sendOffTrial: () => sendOffTrial(),
   lastManTrial: () => lastManTrial(),
+  cautionTrial: () => cautionTrial(),
   backPassTrial: () => backPassTrial(),
   gkHoldTrial: () => gkHoldTrial(),
   offsideTrial: () => offsideTrial(),

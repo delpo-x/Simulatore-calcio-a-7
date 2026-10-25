@@ -33,7 +33,7 @@ import { Sim, DT } from './core/sim.js';
 import { Renderer } from './core/render.js';
 
 const $ = id => document.getElementById(id), canvas = $('c');
-const count = e => { if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; } else if (e.t === 'protest') { cards.blue++; cards.protest++; } else if (e.t === 'goal') cards.goals++; else if (e.t in cards) cards[e.t]++; };
+const count = e => { if (e.t === 'foul') { cards.fouls++; if (e.card) cards[e.card]++; } else if (e.t === 'protest') { cards[e.card ?? 'blue']++; cards.protest++; } else if (e.t === 'goal') cards.goals++; else if (e.t in cards) cards[e.t]++; };
 let sim, rend, paused = false, acc = 0, last = performance.now(), cards;
 
 function start() {

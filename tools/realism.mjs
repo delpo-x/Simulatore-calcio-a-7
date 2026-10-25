@@ -61,7 +61,7 @@ function play(seed, teams) {
       if (e.t === 'passOk') m.passOk++; else if (e.t === 'passLost') m.passLost++;
       else if (e.t === 'restart') m.restarts[e.kind] = (m.restarts[e.kind] || 0) + 1;
       else if (e.t === 'goal') m.goalsHalf[s.matchTime > s.halfLength ? 1 : 0]++;
-      else if (e.t === 'protest') m.cards.blue++;
+      else if (e.t === 'protest') m.cards[e.card ?? 'blue']++;
       else if (e.t === 'foul') { m.fouls++; if (e.card) m.cards[e.card]++; }
     }
     if (!active) { spellTeam = -1; continue; }

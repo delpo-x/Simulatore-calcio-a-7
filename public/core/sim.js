@@ -137,7 +137,7 @@ export class Sim {
     this.schemes = names.map(s => s ?? SCHEMES[perTeam]?.[0] ?? SCHEMES[11][0]);
     for (let team = 0; team < 2; team++) layout(perTeam, this.schemes[team], this.pitch).forEach(f => this.players.push({
       id: this.players.length, team, gk: !!f.gk, home: f, x: 0, z: 0, vx: 0, vz: 0, face: team === 0 ? 0 : Math.PI,
-      kickCd: 0, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 1, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
+      kickCd: 0, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 1, stun: 0, aiT: this.players.length % 6 / 60, plan: null, yellow: 0, cautions: 0, out: false, k: NEUTRAL, attr: null, foot: 'DX',
     }));
     teams.forEach((lineup, team) => lineup?.forEach((pl, i) => {
       const p = this.players.filter(q => q.team === team)[i];
@@ -1193,7 +1193,7 @@ export class Sim {
     if (i < 0) return false;
     const pl = bench.splice(i, 1)[0], out = p.name ?? `Giocatore ${p.id + 1}`, outNumber = p.number;
     p.k = deriveSkill(pl); p.attr = pl.attrs; p.foot = pl.foot; p.name = pl.name; p.number = pl.number;
-    p.stam = 1; p.load = 0; p.yellow = 0; p.stun = 0; p.injured = false; p.plan = null;
+    p.stam = 1; p.load = 0; p.yellow = 0; p.cautions = 0; p.stun = 0; p.injured = false; p.plan = null;
     this.subs[team]++;
     this.events.push({ t: 'sub', team, player: p.id, out, outNumber, reason });
     return true;
@@ -1230,19 +1230,24 @@ export class Sim {
   /** q commette fallo su o: sanzione e ripresa (punizione, o rigore se nella propria area). */
   callFoul(q, o, foul) {
     const pt = this.pitch, d = this.dir(o.team);
-    let card = foul.card;
+    let card = foul.card, second = false; // rosso diretto solo dal sorteggio di foulRoll: fallo grave o reazione grave
     const lastMan = RULES.lastManBlue && card !== 'red' && this.lastManFoul(q, o);
     if (lastMan) card = card === 'yellow' ? 'red' : 'blue'; // fallo da ultimo uomo: azzurro; se il fallo valeva anche il giallo, giallo + azzurro = rosso
-    if (card === 'yellow' && ++q.yellow >= 2) card = 'red'; // seconda ammonizione
+    if (card === 'yellow') q.yellow++;
+    if ((card === 'yellow' || card === 'blue') && ++q.cautions >= 2) { card = 'red'; second = true; } // seconda ammonizione: l'azzurro conta come un giallo
     const full = this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers;
     if (card === 'blue' && full) this.suspend(q);
     if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
-    this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free', ...(lastMan ? { lastMan: true } : {}) });
+    this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free', ...(lastMan ? { lastMan: true } : {}), ...(second ? { second: true } : {}) });
     if (!o.gk && !o.out && this.rand() < RULES.injuryProb * o.k.stun) { o.injured = true; this.events.push({ t: 'injury', team: o.team, player: o.id }); } // chi subisce il fallo puo' farsi male; Integrita fisica protegge
-    if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo
+    if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo; se era gia' ammonito e' il secondo cartellino, rosso
       const mates = this.players.filter(r => r.team === q.team && !r.out && !r.gk && !r.blueUntil);
-      if (mates.length) { const m = mates[Math.floor(this.rand() * mates.length)]; this.suspend(m); this.events.push({ t: 'protest', team: m.team, player: m.id }); }
+      if (mates.length) {
+        const m = mates[Math.floor(this.rand() * mates.length)], red = ++m.cautions >= 2;
+        if (red) this.sendOff(m); else this.suspend(m);
+        this.events.push({ t: 'protest', team: m.team, player: m.id, card: red ? 'red' : 'blue' });
+      }
     }
     if (penalty) this.setPiece('penalty', o.team, d * (pt.hx - pt.penaltySpot), 0);
     else this.deadBall('free', o.team, clamp(o.x, -pt.hx + 1, pt.hx - 1), clamp(o.z, -pt.hz + 1, pt.hz - 1));

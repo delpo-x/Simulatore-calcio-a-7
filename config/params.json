@@ -65,7 +65,7 @@
     "innesco_pressing_m": 16,
     "raggio_secondo_pressatore_m": 12,
     "distanza_minima_compagni_m": 11.5529,
-    "propensione_rischio": 1.9,
+    "propensione_rischio": 1.5,
     "distanza_minima_scalata_m": 3,
     "riferimento_lunghezza_campo_m": 105,
     "parametri_tattici": {
@@ -270,7 +270,7 @@
     "clearEager": 0.03,
     "tackleLoose": 0.5,
     "keeperAttr": 1.1,
-    "passSelf": 2,
+    "passSelf": 0.5,
     "roles": 1,
     "runBeyond": 4,
     "runFrom": 0,

@@ -373,7 +373,7 @@
       "args": {
         "strong": 17,
         "weak": 13,
-        "games": 24
+        "games": 72
       }
     },
     "metric": "goal_diff",
@@ -395,7 +395,7 @@
       "args": {
         "strong": 17,
         "weak": 13,
-        "games": 24
+        "games": 72
       }
     },
     "metric": "acc_diff",

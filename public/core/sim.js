@@ -24,7 +24,7 @@ export const MOVE = {
 
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
-  hz: 10, reaction: 0.1, passError: 0.056, risk: 1.9,
+  hz: 10, reaction: 0.1, passError: 0.056, risk: 1.5,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
   shootRange: 42, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.056, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 6, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
@@ -44,7 +44,7 @@ export const AI = {
   // effetto dei riflessi sul raggio di parata (m per unita' di attributo; additivo)
   keeperAttr: 1.1,
   // quanto il passatore mette in conto la propria imprecisione nella scelta del passaggio
-  passSelf: 2,
+  passSelf: 0.5,
   // ruoli in possesso (attackRole): incursore runBeyond oltre l'ultimo difensore (scalato) se il portatore ha superato runFrom x lunghezza dalla meta' campo verso la propria porta
   roles: 1, runBeyond: 4, runFrom: 0,
   // quanto la stima del passaggio anticipa la corsa del ricevitore (1 = come passTo, 0 = posizione attuale)
@@ -65,8 +65,10 @@ export const BALL = {
 };
 
 const BTN = { up: 1, down: 2, left: 4, right: 8, cross: 16, circle: 32, square: 64, triangle: 128, l: 256, r: 512 };
+// lunghezza di un vettore: Math.hypot e' molto piu' lento in V8 e qui si chiama centinaia di volte per passo
+const mag = (x, z) => Math.sqrt(x * x + z * z);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
+const dist = (ax, az, bx, bz) => mag(ax - bx, az - bz);
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -262,7 +264,7 @@ export class Sim {
   humanControl(p, bits) {
     const team = p.team, edge = bits & ~this.prev[team], b = this.ball;
     const mx = ((bits & BTN.right ? 1 : 0) - (bits & BTN.left ? 1 : 0)), mz = ((bits & BTN.down ? 1 : 0) - (bits & BTN.up ? 1 : 0));
-    const len = Math.hypot(mx, mz) || 1;
+    const len = mag(mx, mz) || 1;
     const aim = mx || mz ? Math.atan2(mz, mx) : p.face;
     const has = b.owner === p.id;
     if (has) {
@@ -278,7 +280,7 @@ export class Sim {
 
   // ---- actions ----
   kick(p, dx, dz, speed, lift) {
-    const b = this.ball, l = Math.hypot(dx, dz) || 1;
+    const b = this.ball, l = mag(dx, dz) || 1;
     this.markOffside(p);
     this.lastPass = null; b.shot = false; b.cross = false; b.curve = 0; b.kicker = p.id; b.toGk = this.aimedAtKeeper(p, dx / l, dz / l); b.kickDist = Math.abs(p.x - this.dir(p.team) * this.pitch.hx); b.owner = -1; b.vx = dx / l * speed; b.vz = dz / l * speed; b.vy = lift; b.last = p.id; p.kickCd = 0.4;
     b.x = p.x + dx / l * 0.7; b.z = p.z + dz / l * 0.7; b.y = Math.max(b.y, 0.15);
@@ -289,7 +291,7 @@ export class Sim {
     for (const q of this.players) {
       if (q.out) continue;
       if (q.team !== p.team || q.id === p.id) continue;
-      const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
+      const dx = q.x - p.x, dz = q.z - p.z, d = mag(dx, dz);
       if (d < 3) continue;
       const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dz, dx) - aim), Math.cos(Math.atan2(dz, dx) - aim)));
       if (directed && ang > 1.0) continue;
@@ -529,14 +531,14 @@ export class Sim {
       return { tx: spot.x + b.vx * lead, tz: spot.z + b.vz * lead, sprint: true };
     }
     if (!hold && rank === 1 && owner && db < this.sc(AI.secondPress)) {
-      const gx = -d * pt.hx, dx = gx - b.x, dz = -b.z, l = Math.hypot(dx, dz) || 1, c = this.sc(3);
+      const gx = -d * pt.hx, dx = gx - b.x, dz = -b.z, l = mag(dx, dz) || 1, c = this.sc(3);
       return { tx: b.x + dx / l * c, tz: b.z + dz / l * c, sprint: true };
     }
     const top = mates.reduce((m, q) => q.home.x > m.home.x ? q : m, mates[0]);
     let tx, tz;
     const deepest = mates.filter(q => q !== top && ranked.indexOf(q) > 0).sort((a, c) => a.home.x - c.home.x || a.id - c.id)[0];
     if (!hold && owner && p === deepest) { // ultimo difensore: si mette tra il portatore e la porta e lo contiene
-      const gx = -d * pt.hx, dx = gx - owner.x, dz = -owner.z, l = Math.hypot(dx, dz) || 1, m = Math.min(this.sc(AI.containDist), l);
+      const gx = -d * pt.hx, dx = gx - owner.x, dz = -owner.z, l = mag(dx, dz) || 1, m = Math.min(this.sc(AI.containDist), l);
       if (dist(p.x, p.z, owner.x, owner.z) < AI.tackleDist && p.kickCd === 0 && p.tackleT === 0 && this.rand() < AI.tackleEager) p.tackleT = 0.35;
       return { tx: owner.x + dx / l * m, tz: owner.z + dz / l * m, sprint: true };
     }
@@ -559,7 +561,7 @@ export class Sim {
         .sort((a, c) => Math.abs(a.x - gx) - Math.abs(c.x - gx) || a.id - c.id);
       const opp = threats[cover.indexOf(p)];
       if (opp) {
-        const dx = gx - opp.x, dz = -opp.z, l = Math.hypot(dx, dz) || 1, m = this.sc(3), mx = opp.x + dx / l * m, mz = opp.z + dz / l * m;
+        const dx = gx - opp.x, dz = -opp.z, l = mag(dx, dz) || 1, m = this.sc(3), mx = opp.x + dx / l * m, mz = opp.z + dz / l * m;
         if (AI.blockLine) { // nel blocco: si segue l'avversario di lato, e si scende sotto la linea se lui la attacca alle spalle, ma la marcatura non tira mai fuori dalla linea in avanti
           tx = d * Math.min(d * tx, d * mx); tz = tz * (1 - AI.blockMark) + mz * AI.blockMark;
         } else { tx = tx * (1 - AI.markWeight) + mx * AI.markWeight; tz = tz * (1 - AI.markWeight) + mz * AI.markWeight; }
@@ -695,8 +697,8 @@ export class Sim {
     const D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 9, 0.7, 1.7), pt = this.pitch;
     const px = clamp(q.x + q.vx * T * 0.6, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.6, -pt.hz + 1, pt.hz - 1);
     let dx = px - p.x, dz = pz - p.z;
-    if (this.rand() < AI.throwMiss * clamp(p.k.passErr, 0.5, 1.5)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.0, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; } // lancio impreciso
-    const D = Math.hypot(dx, dz) || 1;
+    if (this.rand() < AI.throwMiss * clamp(p.k.passErr, 0.5, 1.5)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.0, l = mag(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; } // lancio impreciso
+    const D = mag(dx, dz) || 1;
     p.face = Math.atan2(dz, dx);
     this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (4.9 * T * T - 2.0) / T);
     this.ball.x = p.x + dx / D * 0.3; this.ball.z = clamp(p.z + dz / D * 0.3, -pt.hz + 0.05, pt.hz - 0.05); this.ball.y = 2.0; // parte da sopra la linea, mai gia' fuori
@@ -709,8 +711,8 @@ export class Sim {
     const pt = this.pitch, D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 13, 0.9, 1.6);
     let px = clamp(q.x + q.vx * T * 0.5, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.5, -pt.hz + 1, pt.hz - 1);
     let dx = px - p.x, dz = pz - p.z;
-    if (this.rand() < AI.crossError * this.errMul(p, p.k.crossErr)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 0.7, l = Math.hypot(dx, dz) * (0.8 + this.rand() * 0.5); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
-    const D = Math.hypot(dx, dz);
+    if (this.rand() < AI.crossError * this.errMul(p, p.k.crossErr)) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 0.7, l = mag(dx, dz) * (0.8 + this.rand() * 0.5); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
+    const D = mag(dx, dz);
     this.kick(p, dx, dz, D / T / (1 - 0.075 * T), (1.65 + 4.9 * T * T) / T);
     this.ball.cross = true; this.lastPass = { team: p.team, id: p.id };
     this.events.push({ t: 'cross', team: p.team, player: p.id });
@@ -739,8 +741,8 @@ export class Sim {
     const pt = this.pitch, D0 = dist(p.x, p.z, q.x, q.z), T = clamp(D0 / 11, 1.2, 2.2);
     let px = clamp(q.x + q.vx * T * 0.7, -pt.hx + 1, pt.hx - 1), pz = clamp(q.z + q.vz * T * 0.7, -pt.hz + 1, pt.hz - 1);
     let dx = px - p.x, dz = pz - p.z;
-    if (miss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 0.7, l = Math.hypot(dx, dz) * (0.8 + this.rand() * 0.5); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
-    const D = Math.hypot(dx, dz);
+    if (miss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 0.7, l = mag(dx, dz) * (0.8 + this.rand() * 0.5); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
+    const D = mag(dx, dz);
     this.kick(p, dx, dz, D / T / (1 - 0.075 * T), 4.9 * T);
     this.lastPass = { team: p.team, id: p.id };
   }
@@ -814,7 +816,7 @@ export class Sim {
   passTo(p, q, miss) {
     const dd = dist(p.x, p.z, q.x, q.z), sp = clamp(AI.passSpeed0 + dd * 0.45, AI.passSpeed0 + 1.5, 20), t = dd / sp;
     let dx = q.x + q.vx * t * 0.8 - p.x, dz = q.z + q.vz * t * 0.8 - p.z;
-    if (miss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.2, l = Math.hypot(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
+    if (miss) { const a = Math.atan2(dz, dx) + (this.rand() - 0.5) * 1.2, l = mag(dx, dz); dx = Math.cos(a) * l; dz = Math.sin(a) * l; }
     this.kick(p, dx, dz, sp, 0);
     this.lastPass = { team: p.team, id: p.id };
   }
@@ -840,7 +842,7 @@ export class Sim {
       return { tx: p.x, tz: p.z, sprint: false };
     }
     p.holdT = 0;
-    const sp = Math.hypot(b.vx, b.vz);
+    const sp = mag(b.vx, b.vz);
     if (sp > 8 && b.vx * (goalX - b.x) > 0) {
       const zi = b.z + b.vz * ((goalX - b.x) / b.vx);
       if (Math.abs(zi) < pt.goalHalf + 1.5) return { tx: goalX + d, tz: clamp(zi + (this.rand() - 0.5) * 2 * AI.keeperError * p.k.posErr, -pt.goalHalf, pt.goalHalf), sprint: true };
@@ -855,7 +857,7 @@ export class Sim {
   }
 
   toward(p, tx, tz, sprint) {
-    const dx = tx - p.x, dz = tz - p.z, l = Math.hypot(dx, dz);
+    const dx = tx - p.x, dz = tz - p.z, l = mag(dx, dz);
     if (l < 0.6) return { mx: 0, mz: 0, sprint: false };
     const k = sprint ? 1 : Math.min(1, l / 3); // senza scatto si rallenta all'arrivo: un giocatore a posto cammina, non corre sul posto
     return { mx: dx / l * k, mz: dz / l * k, sprint };
@@ -867,13 +869,13 @@ export class Sim {
     const sprinting = c.sprint && (c.mx || c.mz) && p.stun <= 0;
     const kk = p.k, fm = 1 + this.form[p.team] * AI.formSpeed; // forma di giornata
     if (sprinting) { p.stam = Math.max(0, p.stam - DT / (MOVE.sprintSeconds * kk.stamina)); p.load = (p.load || 0) + DT; }
-    else if (Math.hypot(p.vx, p.vz) < MOVE.run * kk.speed + 0.5) p.stam = Math.min(1, p.stam + DT * kk.stamina / MOVE.recoverSeconds);
+    else if (mag(p.vx, p.vz) < MOVE.run * kk.speed + 0.5) p.stam = Math.min(1, p.stam + DT * kk.stamina / MOVE.recoverSeconds);
     const top = MOVE.sprint * kk.speed * fm * (1 - MOVE.lowStaminaLoss * (1 - p.stam)) * (this.ball.owner === p.id ? MOVE.carryFactor : 1);
     const max = p.stun > 0 ? 1.5 : p.tackleT > 0 ? 9.5 : sprinting ? top : MOVE.run * kk.speed * fm;
     let tx = c.mx * max, tz = c.mz * max;
     if (p.tackleT > 0 && !c.mx && !c.mz) { tx = Math.cos(p.face) * max; tz = Math.sin(p.face) * max; }
     // virata oltre 90 gradi: si perde velocita; la sterzata e' piu lenta ad alta velocita
-    const sp = Math.hypot(p.vx, p.vz);
+    const sp = mag(p.vx, p.vz);
     if (sp > 1 && (tx || tz) && p.vx * tx + p.vz * tz < 0) { tx *= 1 - MOVE.turnLoss * kk.balance; tz *= 1 - MOVE.turnLoss * kk.balance; }
     const k = 1 - Math.exp(-DT * kk.acc / MOVE.tau);
     p.vx += (tx - p.vx) * k; p.vz += (tz - p.vz) * k;
@@ -881,7 +883,7 @@ export class Sim {
     if (p.gk && p.tackleT <= 0 && this.ball.owner !== p.id && this.state === 'play') { // il portiere guarda sempre la palla, anche quando si sposta di lato sulla linea
       const bb = this.ball, a = Math.atan2(bb.z - p.z, bb.x - p.x), da = Math.atan2(Math.sin(a - p.face), Math.cos(a - p.face)), rateA = MOVE.turnRate0 * kk.agi;
       p.face += clamp(da, -rateA * DT, rateA * DT);
-    } else if (Math.hypot(p.vx, p.vz) > 0.8) {
+    } else if (mag(p.vx, p.vz) > 0.8) {
       const a = Math.atan2(p.vz, p.vx), da = Math.atan2(Math.sin(a - p.face), Math.cos(a - p.face));
       const rate = MOVE.turnRate0 - (MOVE.turnRate0 - MOVE.turnRateMax) * clamp(sp / MOVE.sprint, 0, 1);
       const rateA = rate * kk.agi;
@@ -893,7 +895,7 @@ export class Sim {
   tackleChance(q, o) {
     const front = this.tackleFront(q, o);
     let c = MOVE.tackleBase + (front < 0.3 ? (front < -0.3 ? 0.2 : 0.1) : 0);
-    if (Math.hypot(o.vx, o.vz) > MOVE.run + 0.5) c -= 0.1;
+    if (mag(o.vx, o.vz) > MOVE.run + 0.5) c -= 0.1;
     if (q.attr?.Contrasti && o.attr?.Dribbling) c += 0.015 * (q.attr.Contrasti - 14) - 0.015 * (o.attr.Dribbling - 13) + 0.005 * (q.attr.Forza - o.attr.Forza);
     c += (this.form[q.team] - this.form[o.team]) * AI.formTackle;
     return clamp(c, 0.05, 0.95);
@@ -905,11 +907,11 @@ export class Sim {
     for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
       const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z;
       if (a.out || b.out || dx * dx + dz * dz >= near2) continue;
-      const d = Math.hypot(dx, dz);
+      const d = mag(dx, dz);
       if (play && a.team !== b.team && this.indirectInfraction(a, b, d)) return;
       if (d > 0 && d < MOVE.minGap) {
         // urto forte: stordisce per 0,3 s chi viene colpito da dietro (l'altro e' dietro di lui)
-        if (Math.hypot(a.vx - b.vx, a.vz - b.vz) > MOVE.stunSpeed) {
+        if (mag(a.vx - b.vx, a.vz - b.vz) > MOVE.stunSpeed) {
           if (a.stun <= 0 && dx * Math.cos(a.face) + dz * Math.sin(a.face) < 0) a.stun = MOVE.stunSeconds * a.k.stun;
           if (b.stun <= 0 && -dx * Math.cos(b.face) - dz * Math.sin(b.face) < 0) b.stun = MOVE.stunSeconds * b.k.stun;
         }
@@ -960,7 +962,7 @@ export class Sim {
     }
     if (b.owner >= 0) {
       const o = ps[b.owner];
-      const gap = MOVE.ballGap + MOVE.ballGapPerSpeed * Math.hypot(o.vx, o.vz);
+      const gap = MOVE.ballGap + MOVE.ballGapPerSpeed * mag(o.vx, o.vz);
       const thrower = this.setKind?.kind === 'throwin' && this.setKind.taker === o.id;
       if (thrower) { // rimessa: il battitore arriva dal fuori campo, si china sulla palla ferma sulla linea, la solleva sopra la testa
         const k = this.setKind, t = k.t = (k.t ?? 0) + DT, side = Math.sign(k.z), walk = Math.max(0, 1 - t / 0.6), lift = clamp((t - 0.9) / 0.5, 0, 1);
@@ -977,8 +979,8 @@ export class Sim {
     b.vy -= 9.8 * DT;
     const air = b.y > 0.12;
     if (air) { const f = Math.max(0, 1 - BALL.airDrag * DT); b.vx *= f; b.vz *= f; }
-    if (!air) { const s = Math.hypot(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
-    if (b.curve) { const s2 = Math.hypot(b.vx, b.vz); if (s2 < 8 || b.owner >= 0) b.curve = 0; else { const c = Math.cos(b.curve * DT), sn = Math.sin(b.curve * DT), nx = b.vx * c - b.vz * sn; b.vz = b.vx * sn + b.vz * c; b.vx = nx; } } // effetto: la direzione ruota
+    if (!air) { const s = mag(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
+    if (b.curve) { const s2 = mag(b.vx, b.vz); if (s2 < 8 || b.owner >= 0) b.curve = 0; else { const c = Math.cos(b.curve * DT), sn = Math.sin(b.curve * DT), nx = b.vx * c - b.vz * sn; b.vz = b.vx * sn + b.vz * c; b.vx = nx; } } // effetto: la direzione ruota
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
@@ -994,7 +996,7 @@ export class Sim {
       if (Math.abs(b.x) > hx) { b.vx *= 0.92; b.vz *= 0.92; }
     }
     if (this.state === 'dead') return;
-    const sp = Math.hypot(b.vx, b.vz);
+    const sp = mag(b.vx, b.vz);
     // tiro ribattuto da un difensore in linea di tiro: spesso in angolo
     if (b.shot && sp >= 14 && b.y < 1.8 && b.kicker >= 0 && AI.blockProb > 0) {
       const st = this.players[b.kicker].team;
@@ -1199,7 +1201,7 @@ export class Sim {
   }
 
   tackleFront(q, o) {
-    const dx = q.x - o.x, dz = q.z - o.z, l = Math.hypot(dx, dz) || 1;
+    const dx = q.x - o.x, dz = q.z - o.z, l = mag(dx, dz) || 1;
     return (dx * Math.cos(o.face) + dz * Math.sin(o.face)) / l; // 1 = q davanti a o, -1 = dietro
   }
 

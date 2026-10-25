@@ -206,7 +206,11 @@ export class Sim {
 
   /** inputs: array(2) of button bitmasks (or null = AI) for team 0 and team 1. */
   /** Giocatori in ordine alternato a ogni passo: chi viene aggiornato per secondo vede le posizioni gia' aggiornate, e un ordine fisso favorirebbe sempre una squadra. */
-  ordered() { return this.tickN & 1 ? [...this.players].reverse() : this.players; }
+  ordered() {
+    if (!(this.tickN & 1)) return this.players;
+    if (this.revOf !== this.players || this.rev.length !== this.players.length) { this.revOf = this.players; this.rev = [...this.players].reverse(); }
+    return this.rev;
+  }
 
   step(inputs = [null, null]) {
     const ev = this.events = [];
@@ -246,13 +250,12 @@ export class Sim {
 
   // ---- control selection ----
   pickActive(team) {
-    const b = this.ball, mine = this.players.filter(p => p.team === team && !p.gk && !p.out);
-    const owner = b.owner >= 0 ? this.players[b.owner] : null;
+    const b = this.ball, owner = b.owner >= 0 ? this.players[b.owner] : null;
     if (owner && owner.team === team && !owner.gk) { this.active[team] = owner.id; return; }
     const cur = this.players[this.active[team]];
-    if (!mine.length) return;
-    let best = mine[0];
-    for (const p of mine) if (dist(p.x, p.z, b.x, b.z) < dist(best.x, best.z, b.x, b.z)) best = p;
+    let best = null, bd = Infinity;
+    for (const p of this.players) if (p.team === team && !p.gk && !p.out) { const dp = dist(p.x, p.z, b.x, b.z); if (!best || dp < bd) { best = p; bd = dp; } }
+    if (!best) return;
     if (!cur || cur.team !== team || cur.gk || dist(cur.x, cur.z, b.x, b.z) > dist(best.x, best.z, b.x, b.z) + 2.5) this.active[team] = best.id;
   }
 
@@ -898,10 +901,12 @@ export class Sim {
 
   separate() {
     const ps = this.players;
+    const near = Math.max(MOVE.minGap, RULES.dangerDist), near2 = near * near * 1.01, play = this.state === 'play'; // oltre questa distanza nessun contatto e nessuna infrazione
     for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
-      const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
-      if (a.out || b.out) continue;
-      if (this.state === 'play' && a.team !== b.team && this.indirectInfraction(a, b, d)) return;
+      const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z;
+      if (a.out || b.out || dx * dx + dz * dz >= near2) continue;
+      const d = Math.hypot(dx, dz);
+      if (play && a.team !== b.team && this.indirectInfraction(a, b, d)) return;
       if (d > 0 && d < MOVE.minGap) {
         // urto forte: stordisce per 0,3 s chi viene colpito da dietro (l'altro e' dietro di lui)
         if (Math.hypot(a.vx - b.vx, a.vz - b.vz) > MOVE.stunSpeed) {

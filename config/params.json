@@ -105,6 +105,7 @@
     "azzurro_minuti": 5,
     "fuorigioco_attivo": 1,
     "fuorigioco_solo_da_fermo": 1,
+    "azzurro_ultimo_uomo": 1,
     "area_piccola_profondita_m": 5.1,
     "area_piccola_larghezza_m": 12,
     "fallo_azzurro_su_fallo": 0.015,

@@ -109,7 +109,7 @@ export function layout(n, scheme, pitch) {
 
 /** Regole (ticket 06; specchio di config/params.json, sezione "regole"). */
 export const RULES = {
-  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, offsideDead: 1, smallAreaDepth: 5.1, smallAreaWidth: 12,
+  foulProb: 0.37, areaCaution: 0.35, yellowShare: 0.125, redShare: 0.01, blueShare: 0.015, protestShare: 0.015, blueSeconds: 300, gkHoldSeconds: 6, obstructRate: 0.015, dangerRate: 0.25, dangerDist: 1.2, offside: 1, offsideDead: 1, lastManBlue: 1, smallAreaDepth: 5.1, smallAreaWidth: 12,
   minPlayers: 5, injuryProb: 0.04, maxSubs: 3, goalAreaDepth: 5, wallDistance: 6, cornerDistance: 5.5, kickoffDistance: 6,
 };
 
@@ -1207,8 +1207,7 @@ export class Sim {
     p.x = clamp(x + ux * R, -pt.hx + 0.5, pt.hx - 0.5); p.z = clamp(z + uz * R, -pt.hz + 0.5, pt.hz - 0.5);
   }
 
-  /** Esito del rischio di fallo su un contrasto: null, oppure { card: null | 'yellow' | 'red' }. */
-  /** Esito di un contrasto a rischio commesso da q: fallo (piu' probabile se aggressivo) ed eventuale cartellino; l'azzurro e' per proteste o reazione. */
+  /** Esito di un contrasto a rischio commesso da q: null, oppure { card: null | 'yellow' | 'red' | 'blue' } (fallo piu' probabile se aggressivo). L'azzurro e' per reazione o proteste; quello per fallo da ultimo uomo lo decide callFoul. */
   foulRoll(q) {
     const pt = this.pitch, inOwnArea = q && q.x * this.dir(q.team) < -(pt.hx - pt.areaDepth) && Math.abs(q.z) < pt.areaWidth / 2; // in area i difensori stanno attenti: un rigore costa troppo
     if (this.rand() >= RULES.foulProb * (q ? q.k.foul : 1) * (inOwnArea ? RULES.areaCaution : 1)) return null;
@@ -1221,16 +1220,25 @@ export class Sim {
     return (dx * Math.cos(o.face) + dz * Math.sin(o.face)) / l; // 1 = q davanti a o, -1 = dietro
   }
 
+  /** Fallo da ultimo uomo: o attacca nella meta' campo avversaria con la palla (o a un passo da lei) e tra lui e la porta non resta nessun compagno di movimento di q. */
+  lastManFoul(q, o) {
+    const d = this.dir(o.team), b = this.ball;
+    if (q.gk || d * o.x <= 0 || (b.owner !== o.id && dist(b.x, b.z, o.x, o.z) > 2)) return false;
+    return !this.players.some(r => r !== q && r.team === q.team && !r.out && !r.gk && d * r.x > d * o.x);
+  }
+
   /** q commette fallo su o: sanzione e ripresa (punizione, o rigore se nella propria area). */
   callFoul(q, o, foul) {
     const pt = this.pitch, d = this.dir(o.team);
     let card = foul.card;
+    const lastMan = RULES.lastManBlue && card !== 'red' && this.lastManFoul(q, o);
+    if (lastMan) card = 'blue'; // fallo da ultimo uomo: azzurro (al posto di un eventuale giallo)
     if (card === 'yellow' && ++q.yellow >= 2) card = 'red'; // seconda ammonizione
     const full = this.players.filter(r => r.team === q.team && !r.out).length > RULES.minPlayers;
     if (card === 'blue' && full) this.suspend(q);
     if (card === 'red' && full) this.sendOff(q); // sotto il minimo la partita sarebbe sospesa: nessuna altra espulsione (ipotesi)
     const penalty = Math.abs(o.x) > pt.hx - pt.areaDepth && Math.sign(o.x) === d && Math.abs(o.z) < pt.areaWidth / 2;
-    this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free' });
+    this.events.push({ t: 'foul', team: q.team, player: q.id, victim: o.team, card, kind: penalty ? 'penalty' : 'free', ...(lastMan ? { lastMan: true } : {}) });
     if (!o.gk && !o.out && this.rand() < RULES.injuryProb * o.k.stun) { o.injured = true; this.events.push({ t: 'injury', team: o.team, player: o.id }); } // chi subisce il fallo puo' farsi male; Integrita fisica protegge
     if (full && card !== 'red' && this.rand() < RULES.protestShare) { // proteste: azzurro a un compagno di q, senza fallo
       const mates = this.players.filter(r => r.team === q.team && !r.out && !r.gk && !r.blueUntil);

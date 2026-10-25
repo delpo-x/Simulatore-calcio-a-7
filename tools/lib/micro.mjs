@@ -270,6 +270,22 @@ export function sendOffTrial() {
   return out;
 }
 
+/** Fallo da ultimo uomo: l'attaccante con palla nella meta' avversaria e nessun altro difensore di movimento tra lui e la porta -> azzurro (anche al posto di un giallo); con un difensore in copertura o nella propria meta' campo -> nessun azzurro. */
+export function lastManTrial() {
+  const run = (ox, coverX, card = null) => {
+    const s = quiet(), o = s.players[10], q = s.players[3], d = s.dir(o.team);
+    s.players.filter(p => p.team === q.team && !p.gk && p !== q).forEach((p, i) => Object.assign(p, { x: d * (ox - 8), z: -10 + i * 5 }));
+    if (coverX !== null) Object.assign(s.players[4], { x: d * coverX, z: 3 });
+    Object.assign(o, { x: d * ox, z: 0 }); Object.assign(q, { x: d * (ox + 0.6), z: 0 });
+    Object.assign(s.ball, { x: o.x + d * 0.5, z: 0, y: 0.11, owner: o.id, vx: 0, vz: 0 });
+    s.callFoul(q, o, { card });
+    const e = s.events.find(x => x.t === 'foul');
+    return { blue: Number(e?.card === 'blue'), lastMan: Number(!!e?.lastMan), yellow: q.yellow };
+  };
+  const last = run(10, null), yel = run(10, null, 'yellow'), cover = run(10, 16), own = run(-5, null);
+  return { ultimo_uomo_azzurro: last.blue * last.lastMan, giallo_diventa_azzurro: yel.blue * (yel.yellow === 0 ? 1 : 0), coperto: cover.blue + cover.lastMan, propria_meta: own.blue + own.lastMan };
+}
+
 function quiet(n = 7) {
   const s = new Sim({ perTeam: n, seed: 1, halfLength: 1e6 });
   s.state = 'play'; s.form = [0, 0];

@@ -77,7 +77,7 @@ export class MatchStats {
       } else if (e.t === 'foul') {
         s.fouls[e.team]++; ps[e.player].fouls++;
         if (e.kind === 'penalty') this.push({ t: 'penalty', team: e.victim, player: e.player });
-        if (e.card) { s[e.card][e.team]++; ps[e.player][e.card]++; this.push({ t: e.card, team: e.team, player: e.player, second: e.card === 'red' && sim.players[e.player]?.yellow >= 2 }); }
+        if (e.card) { s[e.card][e.team]++; ps[e.player][e.card]++; this.push({ t: e.card, team: e.team, player: e.player, second: e.card === 'red' && sim.players[e.player]?.yellow >= 2, lastMan: !!e.lastMan }); }
       } else if (e.t === 'protest') { s.blue[e.team]++; ps[e.player].blue++; this.push({ t: 'blue', team: e.team, player: e.player, protest: true }); }
       else if (e.t === 'restart' && e.kind === 'corner') s.corners[e.team]++;
       else if (e.t === 'injury') this.push({ t: 'injury', team: e.team, player: e.player });

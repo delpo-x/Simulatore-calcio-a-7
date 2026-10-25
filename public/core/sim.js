@@ -34,9 +34,9 @@ export const AI = {
   // blocco difensivo (aiDefend): linea arretrata lineBehind dietro la palla (scalato), mai sotto lineFloor x profondita' area ne' oltre la linea tattica + lineUp; reparti a lineGap; stringe (blockNarrow) e scivola verso la palla (blockShift); peso della marcatura nel blocco
   blockLine: 1, lineBehind: 32, lineFloor: 0.5, lineUp: 0, lineGap: 7, lineCushion: 3, blockNarrow: 0.8, blockShift: 0.35, blockMark: 0.8,
   // passaggio probabilistico (passValue): riuscita da tempo palla contro tempo avversario (passK ripidita', passMargin anticipo richiesto in s), pericolosita' delle posizioni (threatLen, scalata), pesi di riuscita, spazio davanti al ricevitore e perdita
-  passEV: 1, passK: 6, passMargin: -0.15, threatLen: 30, passOkW: 1, passAhead: 0.2, passLoss: 0.5,
+  passEV: 1, passK: 6, passMargin: -0.1, threatLen: 30, passOkW: 1, passAhead: 0.2, passLoss: 0.5,
   // valore della conduzione nella scelta del passaggio: la soglia sale con lo spazio libero davanti al portatore
-  passKeep: 0.85,
+  passKeep: 0.92,
   // spazzata: probabilita' per decisione che un difensore pressato nella propria meta' campo, senza passaggi convenienti, calci lungo
   clearEager: 0.03,
   // quota dei contrasti vinti in cui la palla schizza via invece di restare a chi contrasta
@@ -45,6 +45,12 @@ export const AI = {
   keeperAttr: 1.1,
   // quanto il passatore mette in conto la propria imprecisione nella scelta del passaggio
   passSelf: 2,
+  // ruoli in possesso (attackRole): incursore runBeyond oltre l'ultimo difensore (scalato) se il portatore ha superato runFrom x lunghezza dalla meta' campo verso la propria porta
+  roles: 1, runBeyond: 4, runFrom: 0,
+  // quanto la stima del passaggio anticipa la corsa del ricevitore (1 = come passTo, 0 = posizione attuale)
+  passLead: 1,
+  // incursore in attesa: quanto resta prima dell'ultimo difensore quando il portatore e' pressato (scalato)
+  runHold: 6,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -371,8 +377,15 @@ export class Sim {
     const mates = this.players.filter(q => q.team === p.team && !q.gk && !q.out && q !== carrier);
     const near = mates.reduce((m, q) => dist(q.x, q.z, carrier.x, carrier.z) < dist(m.x, m.z, carrier.x, carrier.z) ? q : m, mates[0]);
     const counter = this.possTeam === p.team && this.possT < 1.5; // transizione: palla appena recuperata
-    let tx, tz;
-    if (near === p) { // appoggio: sul cerchio attorno al portatore, dove lo spazio e' nostro e la linea di passaggio e' libera
+    const role = AI.roles ? this.attackRole(p, carrier, mates, near) : '';
+    let tx, tz, sprint = counter;
+    if (role === 'runner') { // incursore: attacca lo spazio alle spalle dell'ultimo difensore, sul proprio corridoio
+      const opp = this.players.filter(q => q.team !== p.team && !q.gk && !q.out), last = Math.max(...opp.map(q => d * q.x));
+      const free = Math.min(...opp.map(q => dist(q.x, q.z, carrier.x, carrier.z))) > AI.pressedDist * 1.5; // si parte solo se il portatore puo' alzare la testa; altrimenti si resta sulla linea, pronti
+      const bx = d * (last + (free ? this.sc(AI.runBeyond) : -this.sc(AI.runHold))), r = this.sc(AI.spaceRadius) * 0.6, ring = [[bx, p.z]];
+      for (const dz of [-1, 1]) ring.push([bx, p.z + dz * r], [bx - d * r, p.z + dz * r]);
+      [tx, tz] = this.findSpace(p, carrier, ring, bx, p.z); sprint = free || counter;
+    } else if (near === p) { // appoggio: sul cerchio attorno al portatore, dove lo spazio e' nostro e la linea di passaggio e' libera
       const r = this.sc(8), a0 = d > 0 ? 0 : Math.PI, ring = [];
       for (let k = -3; k <= 3; k++) { const a = a0 + k * Math.PI / 4; ring.push([carrier.x + Math.cos(a) * r, carrier.z + Math.sin(a) * r]); }
       [tx, tz] = this.findSpace(p, carrier, ring, carrier.x + d * r, carrier.z + (carrier.z > 0 ? -1 : 1) * r);
@@ -387,7 +400,23 @@ export class Sim {
     [tx, tz] = this.spread(p, tx, tz);
     if (p.posOff) { tx += p.posOff[0]; tz += p.posOff[1]; }
     const lim = pt.hx - this.sc(AI.attackDepth); // gli attaccanti non si piazzano sulla linea di porta
-    return { tx: clamp(tx, d > 0 ? -pt.hx + 2 : -lim, d > 0 ? lim : pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint: counter };
+    return { tx: clamp(tx, d > 0 ? -pt.hx + 2 : -lim, d > 0 ? lim : pt.hx - 2), tz: clamp(tz, -pt.hz + 2, pt.hz - 2), sprint };
+  }
+
+  /** Ruolo in fase di possesso, deciso per la squadra intera una volta per passo: 'support' (il piu' vicino al portatore),
+   *  'runner' (il compagno piu' avanzato davanti alla palla, quando il portatore ha superato la propria trequarti difensiva), '' gli altri (smarcamento libero). */
+  attackRole(p, carrier, mates, near) {
+    const c = this.roleCache ??= [null, null];
+    if (!c[p.team] || c[p.team].tick !== this.tickN || c[p.team].carrier !== carrier.id) {
+      const d = this.dir(p.team), L = this.pitch.hx * 2, r = new Map(), free = mates.filter(q => q !== near);
+      if (near) r.set(near.id, 'support');
+      if (!carrier.gk && d * carrier.x > -L * AI.runFrom) { // costruzione dal basso (portiere o palla nella propria trequarti): niente incursioni
+        const run = free.filter(q => d * (q.x - carrier.x) > 0).reduce((m, q) => !m || d * q.x > d * m.x ? q : m, null);
+        if (run) r.set(run.id, 'runner');
+      }
+      c[p.team] = { tick: this.tickN, carrier: carrier.id, r };
+    }
+    return c[p.team].r.get(p.id) ?? '';
   }
 
   /** Secondi perche' q arrivi in (x, z): reazione (piu' l'eventuale stordimento) proseguendo con la velocita' attuale, poi corsa alla sua velocita' massima. */
@@ -740,11 +769,13 @@ export class Sim {
   /** Valore atteso di un passaggio a q: riuscita x (avanzamento verso la porta, pesato da rischio e visione, + spazio che il ricevitore trova davanti + passOkW)
    *  meno insuccesso x pericolosita' per l'avversario nel punto dove la palla verrebbe persa, meno la distanza. Stessa scala e stessa soglia (passMin) della valutazione a pesi fissi. */
   passValue(p, q, dd) {
-    const d = this.dir(p.team), L = this.pitch.hx * 2, ax = clamp(q.x + d * this.sc(6), -this.pitch.hx, this.pitch.hx);
-    const ok = this.passOdds(p, q.x, q.z, dd) * clamp(1 - AI.passSelf * Math.max(0, p.k.passErr - 1) * dd / this.sc(20), 0, 1); // chi passa peggio della media lo mette in conto: gioca piu' semplice e corto
-    const ahead = this.control(p.team, ax, q.z, this.arriveT(q, ax, q.z)); // spazio davanti al ricevitore per giocare il pallone successivo
-    const lose = this.threat(1 - p.team, (p.x + q.x) / 2, (p.z + q.z) / 2);
-    const gain = ok * ((q.x - p.x) * d / L * 2 * AI.risk * p.k.vision + AI.passAhead * ahead + AI.passOkW) - (1 - ok) * AI.passLoss * lose - dd / L * 0.5;
+    const d = this.dir(p.team), L = this.pitch.hx * 2, pt = this.pitch;
+    const tl = dd / clamp(AI.passSpeed0 + dd * 0.45, AI.passSpeed0 + 1.5, 20) * 0.8 * AI.passLead; // come passTo: la palla va dove il compagno sta correndo (imbucata all'incursore)
+    const qx = clamp(q.x + q.vx * tl, -pt.hx, pt.hx), qz = clamp(q.z + q.vz * tl, -pt.hz, pt.hz), dl = dist(p.x, p.z, qx, qz), ax = clamp(qx + d * this.sc(6), -pt.hx, pt.hx);
+    const ok = this.passOdds(p, qx, qz, dl) * clamp(1 - AI.passSelf * Math.max(0, p.k.passErr - 1) * dl / this.sc(20), 0, 1); // chi passa peggio della media lo mette in conto: gioca piu' semplice e corto
+    const ahead = this.control(p.team, ax, qz, this.arriveT(q, ax, qz)); // spazio davanti al ricevitore per giocare il pallone successivo
+    const lose = this.threat(1 - p.team, (p.x + qx) / 2, (p.z + qz) / 2);
+    const gain = ok * ((qx - p.x) * d / L * 2 * AI.risk * p.k.vision + AI.passAhead * ahead + AI.passOkW) - (1 - ok) * AI.passLoss * lose - dl / L * 0.5;
     return gain + (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise;
   }
 

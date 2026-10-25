@@ -35,7 +35,10 @@ export const PARAM_MAP = [
     clearEager: 0,
     tackleLoose: 0,
     keeperAttr: 0,
-    passSelf: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
+    passSelf: 0,
+    roles: 0, runBeyond: 0, runFrom: 0,
+    passLead: 0,
+    runHold: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
 ];
 
 const DEFAULTS = PARAM_MAP.map(([, obj, key]) => obj[key]); // valori del motore all'importazione, prima di applyParams

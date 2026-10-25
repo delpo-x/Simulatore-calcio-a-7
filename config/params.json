@@ -261,15 +261,20 @@
     "lineCushion": 3,
     "passEV": 1,
     "passK": 6,
-    "passMargin": -0.15,
+    "passMargin": -0.1,
     "threatLen": 30,
     "passOkW": 1,
     "passAhead": 0.2,
     "passLoss": 0.5,
-    "passKeep": 0.85,
+    "passKeep": 0.92,
     "clearEager": 0.03,
     "tackleLoose": 0.5,
     "keeperAttr": 1.1,
-    "passSelf": 2
+    "passSelf": 2,
+    "roles": 1,
+    "runBeyond": 4,
+    "runFrom": 0,
+    "passLead": 1,
+    "runHold": 6
   }
 }

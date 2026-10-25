@@ -29,7 +29,13 @@ export const PARAM_MAP = [
   ...Object.keys({ shootRange: 0, shootEager: 0, shotAngle: 0, shotAnglePerM: 0, tackleEager: 0, markWeight: 0, containDist: 0, forceShot: 0, laneWidth: 0, shotMargin: 0, shotFarPost: 0, longBall: 0, keeperLong: 0, tackleFoul: 0, passSlip: 0, shieldSeconds: 0, longMin: 0, passSpeed0: 0, tackleDist: 0,
     sprintFree: 0, defenderLimit: 0, passBase: 0, passPressed: 0, passMin: 0, pressedDist: 0, pressedErrMul: 0, decisionNoise: 0, formSpread: 0, formSpeed: 0, formTackle: 0, attackDepth: 0, blockDepth: 0,
     ctrlReact: 0, ctrlK: 0, spaceRadius: 0, spaceWeight: 0, spaceLane: 0, spaceFwd: 0, spaceStick: 0, passSpace: 0,
-    blockLine: 0, lineBehind: 0, lineFloor: 0, lineUp: 0, lineGap: 0, lineCushion: 0, blockNarrow: 0, blockShift: 0, blockMark: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
+    blockLine: 0, lineBehind: 0, lineFloor: 0, lineUp: 0, lineGap: 0, lineCushion: 0, blockNarrow: 0, blockShift: 0, blockMark: 0,
+    passEV: 0, passK: 0, passMargin: 0, threatLen: 0, passOkW: 0, passAhead: 0, passLoss: 0,
+    passKeep: 0,
+    clearEager: 0,
+    tackleLoose: 0,
+    keeperAttr: 0,
+    passSelf: 0 }).map(k => [`ia_taratura.${k}`, AI, k]),
 ];
 
 const DEFAULTS = PARAM_MAP.map(([, obj, key]) => obj[key]); // valori del motore all'importazione, prima di applyParams

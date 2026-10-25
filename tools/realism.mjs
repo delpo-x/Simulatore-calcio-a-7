@@ -41,10 +41,12 @@ function play(seed, teams) {
   const max = Math.ceil(half * 2 * 60 * 3 / DT);
   let steps = 0;
   while (s.state !== 'full' && steps < max) {
+    const was = s.state;
     s.step([null, null]); steps++;
     const b = s.ball, active = s.state === 'play';
     m.maxBallSpeed = Math.max(m.maxBallSpeed, Math.hypot(b.vx, b.vz, b.vy ?? 0));
-    const reset = s.events.some(e => e.t === 'restart' || e.t === 'goal' || e.t === 'blueEnd');
+    // riposizionamento, non teletrasporto: ripresa dopo intervallo o palla ferma (alla ripresa del secondo tempo possono saltare anche solo 1-3 giocatori, se gli altri erano gia' al loro posto)
+    const reset = was !== 'play' || s.events.some(e => e.t === 'restart' || e.t === 'goal' || e.t === 'blueEnd');
     let jumps = 0;
     s.players.forEach((p, i) => {
       if (!p.out) {

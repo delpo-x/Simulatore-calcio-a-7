@@ -65,7 +65,7 @@
     "innesco_pressing_m": 16,
     "raggio_secondo_pressatore_m": 12,
     "distanza_minima_compagni_m": 11.5529,
-    "propensione_rischio": 0.75,
+    "propensione_rischio": 1.9,
     "distanza_minima_scalata_m": 3,
     "riferimento_lunghezza_campo_m": 105,
     "parametri_tattici": {
@@ -210,11 +210,11 @@
     "rimbalzo": 0.5
   },
   "ia_taratura": {
-    "shootRange": 48,
+    "shootRange": 42,
     "shootEager": 0.95,
     "shotAngle": 1,
     "shotAnglePerM": 0.5,
-    "tackleEager": 0.0438,
+    "tackleEager": 0.056,
     "markWeight": 0.7,
     "containDist": 5,
     "forceShot": 2,
@@ -224,12 +224,12 @@
     "longBall": 0.002,
     "keeperLong": 0.4,
     "tackleFoul": 0.6817,
-    "passSlip": 0.8,
+    "passSlip": 0.6,
     "shieldSeconds": 0.3,
     "longMin": 30,
     "passSpeed0": 7,
     "tackleDist": 1.6,
-    "sprintFree": 12,
+    "sprintFree": 6,
     "defenderLimit": -0.1,
     "passBase": 0.7439,
     "passPressed": 0.05,
@@ -258,6 +258,18 @@
     "blockNarrow": 0.8,
     "blockShift": 0.35,
     "blockMark": 0.8,
-    "lineCushion": 3
+    "lineCushion": 3,
+    "passEV": 1,
+    "passK": 6,
+    "passMargin": -0.15,
+    "threatLen": 30,
+    "passOkW": 1,
+    "passAhead": 0.2,
+    "passLoss": 0.5,
+    "passKeep": 0.85,
+    "clearEager": 0.03,
+    "tackleLoose": 0.5,
+    "keeperAttr": 1.1,
+    "passSelf": 2
   }
 }

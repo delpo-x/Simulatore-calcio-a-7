@@ -24,15 +24,27 @@ export const MOVE = {
 
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
-  hz: 10, reaction: 0.1, passError: 0.056, risk: 0.75,
+  hz: 10, reaction: 0.1, passError: 0.056, risk: 1.9,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
-  shootRange: 48, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
+  shootRange: 42, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.056, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 6, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
+  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.6, shieldSeconds: 0.3,
   // controllo dello spazio (arriveT/control/findSpace): reazione e ripidita' della curva tempo->controllo, raggio dei punti di smarcamento (scalato) e pesi della scelta
   ctrlReact: 0.25, ctrlK: 3, spaceRadius: 9, spaceWeight: 1, spaceLane: 0.5, spaceFwd: 0.3, spaceStick: 0.3, passSpace: 0,
   // blocco difensivo (aiDefend): linea arretrata lineBehind dietro la palla (scalato), mai sotto lineFloor x profondita' area ne' oltre la linea tattica + lineUp; reparti a lineGap; stringe (blockNarrow) e scivola verso la palla (blockShift); peso della marcatura nel blocco
   blockLine: 1, lineBehind: 32, lineFloor: 0.5, lineUp: 0, lineGap: 7, lineCushion: 3, blockNarrow: 0.8, blockShift: 0.35, blockMark: 0.8,
+  // passaggio probabilistico (passValue): riuscita da tempo palla contro tempo avversario (passK ripidita', passMargin anticipo richiesto in s), pericolosita' delle posizioni (threatLen, scalata), pesi di riuscita, spazio davanti al ricevitore e perdita
+  passEV: 1, passK: 6, passMargin: -0.15, threatLen: 30, passOkW: 1, passAhead: 0.2, passLoss: 0.5,
+  // valore della conduzione nella scelta del passaggio: la soglia sale con lo spazio libero davanti al portatore
+  passKeep: 0.85,
+  // spazzata: probabilita' per decisione che un difensore pressato nella propria meta' campo, senza passaggi convenienti, calci lungo
+  clearEager: 0.03,
+  // quota dei contrasti vinti in cui la palla schizza via invece di restare a chi contrasta
+  tackleLoose: 0.5,
+  // effetto dei riflessi sul raggio di parata (m per unita' di attributo; additivo)
+  keeperAttr: 1.1,
+  // quanto il passatore mette in conto la propria imprecisione nella scelta del passaggio
+  passSelf: 2,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -301,6 +313,9 @@ export class Sim {
   // ---- AI ----
   /** Distanza dell'IA scalata sulla lunghezza del campo (riferimento 105 m), con un minimo di 3 m (ticket 08). */
   sc(d) { return Math.max(AI.minScaled, d * this.pitch.hx * 2 / AI.refLength); }
+
+  /** Raggio di parata del portiere: base piu' l'effetto dei riflessi (keeperAttr metri per unita' di attributo), additivo cosi' la base non amplifica la differenza tra portieri. */
+  keeperReachOf(p) { return AI.keeperReach + AI.keeperAttr * (p.k.reach - 1); }
 
   /** Moltiplicatore d'errore: i giocatori con attributi usano il piede debole nel 30% dei casi (errore x1,5). */
   errMul(p, m) { return p.attr && this.rand() < 0.3 && p.foot ? m * 1.5 : m; }
@@ -579,7 +594,7 @@ export class Sim {
       this.passTo(p, best, this.rand() < AI.passSlip * clamp(p.k.passErr, 0.5, 1.15) + AI.passError * this.errMul(p, p.k.passErr) * (pressed ? AI.pressedErrMul : 1) * (1 - 2 * this.form[p.team])); // sotto pressione si sbaglia di piu'
       return hold;
     }
-    if (pressed && !best && d * p.x < -L * 0.2 && this.rand() < 0.03) { // spalle alla porta e senza appoggi: si spazza lungo
+    if (pressed && !best && d * p.x < -L * 0.2 && this.rand() < AI.clearEager) { // spalle alla porta e senza appoggi: si spazza lungo
       const q = this.bestLong(p, true);
       if (q) { this.lobTo(p, q, this.rand() < 0.4); return hold; }
     }
@@ -709,11 +724,36 @@ export class Sim {
     return true;
   }
 
-  /** Miglior compagno da servire: avanzamento, spazio libero attorno e corsia libera, meno la distanza. */
+  /** Pericolosita' di una posizione per chi attacca verso la porta della squadra team: 1 sulla porta, cala con la distanza (lunghezza threatLen, scalata). */
+  threat(team, x, z) { return Math.exp(-dist(x, z, this.dir(team) * this.pitch.hx, 0) / this.sc(AI.threatLen)); }
+
+  /** Probabilita' che un pallone rasoterra da p a (x, z) arrivi prima di ogni avversario: controllato in 3 punti della traiettoria (tempo della palla contro tempo d'arrivo del piu' rapido). */
+  passOdds(p, x, z, dd) {
+    const sp = clamp(AI.passSpeed0 + dd * 0.45, AI.passSpeed0 + 1.5, 20); let ok = 1;
+    for (const f of [0.35, 0.7, 1]) {
+      const px = p.x + (x - p.x) * f, pz = p.z + (z - p.z) * f, tb = f * dd / sp * (1 + 0.1 * f); // la palla rallenta rotolando
+      ok *= 1 - 1 / (1 + Math.exp(-AI.passK * (tb + AI.passMargin - this.arrival(1 - p.team, px, pz))));
+    }
+    return ok;
+  }
+
+  /** Valore atteso di un passaggio a q: riuscita x (avanzamento verso la porta, pesato da rischio e visione, + spazio che il ricevitore trova davanti + passOkW)
+   *  meno insuccesso x pericolosita' per l'avversario nel punto dove la palla verrebbe persa, meno la distanza. Stessa scala e stessa soglia (passMin) della valutazione a pesi fissi. */
+  passValue(p, q, dd) {
+    const d = this.dir(p.team), L = this.pitch.hx * 2, ax = clamp(q.x + d * this.sc(6), -this.pitch.hx, this.pitch.hx);
+    const ok = this.passOdds(p, q.x, q.z, dd) * clamp(1 - AI.passSelf * Math.max(0, p.k.passErr - 1) * dd / this.sc(20), 0, 1); // chi passa peggio della media lo mette in conto: gioca piu' semplice e corto
+    const ahead = this.control(p.team, ax, q.z, this.arriveT(q, ax, q.z)); // spazio davanti al ricevitore per giocare il pallone successivo
+    const lose = this.threat(1 - p.team, (p.x + q.x) / 2, (p.z + q.z) / 2);
+    const gain = ok * ((q.x - p.x) * d / L * 2 * AI.risk * p.k.vision + AI.passAhead * ahead + AI.passOkW) - (1 - ok) * AI.passLoss * lose - dd / L * 0.5;
+    return gain + (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise;
+  }
+
+  /** Miglior compagno da servire. Con passEV: massimo guadagno atteso (passValue). Senza: avanzamento, spazio libero attorno e corsia libera, meno la distanza. */
   bestPass(p) {
     const d = this.dir(p.team), L = this.pitch.hx * 2;
     const opps = this.players.filter(q => q.team !== p.team && !q.out);
     let best = null, bestScore = AI.passMin;
+    if (AI.passEV) { const ax = clamp(p.x + d * this.sc(6), -this.pitch.hx, this.pitch.hx); bestScore += AI.passKeep * this.control(p.team, ax, p.z, this.arriveT(p, ax, p.z)); } // con spazio libero davanti conviene condurre: il passaggio deve valere di piu'
     for (const q of this.players) {
       if (q.team !== p.team || q === p || q.out) continue;
       const dd = dist(p.x, p.z, q.x, q.z);
@@ -724,10 +764,11 @@ export class Sim {
         const t = clamp(((o.x - p.x) * (q.x - p.x) + (o.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1);
         lane = Math.min(lane, dist(o.x, o.z, p.x + (q.x - p.x) * t, p.z + (q.z - p.z) * t));
       }
-      if (lane < 1.5) continue;
+      if (lane < 1.5 && !AI.passEV) continue; // con la valutazione probabilistica la corsia chiusa e' gia' nella probabilita' di riuscita
       const g = this.players.find(r => r.gk && r.team === p.team && !r.out);
       if (g && dist(g.x, g.z, q.x, q.z) < 4) continue; // compagno attaccato al portiere: il portiere prenderebbe la palla con le mani
       if (g) { const tt = clamp(((g.x - p.x) * (q.x - p.x) + (g.z - p.z) * (q.z - p.z)) / (dd * dd), 0, 1); if (dist(g.x, g.z, p.x + (q.x - p.x) * tt, p.z + (q.z - p.z) * tt) < 2.5) continue; } // mai attraverso il proprio portiere
+      if (AI.passEV) { const s = this.passValue(p, q, dd) - (Math.abs(q.z) > this.pitch.hz - 2.5 ? AI.edgePenalty : 0); if (s > bestScore) { bestScore = s; best = q; } continue; }
       const tb = dd / clamp(AI.passSpeed0 + dd * 0.45, AI.passSpeed0 + 1.5, 20), room = AI.passSpace * this.control(p.team, q.x, q.z, tb) + (1 - AI.passSpace) * open / 8; // spazio del ricevitore: la palla arriva prima dell'avversario piu' rapido? (miscelato con la distanza del piu' vicino)
       const score = (this.rand() - 0.5) * 2 * p.k.decNoise * AI.decisionNoise + ((q.x - p.x) * d / L) * 2 * AI.risk * p.k.vision + room * 0.5 + lane / 6 * 0.5 - dd / L * 0.5 + (q.gk ? -1 : 0) - (Math.abs(q.z) > this.pitch.hz - 2.5 ? AI.edgePenalty : 0); // compagno sulla linea laterale: passaggio piu' rischioso (palla fuori)
       if (score > bestScore) { bestScore = score; best = q; }
@@ -871,6 +912,12 @@ export class Sim {
         const won = this.rand() < this.tackleChance(q, o);
         const foul = (!won || this.tackleFront(q, o) < -0.3) && this.rand() < AI.tackleFoul ? this.foulRoll(q) : null; // solo una parte dei contrasti a rischio e' fallo (con piu' duelli, i falli restano circa 8 a partita) // contrasto da dietro o fallito
         if (foul) this.callFoul(q, o, foul);
+        else if (won && this.rand() < AI.tackleLoose) { // palla tolta ma non controllata: schizza via dal portatore, la contendono tutti (spesso finisce fuori: rimessa)
+          o.stun = 0.5; o.kickCd = 0.4; q.kickCd = 0.3;
+          const a = Math.atan2(o.z - q.z, o.x - q.x) + (this.rand() - 0.5) * 2.4, v = 4 + this.rand() * 6;
+          b.owner = -1; b.kicker = -1; b.last = q.id; b.shot = false; b.cross = false; b.curve = 0; this.lastPass = null; this.offsideMark = null;
+          b.x = o.x + Math.cos(a) * 0.5; b.z = o.z + Math.sin(a) * 0.5; b.vx = Math.cos(a) * v; b.vz = Math.sin(a) * v; b.vy = 0.5;
+        }
         else if (won) { o.stun = 0.5; o.kickCd = 0.4; b.owner = -1; this.giveBall(q); q.shieldT = AI.shieldSeconds; } // chi ha appena vinto la palla non puo' essere contrastato subito
         break;
       }
@@ -931,7 +978,7 @@ export class Sim {
       for (const p of ps) {
         if (p.out || p.stun > 0 || p.kickCd > 0) continue;
         const d = dist(p.x, p.z, b.x, b.z);
-        if (d > (p.gk ? AI.keeperReach * p.k.reach * 1.3 : AI.headReach)) continue;
+        if (d > (p.gk ? this.keeperReachOf(p) * 1.3 : AI.headReach)) continue;
         const sc = (p.gk ? 1.2 * p.k.exit : p.k.jump) * (0.6 + this.rand() * 0.8) - d * 0.1;
         if (sc > ws) { ws = sc; win = p; }
       }
@@ -942,7 +989,7 @@ export class Sim {
     if (b.y < (sp > 16 ? 2.4 : 1.1)) {
       let best = null, bd = 99;
       for (const p of ps) {
-        const reach = p.gk ? AI.keeperReach * p.k.reach * (b.kickDist < this.sc(10) ? p.k.oneOnOne : 1) : 0.9 * p.k.touch, d = dist(p.x, p.z, b.x, b.z);
+        const reach = p.gk ? this.keeperReachOf(p) * (b.kickDist < this.sc(10) ? p.k.oneOnOne : 1) : 0.9 * p.k.touch, d = dist(p.x, p.z, b.x, b.z);
         if (sp >= (p.gk ? 40 : 16) || d > reach || d >= bd || p.kickCd > 0 || p.stun > 0 || p.out) continue;
         if (p.gk && sp > 2 && b.kicker >= 0 && this.players[b.kicker].team === p.team && b.vx * (p.x - b.x) + b.vz * (p.z - b.z) <= 0) continue; // la palla calciata da un compagno e che si allontana non e' un passaggio al portiere
         best = p; bd = d;

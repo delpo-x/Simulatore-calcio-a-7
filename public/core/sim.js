@@ -24,13 +24,15 @@ export const MOVE = {
 
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
-  hz: 10, reaction: 0.1, passError: 0.056, risk: 0.6,
+  hz: 10, reaction: 0.1, passError: 0.056, risk: 0.75,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
   shootRange: 48, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.0438, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 12, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
-  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.1, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
+  attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.8, shieldSeconds: 0.3,
   // controllo dello spazio (arriveT/control/findSpace): reazione e ripidita' della curva tempo->controllo, raggio dei punti di smarcamento (scalato) e pesi della scelta
   ctrlReact: 0.25, ctrlK: 3, spaceRadius: 9, spaceWeight: 1, spaceLane: 0.5, spaceFwd: 0.3, spaceStick: 0.3, passSpace: 0,
+  // blocco difensivo (aiDefend): linea arretrata lineBehind dietro la palla (scalato), mai sotto lineFloor x profondita' area ne' oltre la linea tattica + lineUp; reparti a lineGap; stringe (blockNarrow) e scivola verso la palla (blockShift); peso della marcatura nel blocco
+  blockLine: 1, lineBehind: 32, lineFloor: 0.5, lineUp: 0, lineGap: 7, lineCushion: 3, blockNarrow: 0.8, blockShift: 0.35, blockMark: 0.8,
 };
 
 /** Passo della partita: secondi di gioco effettivo per secondo di cronometro (1 = tempo reale). Il cronometro mostrato scorre piu' veloce del gioco, come nei giochi di calcio commerciali. */
@@ -492,17 +494,28 @@ export class Sim {
       return { tx: owner.x + dx / l * m, tz: owner.z + dz / l * m, sprint: true };
     }
     if (p === top) { tx = h.x * 0.6; tz = h.z; } // un attaccante resta alto per il contropiede
-    else {
+    else if (AI.blockLine) { // blocco di squadra: linee parallele a distanza fissa, la difesa segue la palla restando dietro di lei, tutto il blocco scivola verso il lato della palla
+      const lv = [...new Set(mates.filter(q => q !== top).map(q => q.home.x))].sort((a, c) => a - c), lvl = Math.max(0, lv.indexOf(p.home.x));
+      // senza fuorigioco (vale solo in area piccola) la linea resta sempre dietro l'attaccante piu' avanzato, di lineCushion
+      const ub = d * spot.x + pt.hx, ut = Math.min(...this.players.filter(q => q.team !== p.team && !q.gk && !q.out).map(q => d * q.x + pt.hx));
+      const back = clamp(Math.min(ub - this.sc(AI.lineBehind), ut - this.sc(AI.lineCushion)), pt.areaDepth * AI.lineFloor, t.line * L + this.sc(AI.lineUp));
+      tx = d * (back + lvl * this.sc(AI.lineGap) - pt.hx);
+      tz = h.z * t.width * AI.blockNarrow + spot.z * AI.blockShift;
+    } else {
       tx = h.x + d * (t.line - 0.25 - AI.blockDepth) * L + (b.x - h.x) * 0.35;
       tz = h.z * t.width + (b.z - h.z) * 0.3;
+    }
+    if (p !== top) {
       // marcatura a zona: ogni difensore libero si mette tra un avversario pericoloso e la propria porta
       const gx = -d * pt.hx, cover = mates.filter(q => q !== top && ranked.indexOf(q) > 1).sort((a, c) => a.home.x - c.home.x || a.id - c.id);
       const threats = this.players.filter(q => q.team !== p.team && !q.gk && !q.out && q !== owner)
         .sort((a, c) => Math.abs(a.x - gx) - Math.abs(c.x - gx) || a.id - c.id);
       const opp = threats[cover.indexOf(p)];
       if (opp) {
-        const dx = gx - opp.x, dz = -opp.z, l = Math.hypot(dx, dz) || 1, m = this.sc(3);
-        tx = tx * (1 - AI.markWeight) + (opp.x + dx / l * m) * AI.markWeight; tz = tz * (1 - AI.markWeight) + (opp.z + dz / l * m) * AI.markWeight;
+        const dx = gx - opp.x, dz = -opp.z, l = Math.hypot(dx, dz) || 1, m = this.sc(3), mx = opp.x + dx / l * m, mz = opp.z + dz / l * m;
+        if (AI.blockLine) { // nel blocco: si segue l'avversario di lato, e si scende sotto la linea se lui la attacca alle spalle, ma la marcatura non tira mai fuori dalla linea in avanti
+          tx = d * Math.min(d * tx, d * mx); tz = tz * (1 - AI.blockMark) + mz * AI.blockMark;
+        } else { tx = tx * (1 - AI.markWeight) + mx * AI.markWeight; tz = tz * (1 - AI.markWeight) + mz * AI.markWeight; }
       }
     }
     [tx, tz] = this.spread(p, tx, tz);

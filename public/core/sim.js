@@ -26,9 +26,11 @@ export const MOVE = {
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.056, risk: 1.5,
   // barriera sulle punizioni: entro wallRange m (scalato, al massimo 30) dalla porta; alta wallHeight m col salto; il battitore aspetta wallDelay s di gioco e scavalca con probabilita' wallOver, altrimenti a giro
+  // portiere (keeperSpot): da libero fino a keeperSweep m (scalato) quando la palla e' oltre keeperSweepFrom m; esce incontro all'attaccante lanciato entro keeperRush m
+  keeperSweep: 9, keeperSweepFrom: 56, keeperRush: 20,
   wallRange: 42, wallHeight: 1.85, wallDelay: 1.0, wallOver: 0.45,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
-  shootRange: 42, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.056, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 6, defenderLimit: -0.1,
+  shootRange: 42, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.42, longBall: 0.002, longMin: 30, tackleEager: 0.056, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 6, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
   attackDepth: 15.794, blockDepth: 1.1504, keeperReach: 1.3, keeperStand: 3, keeperError: 0.5, keeperExit: 9, keeperLong: 0.4, tackleFoul: 0.6817, passSlip: 0.6, shieldSeconds: 0.3,
   // controllo dello spazio (arriveT/control/findSpace): reazione e ripidita' della curva tempo->controllo, raggio dei punti di smarcamento (scalato) e pesi della scelta
@@ -891,8 +893,32 @@ export class Sim {
       const rival = this.players.some(q => q.team !== p.team && !q.out && dist(q.x, q.z, b.x, b.z) < db);
       if (!rival) return { tx: b.x, tz: b.z, sprint: true };
     }
-    const dgx = Math.abs(b.x - goalX), stand = clamp(1.5 + (1 - clamp(dgx / this.sc(40), 0, 1)) * (AI.keeperStand - 1.5), 1.5, AI.keeperStand);
-    return { tx: goalX + d * stand, tz: clamp(b.z * stand / Math.max(dgx, stand), -pt.goalHalf + 0.3, pt.goalHalf - 0.3), sprint: false };
+    return this.keeperSpot(p, owner);
+  }
+
+  /**
+   * Posizione del portiere senza palla: sulla bisettrice dell'angolo palla-pali (non sulla linea col centro della porta), a una profondita' che dipende da dove sta la palla:
+   * lontana = fuori dai pali a fare da libero; al limite = avanti per chiudere lo specchio; angolo stretto = sul palo vicino; cross dal fondo = poco fuori, verso il centro;
+   * attaccante lanciato verso la porta senza difensori in mezzo = esce incontro per ridurre l'angolo.
+   */
+  keeperSpot(p, owner) {
+    const b = this.ball, d = this.dir(p.team), pt = this.pitch, goalX = -d * pt.hx, gh = pt.goalHalf, dgx = Math.abs(b.x - goalX);
+    const a1 = Math.atan2(-gh - b.z, goalX - b.x), a2 = Math.atan2(gh - b.z, goalX - b.x), bis = Math.atan2(Math.sin(a1) + Math.sin(a2), Math.cos(a1) + Math.cos(a2)); // bisettrice dalla palla
+    const wide = Math.abs(b.z) - gh, angle = Math.atan2(Math.max(0, wide), Math.max(dgx, 0.5)); // quanto e' stretto l'angolo di tiro
+    let depth = dgx > this.sc(AI.keeperSweepFrom) ? Math.min(this.sc(AI.keeperSweep), dgx * 0.25) // palla lontana: libero fuori dai pali
+      : clamp(1.2 + (dgx - 4) * 0.12, 1.2, AI.keeperStand); // si avvicina: avanza un po' per chiudere lo specchio
+    if (owner && owner.team !== p.team) {
+      const dgo = dist(owner.x, owner.z, goalX, 0), blocked = this.players.some(q => q.team === p.team && !q.gk && !q.out && Math.abs(q.x - goalX) < Math.abs(owner.x - goalX) && dist(q.x, q.z, owner.x, owner.z) < dgo * 0.6 && Math.abs(q.z - owner.z) < 3);
+      if (!blocked && dgo < this.sc(AI.keeperRush) && wide < 2) depth = Math.max(depth, Math.min(dgo * 0.35, this.sc(AI.keeperRush) * 0.35)); // uno contro uno: esce incontro
+    }
+    if (wide > 2 && dgx < this.sc(10)) { // palla sul fondo, larga: da cross il portiere sta poco fuori e verso il centro, sul palo vicino se l'angolo e' stretto
+      const z = angle > 1.0 ? Math.sign(b.z) * (gh - 0.35) : Math.sign(b.z) * gh * 0.3;
+      return { tx: goalX + d * (angle > 1.0 ? 0.5 : 1.3), tz: z, sprint: dist(p.x, p.z, goalX, z) > 3 };
+    }
+    let tx = goalX + d * depth; // punto della bisettrice che sta a profondita' depth dalla linea di porta
+    const c = Math.cos(bis), t = Math.abs(c) > 0.15 ? (tx - b.x) / c : 0, tz = clamp(b.z + Math.sin(bis) * t, -gh - 0.5, gh + 0.5);
+    tx += (p.posOff?.[0] ?? 0) * 0.3 * d; // errore di posizionamento del portiere (Posizionamento), ridotto
+    return { tx, tz, sprint: dist(p.x, p.z, tx, tz) > 3 };
   }
 
   toward(p, tx, tz, sprint) {

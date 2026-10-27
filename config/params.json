@@ -215,7 +215,7 @@
     "shootRange": 42,
     "shootEager": 0.95,
     "shotAngle": 1,
-    "shotAnglePerM": 0.5,
+    "shotAnglePerM": 0.42,
     "tackleEager": 0.056,
     "markWeight": 0.7,
     "containDist": 5,

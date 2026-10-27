@@ -1011,7 +1011,7 @@ export class Sim {
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
     if (Math.abs(b.x) > hx + 2 || Math.abs(b.z) > hz + 2) { // la ghiaia parte a 2 m dal campo (prima c'e' erba): la palla rallenta di colpo e non va oltre 2 m di ghiaia
-      const f = Math.max(0, 1 - (b.y < 0.2 ? 7 : 0.5) * DT); b.vx *= f; b.vz *= f;
+      const f = Math.max(0, 1 - (b.y < 0.2 ? 40 : 0.5) * DT); // a terra la ghiaia la pianta quasi subito b.vx *= f; b.vz *= f;
       if (Math.abs(b.x) > hx + 4) { b.x = Math.sign(b.x) * (hx + 4); b.vx = 0; } if (Math.abs(b.z) > hz + 4) { b.z = Math.sign(b.z) * (hz + 4); b.vz = 0; }
     }
     if (this.state === 'goal') { // gol segnato: la palla resta nella rete (profondita' come nel disegno 3D), non la attraversa

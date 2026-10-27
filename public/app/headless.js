@@ -4,10 +4,10 @@ import { MatchStats } from './stats.js';
 import { lineupFor } from './teams.js';
 
 /** Simulazione pronta per due definizioni di squadra dell'app (stesso schieramento della partita guardata). */
-export function createMatch(home, away, { perTeam = 7, half = 25, seed = 1 } = {}) {
+export function createMatch(home, away, { perTeam = 7, half = 25, seed = 1, weather = 'clear' } = {}) {
   const defs = [home, away], schemes = defs.map(d => SCHEMES[perTeam].includes(d.scheme) ? d.scheme : SCHEMES[perTeam][0]);
   const lineups = defs.map((d, i) => lineupFor(d, perTeam, schemes[i]));
-  const sim = new Sim({ perTeam, seed, halfLength: half * 60, schemes, teams: lineups });
+  const sim = new Sim({ perTeam, seed, halfLength: half * 60, schemes, teams: lineups, weather });
   for (const [i, d] of defs.entries()) if (d.tactics) Object.assign(sim.tac[i], d.tactics);
   return { sim, lineups, schemes };
 }

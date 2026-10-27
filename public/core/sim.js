@@ -61,8 +61,26 @@ export const BALL = {
   airDrag: 0.15,     // 1/s, resistenza in volo
   rollDecel: 2.07,     // m/sÂ², attrito di rotolamento (palla lenta: 1-2 m/sÂ²)
   rollQuad: 0.012765,  // 1/m, resistenza a terra ~vÂ²: un passaggio da 18 m/s copre 20 m in ~1,3 s
+  puddleDecel: 30,     // m/s², frenata extra dentro una pozza: la palla rasoterra si pianta
   restitution: 0.5,  // rimbalzo: un lob fa al massimo un rimbalzo significativo
 };
+
+/** Meteo: grip moltiplica l'attrito di rotolamento della palla (pioggia: scivola; neve: il triplo), puddles = pozze dove la palla si ferma. Sereno, nuvoloso, nebbia e notte cambiano solo la grafica. */
+export const WEATHER = {
+  clear: { name: 'Sereno', grip: 1 }, cloudy: { name: 'Nuvoloso', grip: 1 }, fog: { name: 'Nebbia', grip: 1 }, night: { name: 'Notturna', grip: 1 },
+  rain: { name: 'Pioggia', grip: 0.7 }, storm: { name: 'Pioggia intensa', grip: 0.7, puddles: true }, snow: { name: 'Neve', grip: 3 },
+};
+
+/** Pozze della pioggia intensa: 5-7 cerchi nel campo, mai sui dischetti ne' a ridosso delle porte; posizioni fisse per seme. */
+export function makePuddles(P, seed) {
+  const r = rng((seed ^ 0x9e3779b9) >>> 0), out = [], n = 5 + Math.floor(r() * 3);
+  for (let k = 0; out.length < n && k < 200; k++) {
+    const q = { x: (r() * 2 - 1) * (P.hx - 4), z: (r() * 2 - 1) * (P.hz - 2), r: 0.9 + r() * 1.1 };
+    if (Math.abs(q.x) > P.hx - P.penaltySpot - 2 && Math.abs(q.z) < 3) continue;
+    if (out.every(o => dist(o.x, o.z, q.x, q.z) > o.r + q.r + 1.5)) out.push(q);
+  }
+  return out;
+}
 
 const BTN = { up: 1, down: 2, left: 4, right: 8, cross: 16, circle: 32, square: 64, triangle: 128, l: 256, r: 512 };
 // lunghezza di un vettore: Math.hypot e' molto piu' lento in V8 e qui si chiama centinaia di volte per passo
@@ -120,8 +138,9 @@ export class Sim {
   clock(t = this.matchTime) { return t / this.pace; }
 
   /** `teams`: per squadra, null (giocatori neutri) oppure l'esito di pickLineup() (ticket 09). */
-  constructor({ perTeam = 7, seed = 1, halfLength = 90, pace, schemes, pitch, tactics, teams = [null, null] } = {}) {
+  constructor({ perTeam = 7, seed = 1, halfLength = 90, pace, schemes, pitch, tactics, teams = [null, null], weather = 'clear' } = {}) {
     this.rand = rng(seed);
+    this.weather = WEATHER[weather] ? weather : 'clear'; this.grip = WEATHER[this.weather].grip;
     this.time = 0; this.matchTime = 0;
     this.pace = pace ?? MATCH.pace; this.halfLengthClock = halfLength; this.halfLength = halfLength * this.pace; // halfLength: durata di un tempo sul cronometro; internamente si gioca this.halfLength secondi
     this.score = [0, 0]; this.state = 'kickoff'; this.stateT = 1.0; this.kickTeam = 0; this.events = [];
@@ -146,6 +165,7 @@ export class Sim {
     }));
     this.bench = [0, 1].map(t => [...(teams[t]?.bench ?? [])]); this.subs = [0, 0]; // panchina e cambi fatti per squadra
     this.ball = { x: 0, y: 0.11, z: 0, vx: 0, vy: 0, vz: 0, owner: -1, last: -1 };
+    this.puddles = WEATHER[this.weather].puddles ? makePuddles(this.pitch, seed) : []; // generatore a parte: il resto della partita usa la stessa sequenza casuale
     this.resetPositions(0);
   }
 
@@ -985,7 +1005,7 @@ export class Sim {
     b.vy -= 9.8 * DT;
     const air = b.y > 0.12;
     if (air) { const f = Math.max(0, 1 - BALL.airDrag * DT); b.vx *= f; b.vz *= f; }
-    if (!air) { const s = mag(b.vx, b.vz), dec = (BALL.rollDecel + BALL.rollQuad * s * s) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
+    if (!air) { const s = mag(b.vx, b.vz), wet = this.puddles.some(q => (b.x - q.x) ** 2 + (b.z - q.z) ** 2 < q.r * q.r), dec = ((BALL.rollDecel + BALL.rollQuad * s * s) * this.grip + (wet ? BALL.puddleDecel : 0)) * DT; if (s <= dec) b.vx = b.vz = 0; else { b.vx -= b.vx / s * dec; b.vz -= b.vz / s * dec; } }
     if (b.curve) { const s2 = mag(b.vx, b.vz); if (s2 < 8 || b.owner >= 0) b.curve = 0; else { const c = Math.cos(b.curve * DT), sn = Math.sin(b.curve * DT), nx = b.vx * c - b.vz * sn; b.vz = b.vx * sn + b.vz * c; b.vx = nx; } } // effetto: la direzione ruota
     b.x += b.vx * DT; b.y += b.vy * DT; b.z += b.vz * DT;
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale

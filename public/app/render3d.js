@@ -5,13 +5,14 @@ import { clamp, setAnisotropy } from './gfx/util.js';
 import { buildPlayer, geo } from './gfx/player.js';
 import { ballTexture, blobTexture, nameTag, pitchTexture, skyTexture, turfRelief } from './gfx/textures.js';
 import { goal, stadium, stepFlags } from './gfx/stadium.js';
+import { Weather } from './gfx/weather.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
 
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
-  constructor(canvas, pitch, { kits, nums, label } = {}) {
+  constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [] } = {}) {
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? []; this.label = label;
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     setAnisotropy(r.capabilities.getMaxAnisotropy());
@@ -20,7 +21,7 @@ export class TVRenderer {
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     const scene = this.scene = new THREE.Scene();
     scene.background = skyTexture(); scene.fog = new THREE.Fog(0xc9dcee, 120 + pitch.hx * 2, 320 + pitch.hx * 4);
-    scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x40603a, 1.25));
+    const hemi = new THREE.HemisphereLight(0xeaf4ff, 0x40603a, 1.25); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff3dd, 1.1); sun.position.set(-30, 60, 25); scene.add(sun);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
     const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
@@ -28,6 +29,7 @@ export class TVRenderer {
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch), roughness: 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     this.flags = stadium(pitch, scene).flags;
+    this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r }); this.wx.onThunder = () => this.onThunder?.();
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 18), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45, metalness: 0 }));
@@ -101,9 +103,9 @@ export class TVRenderer {
     const acc = dt > 0 ? (sp - u.prevSp) / dt : 0; u.prevSp = sp;
     u.accLean += (clamp(acc, -6, 8) * 0.018 - u.accLean) * Math.min(1, dt * 6);
     u.feintT = Math.max(0, u.feintT - dt); u.kickT = Math.max(0, u.kickT - dt); u.headT = Math.max(0, u.headT - dt);
-    const cadence = (0.7 + sp * 0.33) * (dribbling ? 1.2 : 1);
+    const wx = this.wx, snowy = wx.snowy, cadence = (0.7 + sp * 0.33) * (dribbling ? 1.2 : 1) * (snowy ? 0.88 : 1); // sulla neve passi piu' corti e lenti
     u.phase += dt * Math.PI * 2 * cadence;
-    const s = Math.sin(u.phase), c = Math.cos(u.phase), sw = (0.22 + sp * 0.1) * (dribbling ? 0.75 : 1), bend = sw * (0.5 + gait * 1.4);
+    const s = Math.sin(u.phase), c = Math.cos(u.phase), sw = (0.22 + sp * 0.1) * (dribbling ? 0.75 : 1) * (snowy ? 0.8 : 1), bend = sw * (0.5 + gait * 1.4);
     const [l0, l1] = u.legs, [a0, a1] = u.arms;
     l0.hip.rotation.z = s * sw; l1.hip.rotation.z = -s * sw;
     l0.knee.rotation.z = -Math.max(0, c) * bend; l1.knee.rotation.z = -Math.max(0, -c) * bend; // il ginocchio si piega nella fase di recupero
@@ -117,6 +119,23 @@ export class TVRenderer {
       l0.hip.rotation.z = is * 0.035; l1.hip.rotation.z = -is * 0.03; l0.knee.rotation.z = -0.03 - Math.max(0, is) * 0.05; l1.knee.rotation.z = -0.03 - Math.max(0, -is) * 0.05;
       a0.rotation.z *= 0.2; a1.rotation.z *= 0.2; a0.rotation.z += 0.05 + ib * 0.03; a1.rotation.z += 0.05 - ib * 0.03;
       b.rotation.y = is * 0.05; lean = is * 0.012; drop = ib * 0.006 - 0.004;
+    }
+    if (wx.wet || snowy) { // terreno scivoloso: braccia piu' larghe in corsa, scivolone sulle frenate brusche
+      u.slipCd = Math.max(0, (u.slipCd ?? 0) - dt);
+      if (sp > 4 && acc < -5 && u.slipCd <= 0 && !(u.slipT > 0)) { u.slipCd = 2.5; if (Math.random() < (snowy ? 0.45 : 0.3)) { u.slipT = 0.6; u.slipDir = Math.random() < 0.5 ? -1 : 1; } }
+      if (sp > 3) { a0.rotation.x += 0.16 * gait; a1.rotation.x -= 0.16 * gait; }
+      if (wx.kind === 'storm' && sp > 1) lean -= 0.07; // sotto l'acquazzone si corre curvi
+    }
+    if (sp < 0.3 && !ctx.owns) { // gesti da fermo per il tempo che fa
+      const t = (u.idleT + m.id * 0.37) % 8;
+      if (wx.wet && t < 1) { const w = Math.sin(Math.PI * t); a1.rotation.z = 2.5 * w; a1.rotation.x = -0.55 * w; } // si asciuga la fronte con la mano
+      else if (wx.cold) { a0.rotation.z = a1.rotation.z = 0.85; a0.rotation.x = -0.55; a1.rotation.x = 0.55; drop += Math.abs(Math.sin(u.idleT * 7)) * 0.025; } // braccia strette al petto, saltella sul posto per scaldarsi
+    }
+    if (u.slipT > 0) { // scivolone: un piede parte, braccia larghe per l'equilibrio, busto che ondeggia di lato
+      u.slipT -= dt; const q = 1 - Math.max(0, u.slipT) / 0.6, w = Math.sin(Math.PI * q);
+      l0.hip.rotation.z += 0.75 * w; l0.knee.rotation.z *= 1 - w; l1.knee.rotation.z -= 0.45 * w;
+      a0.rotation.x = 1.15 * w; a1.rotation.x = -1.15 * w; a0.rotation.z = a1.rotation.z = 0.5 * w;
+      b.rotation.x = u.slipDir * 0.28 * w * Math.cos(q * 9); lean += 0.3 * w; drop += 0.1 * w;
     }
     if (dribbling) { const k = Math.max(0, c); l1.hip.rotation.z += k * 0.35; l1.knee.rotation.z *= 0.5; a0.rotation.x = -0.3; a1.rotation.x = 0.3; } // tocchi corti: il piede accompagna la palla
     if (u.feintT > 0) { // finta con passo sopra la palla e peso sul lato opposto
@@ -310,6 +329,35 @@ export class TVRenderer {
     this.shake = Math.max(this.shake, 0.35 + 0.65 * power); this.onWood?.(power, bar);
   }
 
+  /** Effetti del meteo: gocce e schizzi (pioggia, pozze), polvere di neve, fiato che si condensa al freddo. */
+  wxStep(v, dt) {
+    const wx = this.wx; wx.step(dt); if (dt <= 0) return;
+    const b = v.ball, bs = Math.hypot(b.vx, b.vz), grd = b.y < 0.2, inP = grd && wx.inPuddle(b.x, b.z);
+    if (inP && !this.ballWet && bs > 1) this.splash(b.x, b.z, Math.min(1, bs / 12), b.vx, b.vz); // palla che entra in una pozza
+    this.ballWet = inP;
+    if (grd && bs > 3 && Math.random() < dt * 30) { // scia dietro la palla che rotola: spruzzi d'acqua o neve sollevata
+      const k = -0.25, o = wx.wet ? { life: rnd(0.3, 0.5), size: rnd(0.04, 0.07), color: 0xd6e2ea, alpha: 0.8, grav: 9, drag: 0.6 } : wx.snowy ? { life: rnd(0.5, 0.8), size: rnd(0.12, 0.2), grow: 2, color: 0xffffff, alpha: 0.55, grav: 1, drag: 2 } : null;
+      if (o) this.fx.emit(b.x, 0.08, b.z, b.vx * k + rnd(-0.6, 0.6), rnd(0.6, 1.8), b.vz * k + rnd(-0.6, 0.6), o);
+    }
+    for (const p of v.players) {
+      if (p.out) continue;
+      const sp = Math.hypot(p.vx, p.vz);
+      if (sp > 4 && Math.random() < dt * 5) {
+        if (wx.wet && wx.inPuddle(p.x, p.z)) this.splash(p.x, p.z, 0.5, p.vx, p.vz); // corsa dentro la pozza
+        else if (wx.wet) this.fx.emit(p.x, 0.05, p.z, -p.vx * 0.1 + rnd(-0.4, 0.4), rnd(0.8, 1.6), -p.vz * 0.1 + rnd(-0.4, 0.4), { life: 0.35, size: 0.05, color: 0xd6e2ea, alpha: 0.75, grav: 9, drag: 0.6 });
+        else if (wx.snowy) this.fx.emit(p.x, 0.06, p.z, -p.vx * 0.1, rnd(0.2, 0.6), -p.vz * 0.1, { life: rnd(0.6, 0.9), size: 0.25, grow: 2.2, color: 0xffffff, alpha: 0.45, drag: 2 });
+      }
+      if (wx.cold && Math.random() < dt * (0.5 + sp * 0.12)) { // fiato: piu' frequente quando si corre
+        const f = p.face; this.fx.emit(p.x + Math.cos(f) * 0.25, 1.66, p.z + Math.sin(f) * 0.25, Math.cos(f) * 0.5 + p.vx * 0.5, 0.15, Math.sin(f) * 0.5 + p.vz * 0.5, { life: rnd(0.6, 0.9), size: 0.12, grow: 3, color: 0xf2f5f8, alpha: 0.3, drag: 2.5 });
+      }
+    }
+  }
+
+  /** Schizzo d'acqua da pozza (power 0..1), spinto nella direzione del moto. */
+  splash(x, z, power, vx, vz) {
+    for (let i = 0; i < 6 + power * 12; i++) { const a = rnd(0, 6.28), s = rnd(0.5, 1.5 + power * 2); this.fx.emit(x, 0.05, z, Math.cos(a) * s + vx * 0.2, rnd(1.5, 2.5 + power * 2.5), Math.sin(a) * s + vz * 0.2, { life: rnd(0.4, 0.7), size: rnd(0.05, 0.09), color: 0xcfdbe4, alpha: 0.85, grav: 11, drag: 0.4 }); }
+  }
+
   /** Effetti legati agli eventi di gioco: rimbalzi, tiri forti, gol, scivolate. dt = 0 (pausa) non emette nulla. */
   fxStep(v, dt) {
     const b = v.ball, pb = this.pb, P = this.P;
@@ -384,7 +432,7 @@ export class TVRenderer {
     else { roll.multiplyScalar(Math.exp(-0.35 * dt)); if (roll.lengthSq() < 36 && sp > 3) roll.set(b.vz, 0, -b.vx).multiplyScalar(0.5 / 0.13); }
     const w = roll.length(); if (w > 45) roll.multiplyScalar(45 / w); // oltre ~7 giri/s a 60 Hz l'occhio vede girare al contrario
     if (dt > 0 && w > 0.01) this.ball.rotateOnWorldAxis(_ax.copy(roll).normalize(), Math.min(w, 45) * dt);
-    this.clock += dt; this.fxStep(v, dt);
+    this.clock += dt; this.fxStep(v, dt); this.wxStep(v, dt);
     for (const g of this.goals) for (const n of g.userData.nets) n.update(dt);
     this.ballBlob.position.set(vb.x + b.y * 0.25, 0.011, vb.z - b.y * 0.15); this.ballBlob.scale.setScalar(clamp(0.45 - b.y * 0.05, 0.15, 0.45));
     const owner = b.owner >= 0 ? v.players[b.owner] : null;

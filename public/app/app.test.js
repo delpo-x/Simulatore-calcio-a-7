@@ -117,7 +117,7 @@ for (const n of [3, 4, 5, 6, 7, 8]) for (const double of [false, true]) {
   e.start();
   const noise = e.noise.getChannelData(0), rms = Math.sqrt(noise.reduce((a, x) => a + x * x, 0) / noise.length);
   assert.ok(noise.every(Number.isFinite) && rms > 0.05 && rms < 0.6, `rumore rosa ${rms.toFixed(3)}`);
-  const sounds = [() => e.whistle(3), () => e.kick(25), () => e.clang(0.9, true), () => e.clang(0.4, false), () => e.net(0.6), () => e.touch(), () => e.roar('goal'), () => e.roar('ooh')];
+  const sounds = [() => e.whistle(3), () => e.kick(25), () => e.clang(0.9, true), () => e.clang(0.4, false), () => e.net(0.6), () => e.touch(), () => e.thunder(),() => e.roar('goal'), () => e.roar('ooh')];
   for (const s of sounds) { const n = made.length; s(); assert.ok(made.length > n, 'ogni suono crea i suoi nodi'); }
   e.setCrowd(0.5); e.swell(1, 5); assert.equal(e.boost, 1);
   e.setMuted(true);

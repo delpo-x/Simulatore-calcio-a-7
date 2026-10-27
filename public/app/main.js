@@ -1,5 +1,5 @@
 // App del simulatore: menu, partita in 3D con tabellone, regia, cronaca, statistiche, replay dei gol.
-import { Sim, DT, SCHEMES, RULES } from '../core/sim.js';
+import { Sim, DT, SCHEMES, RULES, WEATHER } from '../core/sim.js';
 import { readTeam } from '../core/team.js';
 import { TVRenderer, contrast } from './render3d.js';
 import { MatchStats } from './stats.js';
@@ -31,7 +31,7 @@ const ICON = {
 const MENU_KEY = 'calcio7.menu';
 function loadMenu() {
   let m = null; try { m = JSON.parse(localStorage.getItem(MENU_KEY)); } catch { /* niente */ }
-  return { perTeam: 7, half: 25, seed: '', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
+  return { perTeam: 7, half: 25, seed: '', weather: 'random', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
 }
 function saveMenu() { try { localStorage.setItem(MENU_KEY, JSON.stringify(cfg)); } catch { /* niente */ } }
 
@@ -123,6 +123,8 @@ function initMenu() {
   $('#opt-half').onchange = e => { cfg.half = +e.target.value; saveMenu(); };
   $('#opt-seed').value = cfg.seed;
   $('#opt-seed').oninput = e => { cfg.seed = e.target.value.replace(/\D/g, '').slice(0, 9); e.target.value = cfg.seed; saveMenu(); };
+  $('#opt-weather').value = cfg.weather;
+  $('#opt-weather').onchange = e => { cfg.weather = e.target.value; saveMenu(); };
   $('#opt-replay').checked = cfg.autoReplay;
   $('#opt-replay').onchange = e => { cfg.autoReplay = e.target.checked; saveMenu(); };
   $('#start').onclick = () => startMatch();
@@ -140,7 +142,8 @@ function startMatch(seed, ov = null) {
   try { lineups = defs.map((d, i) => lineupFor(d, n, schemes[i])); }
   catch (err) { $('#menu-note').textContent = `Impossibile schierare la squadra: ${err.message}`; if (ov) alert(`Impossibile schierare la squadra: ${err.message}`); return; }
   seed = seed ?? (cfg.seed ? +cfg.seed : 1 + Math.floor(Math.random() * 999999999));
-  const sim = new Sim({ perTeam: n, seed, halfLength: (ov?.half ?? cfg.half) * 60, schemes, teams: lineups });
+  const keys = Object.keys(WEATHER), weather = ov?.weather ?? (cfg.weather in WEATHER ? cfg.weather : keys[seed % keys.length]); // casuale: deciso dal seme, cosi' la stessa partita ha lo stesso meteo
+  const sim = new Sim({ perTeam: n, seed, halfLength: (ov?.half ?? cfg.half) * 60, schemes, teams: lineups, weather });
   const byTeam = [0, 1].map(t => sim.players.filter(p => p.team === t));
   const info = sim.players.map(p => { const i = byTeam[p.team].indexOf(p), l = lineups[p.team][i]; return { num: l.number, role: ROLE[l.position] ?? '', offRole: l.offRole }; });
   const { kits } = kitsFor(defs);
@@ -153,10 +156,12 @@ function startMatch(seed, ov = null) {
 
   $('#menu').hidden = true; $('#tour').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
   if (R) R.dispose();
-  R = new TVRenderer($('#view'), sim.pitch, { kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
+  R = new TVRenderer($('#view'), sim.pitch, { weather: sim.weather, puddles: sim.puddles, kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   R.onWood = (power, bar) => { if (sounds()) A.clang(power, bar); }; // palo/traversa: il suono parte insieme al tremolio della camera
   R.onNet = power => { if (sounds()) A.net(power); };
+  R.onThunder = () => { if (sounds()) A.thunder(); };
+  A.weather(sim.weather);
   R.onDribble = () => { if (sounds()) A.touch(); };
   for (const side of [0, 1]) {
     const t = $(`.sb-team[data-side="${side}"]`);
@@ -432,7 +437,7 @@ function showTab(name) {
   if (name === 'lineups') renderLineups(); else if (name === 'tactics') renderTactics(); else { if (name === 'bench') updateTac(); refreshPanel(); }
 }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
-function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
+function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.weather('clear'); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
 
 function initControls() {
   $('#c-full').innerHTML = ICON.full;

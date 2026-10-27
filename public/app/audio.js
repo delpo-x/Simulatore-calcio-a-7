@@ -118,6 +118,24 @@ export class SoundEngine {
     for (const [d, f] of [[0, 1300], [0.09, 1050]]) this.burst(t + d, 'bandpass', f, 1.2, 0.07, 0.03);
   }
 
+  /** Fruscio continuo della pioggia (rumore filtrato in loop): 'rain' leggero, 'storm' forte, altro = silenzio. */
+  weather(kind) {
+    if (!this.ctx) return;
+    const c = this.ctx, lvl = kind === 'storm' ? 0.16 : kind === 'rain' ? 0.08 : 0;
+    if (!this.rainG && lvl) {
+      const s = c.createBufferSource(), f = c.createBiquadFilter(); s.buffer = this.noise; s.loop = true; f.type = 'highpass'; f.frequency.value = 1400; f.Q.value = 0.4;
+      this.rainG = c.createGain(); this.rainG.gain.value = 0; s.connect(f).connect(this.rainG).connect(this.master); s.start();
+    }
+    this.rainG?.gain.setTargetAtTime(lvl, c.currentTime, 0.8);
+  }
+
+  /** Tuono lontano: rombo basso che arriva poco dopo il lampo e rotola per qualche secondo. */
+  thunder() {
+    if (!this.on) return;
+    const t = this.ctx.currentTime + 0.4 + Math.random() * 0.8;
+    this.burst(t, 'lowpass', 160, 0.7, 0.55, 3.2); this.burst(t + 0.25, 'lowpass', 90, 0.6, 0.4, 2.6);
+  }
+
   /** Palla in rete: fruscio breve della rete che si gonfia. */
   net(power = 0.7) {
     if (!this.on) return;

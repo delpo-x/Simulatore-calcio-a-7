@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { clamp, setAnisotropy } from './gfx/util.js';
 import { buildPlayer, geo } from './gfx/player.js';
 import { ballTexture, blobTexture, nameTag, pitchTexture, skyTexture, turfRelief } from './gfx/textures.js';
-import { goal, stadium } from './gfx/stadium.js';
+import { goal, stadium, stepFlags } from './gfx/stadium.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
@@ -27,7 +27,7 @@ export class TVRenderer {
     const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch), roughness: 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
-    stadium(pitch, scene);
+    this.flags = stadium(pitch, scene).flags;
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 18), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45, metalness: 0 }));
@@ -57,11 +57,12 @@ export class TVRenderer {
 
   build(players) {
     for (const m of this.meshes) this.scene.remove(m);
-    this.meshes = players.map(p => this.mkMesh(p.team, p.gk, this.nums[p.id] ?? p.id + 1, p.id));
+    const capt = [0, 1].map(t => players.find(p => p.team === t && !p.gk)?.id); // capitano: primo giocatore di movimento di ogni squadra
+    this.meshes = players.map(p => this.mkMesh(p.team, p.gk, this.nums[p.id] ?? p.id + 1, p.id, capt.includes(p.id)));
   }
 
-  mkMesh(team, gk, num, id) {
-    const m = buildPlayer(this.kits[team], gk, num, id, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
+  mkMesh(team, gk, num, id, captain = false) {
+    const m = buildPlayer(this.kits[team], gk, num, id, this.blobMat, captain); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
   }
 
   /** Cambio: il giocatore id prende il numero inNum. Con instant = false l'uscente (copia con outNum) corre alla panchina sul lato lontano e l'entrante arriva di corsa dalla stessa zona; la simulazione ha gia' fatto il cambio, qui e' solo scena. */
@@ -349,6 +350,7 @@ export class TVRenderer {
       if (u && sp > 3) { u.kickT = 0.3; u.kickLeft = (from + Math.round(sp)) % 3 === 0; u.kickPow = clamp(sp / 22, 0.2, 1); u.kickLoft = v.ball.vy > 2; }
     }
     this.prevOwner = bo;
+    stepFlags(this.flags, v, dt);
     v.players.forEach((p, i) => {
       const m = this.meshes[i]; m.visible = !p.out;
       if (p.out) return;

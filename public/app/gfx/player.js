@@ -46,11 +46,14 @@ function fuse(parts) {
 }
 
 /** Un giocatore low-poly: gambe, braccia, busto, testa; avanti = +x. Stinco, scarpa e fascia sono una mesh sola, come braccio, mano, spalla e polsino. */
-export function buildPlayer(kit, gk, num, id, blobMat) {
+const BOOTS = [0x111111, 0xf4f4f4, 0xff5a1f, 0x2fd4ff, 0xd7ff3a, 0xff2d8a, 0xffc21a, 0x111111];
+
+/** captain = fascia gialla sul braccio sinistro. Altezza e corporatura variano con l'id (il portiere un po' piu' alto). */
+export function buildPlayer(kit, gk, num, id, blobMat, captain = false) {
   const G = geo(), torsoMat = new THREE.MeshStandardMaterial({ map: shirtTexture(kit, gk), roughness: 0.8, metalness: 0 });
   const shirtC = gk ? kit.gk : kit.shirt, trimC = kitTrim(kit, gk), skinC = SKINS[(id * 7 + 3) % SKINS.length], gloveC = gk ? 0xf0f0f0 : skinC;
   const shorts = lambert(gk ? 0x1d1d1d : kit.shorts), skin = lambert(skinC), hair = lambert(HAIRS[(id * 5 + 1) % HAIRS.length]);
-  const lower = fuse([[G.shin, gk ? kit.gk : kit.socks], [G.shoe, 0x111111, 0, -0.5, 0], [G.sockTop, trimC, 0, -0.08, 0]]);
+  const lower = fuse([[G.shin, gk ? kit.gk : kit.socks], [G.shoe, BOOTS[(id * 3 + 2) % BOOTS.length], 0, -0.5, 0], [G.sockTop, trimC, 0, -0.08, 0]]);
   const sleeve = fuse([[G.arm, shirtC], [G.hand, gloveC, 0, -0.56, 0], [G.shoulder, shirtC], [G.cuff, trimC, 0, -0.5, 0]]);
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const legs = [], arms = [];
@@ -71,6 +74,8 @@ export function buildPlayer(kit, gk, num, id, blobMat) {
   back.position.set(-0.2, 1.27, 0); back.rotation.y = -Math.PI / 2;
   const front = back.clone(); front.scale.setScalar(0.45); front.position.set(0.2, 1.36, 0.07); front.rotation.y = Math.PI / 2;
   body.add(torso, pants, head, hr, back, front);
+  if (captain) { const band = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 10, 1, true), lambert(0xffd400)); band.position.y = -0.17; band.material.side = THREE.DoubleSide; arms[0].add(band); }
+  const hs = (gk ? 1.05 : 0.95) + ((id * 37) % 11) / 100, ws = 0.93 + ((id * 53) % 15) / 100; body.scale.set(ws, hs, ws);
   const blob = new THREE.Mesh(G.blob, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
   root.userData = { blob, body, legs, arms, head, hr, neck, idleT: id * 1.3, look: 0, diveHigh: false, phase: (id * 1.7) % 6.28, heading: undefined, prevSp: 0, accLean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1 };
   return root;

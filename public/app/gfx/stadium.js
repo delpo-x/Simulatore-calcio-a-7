@@ -94,8 +94,51 @@ export function stadium(P, scene) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 0.5), lamp); l.position.set(x, h + 1, z); l.lookAt(0, 0, 0); scene.add(l);
     const sp = new THREE.SpotLight(0xfff1d6, 1, 0, 0.75, 0.6, 2); // torre faro: cono largo e morbido sul campo, senza ombre proprie (l'ombra nitida viene dal sole)
     sp.position.set(x, h + 1, z); sp.target.position.set(0, 0, 0); sp.intensity = Math.hypot(x, z, h) ** 2 * 0.55; scene.add(sp, sp.target);
+    floodGlow(scene, new THREE.Vector3(x, h + 1, z));
   }
   fence(P, m, scene); benches(P, scene);
+  return { flags: cornerFlags(P, scene) };
+}
+
+let GLOW = null;
+/** Alone dei riflettori: cono semitrasparente additivo verso il campo (sfumato in punta e alla base) e bagliore sul faro. */
+function floodGlow(scene, from) {
+  GLOW ??= (() => {
+    const [c, g] = canvas(4, 128), gr = g.createLinearGradient(0, 0, 0, 128); // v = 1 alla punta del cono (il faro), 0 alla base
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
+    const cone = new THREE.CanvasTexture(c);
+    const [f, h] = canvas(64, 64), rg = h.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, 'rgba(255,248,225,1)'); rg.addColorStop(0.25, 'rgba(255,240,200,0.55)'); rg.addColorStop(1, 'rgba(255,240,200,0)'); h.fillStyle = rg; h.fillRect(0, 0, 64, 64);
+    return { cone: new THREE.MeshBasicMaterial({ color: 0xfff1d6, alphaMap: cone, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+      flare: new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(f), color: 0xfff6dc, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }) };
+  })();
+  const to = new THREE.Vector3(from.x * 0.25, 0, from.z * 0.25), dir = from.clone().sub(to), len = dir.length();
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(len * 0.32, len, 24, 1, true), GLOW.cone); // punta del cono (+y) sul faro
+  cone.position.copy(to).addScaledVector(dir, 0.5); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()); cone.renderOrder = 2; scene.add(cone);
+  const fl = new THREE.Sprite(GLOW.flare); fl.position.copy(from); fl.scale.set(7, 7, 1); fl.renderOrder = 2; scene.add(fl);
+}
+
+/** Bandierine d'angolo flessibili: asta che oscilla (molla smorzata) se la palla o un giocatore la tocca. */
+function cornerFlags(P, scene) {
+  const pole = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }), cloth = new THREE.MeshStandardMaterial({ color: 0xff3b1f, roughness: 0.8, side: THREE.DoubleSide });
+  const flags = [];
+  for (const d of [-1, 1]) for (const e of [-1, 1]) {
+    const g = new THREE.Group(), stick = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 1.5, 6), pole), flag = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.3), cloth);
+    stick.position.y = 0.75; flag.position.set(-d * 0.2, 1.34, 0); stick.castShadow = flag.castShadow = true; g.add(stick, flag);
+    g.position.set(d * P.hx, 0, e * P.hz); scene.add(g); flags.push({ g, x: d * P.hx, z: e * P.hz, ax: 0, az: 0, vx: 0, vz: 0, t: Math.random() * 6 });
+  }
+  return flags;
+}
+
+/** Fisica delle bandierine: urto da palla (veloce) o giocatore entro 0,5 m, poi molla smorzata; il drappo sventola appena. */
+export function stepFlags(flags, v, dt) {
+  if (!flags || dt <= 0) return;
+  for (const f of flags) {
+    const hit = (x, z, vx, vz, r, k) => { const dx = f.x - x, dz = f.z - z; if (dx * dx + dz * dz < r * r) { f.vx += vx * k; f.vz += vz * k; } };
+    hit(v.ball.x, v.ball.z, v.ball.vx || 0, v.ball.vz || 0, 0.45, 0.25);
+    for (const p of v.players) if (!p.out) hit(p.x, p.z, p.vx || 0, p.vz || 0, 0.5, 0.15);
+    f.vx += (-40 * f.ax - 3 * f.vx) * dt; f.vz += (-40 * f.az - 3 * f.vz) * dt; f.ax = clamp(f.ax + f.vx * dt, -0.6, 0.6); f.az = clamp(f.az + f.vz * dt, -0.6, 0.6);
+    f.t += dt; f.g.rotation.z = -f.ax; f.g.rotation.x = f.az; f.g.children[1].rotation.y = Math.sin(f.t * 3) * 0.15;
+  }
 }
 
 /** Recinzione perimetrale: bassa lungo il lato della telecamera (non copre il gioco), alta dietro le porte, con paletti. */

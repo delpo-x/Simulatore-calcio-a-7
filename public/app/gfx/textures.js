@@ -16,8 +16,16 @@ export function pitchTexture(P) {
   for (let i = 0; i < d.length; i += 4) { const v = (rnd() - 0.5) * 16; d[i] += v * 0.6; d[i + 1] += v; d[i + 2] += v * 0.6; }
   g.putImageData(img, 0, 0);
   for (let i = 0; i < W * H / 900; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,200' : '0,40,0'},${0.015 + rnd() * 0.025})`; g.beginPath(); g.ellipse(rnd() * W, rnd() * H, (2 + rnd() * 5) * s / 20, (1.5 + rnd() * 3) * s / 20, rnd() * 3, 0, 7); g.fill(); }
+  const wear = (x, z, rx, rz, a) => { // usura del sintetico: erba schiacciata e intaso di gommino nero dove si gioca di piu'
+    const px = cx + x * s, pz = cz + z * s, gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gr.addColorStop(0, `rgba(24,30,20,${a})`); gr.addColorStop(0.6, `rgba(30,40,24,${a * 0.5})`); gr.addColorStop(1, 'rgba(30,40,24,0)');
+    g.save(); g.translate(px, pz); g.scale(rx * s, rz * s); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill(); g.restore();
+    for (let i = 0; i < rx * rz * 60 * a; i++) { const r = Math.sqrt(rnd()), t = rnd() * 6.28; g.fillStyle = `rgba(12,12,12,${0.25 + rnd() * 0.35})`; g.fillRect(px + Math.cos(t) * r * rx * s, pz + Math.sin(t) * r * rz * s, s * 0.06, s * 0.06); }
+  };
+  for (const d of [-1, 1]) { wear(d * (P.hx - 2.5), 0, 3.5, 3.2, 0.3); wear(d * (P.hx - P.penaltySpot), 0, 1.6, 1.6, 0.28); wear(d * (P.hx - P.areaDepth * 0.6), 0, P.areaDepth * 0.5, P.areaWidth * 0.35, 0.12); wear(d * 8, -P.hz + 0.8, 5, 1.1, 0.2); }
+  wear(0, 0, 3.2, 3.2, 0.2);
   g.strokeStyle = 'rgba(255,255,255,0.96)'; g.fillStyle = '#fff'; g.lineWidth = 0.12 * s;
-  const R = (x, z, w, h) => g.strokeRect(cx + x * s, cz + z * s, w * s, h * s);
+  const R =(x, z, w, h) => g.strokeRect(cx + x * s, cz + z * s, w * s, h * s);
   const dot = (x, z, r = 0.18) => { g.beginPath(); g.arc(cx + x * s, cz + z * s, r * s, 0, 7); g.fill(); };
   R(-P.hx + 0.06, -P.hz + 0.06, P.hx * 2 - 0.12, P.hz * 2 - 0.12);
   g.beginPath(); g.moveTo(cx, 0); g.lineTo(cx, H); g.stroke();

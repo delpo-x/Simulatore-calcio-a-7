@@ -211,6 +211,13 @@ export class TVRenderer {
         else if (ctx.rush) { lean = -0.34; drop = Math.min(drop, 0) - 0.12; a0.rotation.x = 0.65; a1.rotation.x = -0.65; a0.rotation.z = a1.rotation.z = 0.55; for (const l of u.legs) l.knee.rotation.z -= 0.35; } // uscita bassa: busto in avanti, braccia larghe e basse davanti al corpo
         else if (sp < 3 && !ctx.alert) { a0.rotation.x = 0.12; a1.rotation.x = -0.12; a0.rotation.z = a1.rotation.z = 0.08; lean = -0.04; drop = Math.min(drop, 0); } // palla lontana: braccia lungo i fianchi
         else if (sp < 3) { const n = ctx.near ?? 0.5; a0.rotation.x = 0.35 + 0.8 * n; a1.rotation.x = -(0.35 + 0.8 * n); a0.rotation.z = a1.rotation.z = 0.25 + 0.2 * n; lean = -0.1 - 0.12 * n; drop = Math.min(drop, 0) - 0.04 - 0.1 * n + Math.sin(u.phase * 0.7) * 0.01; for (const l of u.legs) { l.hip.rotation.z = 0.2 + 0.25 * n; l.knee.rotation.z = -(0.35 + 0.5 * n); } } // attesa: piu' la palla e' vicina, piu' si abbassa e allarga le braccia
+        const fwd = p.vx * Math.cos(p.face) + p.vz * Math.sin(p.face), lat = -p.vx * Math.sin(p.face) + p.vz * Math.cos(p.face);
+        if (!ctx.owns && sp > 0.3 && Math.abs(lat) > Math.abs(fwd)) { // passo laterale: le gambe si aprono e si chiudono a ogni passo, piccolo saltello; niente passo in avanti
+          const a = clamp(sp / 2.5, 0.3, 1), st = Math.abs(Math.sin(u.phase * 0.8)), open = (0.08 + 0.32 * st) * a;
+          l0.hip.rotation.x = open; l1.hip.rotation.x = -open; l0.hip.rotation.z *= 0.4; l1.hip.rotation.z *= 0.4;
+          l0.knee.rotation.z = Math.min(l0.knee.rotation.z, -0.35); l1.knee.rotation.z = Math.min(l1.knee.rotation.z, -0.35);
+          drop += st * 0.04 * a; b.rotation.x = -Math.sign(lat) * 0.06 * a; // si inclina appena verso dove va
+        }
       }
     }
     if (u.pokeT > 0) { u.pokeT -= dt; const w = Math.sin(Math.PI * (1 - u.pokeT / 0.35)); l1.hip.rotation.z = -0.9 * w; l1.knee.rotation.z = 0; l0.knee.rotation.z = -0.4 * w; lean = 0.15 * w; drop = 0.1 * w; } // contrasto in piedi: gamba tesa sulla palla

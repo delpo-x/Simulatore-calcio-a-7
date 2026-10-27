@@ -8,10 +8,10 @@ import { rnd } from './effects.js';
 const LOOK = {
   clear: { sky: null, fog: null, hemi: 1.25, sun: 1.1, exp: 1.05 },
   cloudy: { sky: 0xa9b4bf, fog: [0xa9b4bf, 2.2, 7], hemi: 1.15, sun: 0.45, exp: 1.08 },
-  night: { sky: 0x070b16, fog: [0x0a0f1c, 2.6, 8], hemi: 0.32, sun: 0.12, exp: 1.12, flood: 2.2, glow: 0.2 },
-  fog: { sky: 0xc4cad0, fog: [0xc4cad0, 0.25, 1.6], hemi: 1.05, sun: 0.35, exp: 1.1, glow: 0.16 },
+  night: { sky: 0x070b16, fog: [0x0a0f1c, 2.6, 8], hemi: 0.32, sun: 0.12, exp: 1.12, flood: 2.2, glow: 0.06 },
+  fog: { sky: 0xc4cad0, fog: [0xc4cad0, 0.25, 1.6], hemi: 1.05, sun: 0.35, exp: 1.1, glow: 0.05 },
   rain: { sky: 0x6f7b87, fog: [0x76828e, 1.2, 4.5], hemi: 0.9, sun: 0.3, exp: 1.1, wet: 0.4, drops: 1400, fall: 17, wind: 2 },
-  storm: { sky: 0x3d4651, fog: [0x47515c, 0.8, 3.2], hemi: 0.7, sun: 0.15, exp: 1.12, wet: 0.22, drops: 2600, fall: 24, wind: 5, flood: 1.4, glow: 0.14, bolts: true },
+  storm: { sky: 0x3d4651, fog: [0x47515c, 0.8, 3.2], hemi: 0.7, sun: 0.15, exp: 1.12, wet: 0.22, drops: 2600, fall: 24, wind: 5, flood: 1.4, glow: 0.045, bolts: true },
   snow: { sky: 0xc9d0d8, fog: [0xd2d8de, 1, 4], hemi: 1.2, sun: 0.4, exp: 1.0, flakes: 2200, fall: 1.3, wind: 0.6 },
 };
 

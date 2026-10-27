@@ -974,6 +974,7 @@ export class Sim {
       for (const q of ps) if (!o.gk && !o.shieldT && !q.out && q.team !== o.team && q.tackleT > 0 && dist(q.x, q.z, o.x, o.z) < MOVE.tackleRadius && q.kickCd === 0) {
         q.tackleT = 0; q.kickCd = 0.4; // un solo tentativo per contrasto
         const won = this.rand() < this.tackleChance(q, o);
+        this.events.push({ t: 'tackle', player: q.id, victim: o.id, won }); // solo per grafica e statistiche
         const foul = (!won || this.tackleFront(q, o) < -0.3) && this.rand() < AI.tackleFoul ? this.foulRoll(q) : null; // solo una parte dei contrasti a rischio e' fallo (con piu' duelli, i falli restano circa 8 a partita) // contrasto da dietro o fallito
         if (foul) this.callFoul(q, o, foul);
         else if (won && this.rand() < AI.tackleLoose) { // palla tolta ma non controllata: schizza via dal portatore, la contendono tutti (spesso finisce fuori: rimessa)
@@ -1121,7 +1122,7 @@ export class Sim {
     const b = this.ball, pt = this.pitch, lastTeam = this.players[b.last]?.team ?? 0;
     if (sx) {
       const attackers = sx > 0 ? 0 : 1; // la squadra che attacca quella linea di fondo
-      if (lastTeam === attackers) return this.deadBall('goalkick', 1 - attackers, sx * (pt.hx - 6), 0);
+      if (lastTeam === attackers) return this.deadBall('goalkick', 1 - attackers, sx * (pt.hx - RULES.smallAreaDepth * 0.6), 0); // palla dentro l'area piccola
       return this.deadBall('corner', attackers, sx * (pt.hx - 0.3), (b.z >= 0 ? 1 : -1) * (pt.hz - 0.3));
     }
     return this.deadBall('throwin', 1 - lastTeam, clamp(b.x, -pt.hx + 1, pt.hx - 1), sz * (pt.hz + 0.45)); // chi batte sta fuori dalla linea laterale

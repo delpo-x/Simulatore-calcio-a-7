@@ -108,13 +108,13 @@ function floodGlow(scene, from) {
     gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
     const cone = new THREE.CanvasTexture(c);
     const [f, h] = canvas(64, 64), rg = h.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, 'rgba(255,248,225,1)'); rg.addColorStop(0.25, 'rgba(255,240,200,0.55)'); rg.addColorStop(1, 'rgba(255,240,200,0)'); h.fillStyle = rg; h.fillRect(0, 0, 64, 64);
-    return { cone: new THREE.MeshBasicMaterial({ color: 0xfff1d6, alphaMap: cone, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+    return { cone: new THREE.MeshBasicMaterial({ color: 0xfff1d6, alphaMap: cone, transparent: true, opacity: 0.025, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
       flare: new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(f), color: 0xfff6dc, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }) };
   })();
   const to = new THREE.Vector3(from.x * 0.25, 0, from.z * 0.25), dir = from.clone().sub(to), len = dir.length();
   const cone = new THREE.Mesh(new THREE.ConeGeometry(len * 0.32, len, 24, 1, true), GLOW.cone); // punta del cono (+y) sul faro
   cone.position.copy(to).addScaledVector(dir, 0.5); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()); cone.renderOrder = 2; scene.add(cone);
-  const fl = new THREE.Sprite(GLOW.flare); fl.position.copy(from); fl.scale.set(7, 7, 1); fl.renderOrder = 2; scene.add(fl);
+  const fl = new THREE.Sprite(GLOW.flare); fl.position.copy(from); fl.scale.set(3.5, 3.5, 1); fl.renderOrder = 2; scene.add(fl);
 }
 
 /** Bandierine d'angolo flessibili: asta che oscilla (molla smorzata) se la palla o un giocatore la tocca. */

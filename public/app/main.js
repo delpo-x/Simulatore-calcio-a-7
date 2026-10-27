@@ -185,7 +185,7 @@ const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
 function tick() {
   const s = G.sim, before = s.state; s.step();
   const items = G.stats.step(); G.rec.step(s, items);
-  if (!G.skipping && G.speed <= 4) for (const e of s.events) if (e.t === 'dribble') R.duel(s, e); // finta e reazione del difensore: solo scena, l'esito e' della simulazione
+  if (!G.skipping && G.speed <= 4) for (const e of s.events) if (e.t === 'dribble') R.duel(s, e); else if (e.t === 'tackle') R.tackle(s, e); // finta e reazione del difensore: solo scena, l'esito e' della simulazione
   for (const e of s.events) if (e.t === 'sub') R.substitution(e.team, e.player, e.outNumber, s.players[e.player].number, G.skipping || G.speed > 4); // il cambio e' gia' nella simulazione: qui si aggiorna la maglia e, a velocita' normale, si vede la corsa
   if (sounds()) {
     if (before !== 'play' && before !== 'full' && s.state === 'play') A.whistle(1, 0.35); // calcio d'inizio

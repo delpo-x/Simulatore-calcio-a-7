@@ -207,7 +207,12 @@ export class TVRenderer {
         else if (sp < 3) { const n = ctx.near ?? 0.5; a0.rotation.x = 0.35 + 0.8 * n; a1.rotation.x = -(0.35 + 0.8 * n); a0.rotation.z = a1.rotation.z = 0.25 + 0.2 * n; lean = -0.1 - 0.12 * n; drop = Math.min(drop, 0) - 0.04 - 0.1 * n + Math.sin(u.phase * 0.7) * 0.01; for (const l of u.legs) { l.hip.rotation.z = 0.2 + 0.25 * n; l.knee.rotation.z = -(0.35 + 0.5 * n); } } // attesa: piu' la palla e' vicina, piu' si abbassa e allarga le braccia
       }
     }
-    if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; b.rotation.x = 0; } // scivolata
+    if (u.pokeT > 0) { u.pokeT -= dt; const w = Math.sin(Math.PI * (1 - u.pokeT / 0.35)); l1.hip.rotation.z = -0.9 * w; l1.knee.rotation.z = 0; l0.knee.rotation.z = -0.4 * w; lean = 0.15 * w; drop = 0.1 * w; } // contrasto in piedi: gamba tesa sulla palla
+    if (u.slideT > 0) { // scivolata: entra di lato a terra, gamba tesa avanti, poi si rialza
+      u.slideT -= dt; const q = 1 - Math.max(0, u.slideT) / 0.7, w = Math.min(1, q * 5, (1 - q) * 3.5);
+      b.rotation.z = -1.15 * w; b.position.y = -0.35 * w; b.rotation.x = 0; l0.hip.rotation.z = 1.3 * w; l0.knee.rotation.z = 0; l1.hip.rotation.z = 0.4 * w; l1.knee.rotation.z = -1 * w; a0.rotation.x = 0.8 * w; a1.rotation.x = -0.4 * w;
+    }
+    else if (p.tackleT > 0) { b.rotation.z = -1.15; b.position.y = -0.35; b.rotation.x = 0; } // scivolata
     else { b.rotation.z += (lean - b.rotation.z) * Math.min(1, dt * 14); b.position.y = drop; }
     u.look += ((p.tackleT > 0 || u.diveT > 0 ? 0 : ctx.look ?? 0) - u.look) * Math.min(1, dt * 6); // la testa si stabilizza contro rollio e rimbalzo del busto e segue la palla
     const hy = -b.position.y * 0.5, hp = -b.rotation.z * 0.55;
@@ -228,6 +233,14 @@ export class TVRenderer {
     m.userData.fk = { type, t: 0, dur: type === 'roulette' ? 0.45 : type === 'croqueta' ? 0.3 : 0.4, dir, ok: e.ok }; m.userData.feintT = 0;
     if (q) this.meshes[q.id].userData.react = { t: 0, dur: e.ok ? 0.9 : 0.5, dir, ok: e.ok };
     this.onDribble?.(type); return type;
+  }
+
+  /** Contrasto deciso dalla simulazione: in corsa, da lontano o da dietro e' una scivolata, altrimenti un intervento in piedi col piede teso. Solo scena. */
+  tackle(v, e) {
+    const q = v.players[e.player], o = v.players[e.victim], u = this.meshes[e.player]?.userData; if (!q || !o || !u) return;
+    const d = Math.hypot(o.x - q.x, o.z - q.z), behind = Math.cos(o.face) * (q.x - o.x) + Math.sin(o.face) * (q.z - o.z) < 0;
+    u.slideT = Math.hypot(q.vx, q.vz) > 3.5 || d > 0.9 || behind || Math.random() < (this.wx.wet || this.wx.snowy ? 0.6 : 0.35) ? 0.7 : 0;
+    if (!u.slideT) u.pokeT = 0.35;
   }
 
   /** Gommino nero dell'erba sintetica sollevato sul cambio di direzione. */

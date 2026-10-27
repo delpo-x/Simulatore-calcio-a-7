@@ -157,6 +157,7 @@ function startMatch(seed, ov = null) {
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   R.onWood = (power, bar) => { if (sounds()) A.clang(power, bar); }; // palo/traversa: il suono parte insieme al tremolio della camera
   R.onNet = power => { if (sounds()) A.net(power); };
+  R.onDribble = () => { if (sounds()) A.touch(); };
   for (const side of [0, 1]) {
     const t = $(`.sb-team[data-side="${side}"]`);
     $('i', t).style.background = kits[side].shirt; $('i', t).style.borderColor = kits[side].shorts;
@@ -179,6 +180,7 @@ const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
 function tick() {
   const s = G.sim, before = s.state; s.step();
   const items = G.stats.step(); G.rec.step(s, items);
+  if (!G.skipping && G.speed <= 4) for (const e of s.events) if (e.t === 'dribble') R.duel(s, e); // finta e reazione del difensore: solo scena, l'esito e' della simulazione
   for (const e of s.events) if (e.t === 'sub') R.substitution(e.team, e.player, e.outNumber, s.players[e.player].number, G.skipping || G.speed > 4); // il cambio e' gia' nella simulazione: qui si aggiorna la maglia e, a velocita' normale, si vede la corsa
   if (sounds()) {
     if (before !== 'play' && before !== 'full' && s.state === 'play') A.whistle(1, 0.35); // calcio d'inizio

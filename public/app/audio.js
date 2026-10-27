@@ -111,6 +111,13 @@ export class SoundEngine {
     this.burst(t, 'highpass', 2200, 0.7, 0.2 * v, 0.035);
   }
 
+  /** Doppio tocco rapido della finta: due colpetti smorzati a ~90 ms. */
+  touch() {
+    if (!this.on) return;
+    const t = this.ctx.currentTime;
+    for (const [d, f] of [[0, 1300], [0.09, 1050]]) this.burst(t + d, 'bandpass', f, 1.2, 0.07, 0.03);
+  }
+
   /** Palla in rete: fruscio breve della rete che si gonfia. */
   net(power = 0.7) {
     if (!this.on) return;

@@ -95,7 +95,7 @@ export class TVRenderer {
       const da = Math.atan2(Math.sin(heading - u.heading), Math.cos(heading - u.heading));
       if (ctx.owns && Math.abs(da) / dt > 3.2 && u.feintT <= 0) { u.feintT = 0.5; u.feintDir = Math.sign(da) || 1; }
     }
-    if (p.dribT > 0.45 && u.feintT <= 0) { u.feintT = 0.5; u.feintDir = p.dribDir || 1; } // finta decisa dalla simulazione
+    if (p.dribT > 0.45 && u.feintT <= 0 && !u.fk) { u.feintT = 0.5; u.feintDir = p.dribDir || 1; } // finta decisa dalla simulazione
     u.heading = heading;
     const acc = dt > 0 ? (sp - u.prevSp) / dt : 0; u.prevSp = sp;
     u.accLean += (clamp(acc, -6, 8) * 0.018 - u.accLean) * Math.min(1, dt * 6);
@@ -122,6 +122,30 @@ export class TVRenderer {
       const q = 1 - u.feintT / 0.5, w = Math.sin(Math.PI * q), d = u.feintDir, over = d > 0 ? l0 : l1;
       b.rotation.x = d * 0.4 * w; b.rotation.y += d * 0.35 * w; drop += 0.07 * w; lean = lean * 0.5 - 0.1 * w;
       over.hip.rotation.z = 0.95 * w; over.knee.rotation.z = -0.6 * w; over.hip.rotation.x = d * 0.55 * Math.sin(Math.PI * q);
+    }
+    if (u.fk) { // finta del duello 1v1 (vedi duel): body feint, doppio passo, croqueta, veronica
+      const f = u.fk; f.t += dt; const q = clamp(f.t / f.dur, 0, 1), w = Math.sin(Math.PI * q), d = f.dir, over = d > 0 ? l0 : l1, other = d > 0 ? l1 : l0;
+      if (f.type === 'body') { // spalla e passo falso da un lato, poi via dall'altro
+        const a = q < 0.45 ? Math.sin(Math.PI * q / 0.45) : 0, z = q >= 0.45 ? Math.sin(Math.PI * (q - 0.45) / 0.55) : 0;
+        b.rotation.x = d * (-0.55 * a + 0.3 * z); other.hip.rotation.x = -d * 0.45 * a; drop += 0.08 * w; lean -= 0.12 * z;
+      } else if (f.type === 'stepover') { // la gamba gira attorno al pallone
+        over.hip.rotation.z = 0.9 * w; over.hip.rotation.x = d * 0.7 * Math.sin(2 * Math.PI * q); over.knee.rotation.z = -0.7 * w; b.rotation.x = -d * 0.35 * w; drop += 0.06 * w;
+      } else if (f.type === 'croqueta') { // interno-interno: la palla passa da un piede all'altro
+        (q < 0.5 ? other : over).hip.rotation.x = (q < 0.5 ? -d : d) * 0.4 * w; l0.knee.rotation.z = l1.knee.rotation.z = -0.35 * w; drop += 0.1 * w; lean -= 0.1 * w;
+      } else { // veronica: giro completo sopra il pallone
+        m.rotation.y -= d * 2 * Math.PI * q * q * (3 - 2 * q); a0.rotation.x = -0.8 * w; a1.rotation.x = 0.8 * w; drop += 0.05 * w; lean += 0.1 * w;
+      }
+      if (!f.ok && q > 0.55) { lean += 0.25 * Math.sin(Math.PI * (q - 0.55) / 0.45); b.rotation.x -= d * 0.3 * Math.sin(Math.PI * (q - 0.55) / 0.45); } // contrasto perso: spinto via
+      if (!f.puff && q > 0.5) { f.puff = true; this.rubber(m.position.x, m.position.z); }
+      if (q >= 1) u.fk = null;
+    }
+    if (u.react) { // difensore nel duello: saltato (sbilanciato, affondo in ritardo) oppure contrasto vinto (affondo deciso)
+      const r = u.react; r.t += dt; const q = clamp(r.t / r.dur, 0, 1), w = Math.sin(Math.PI * q), d = r.dir;
+      if (r.ok) {
+        const lunge = q > 0.25 && q < 0.75 ? Math.sin(Math.PI * (q - 0.25) / 0.5) : 0, leg = d > 0 ? l1 : l0;
+        b.rotation.x = d * 0.45 * w; drop += 0.12 * w; leg.hip.rotation.x = d * 0.6 * lunge; leg.hip.rotation.z = 0.7 * lunge; lean = -0.15 * w;
+      } else { l1.hip.rotation.z = 1.2 * w; l1.knee.rotation.z = -0.15 * w; lean = -0.4 * w; drop += 0.14 * w; a0.rotation.z = 0.6 * w; }
+      if (q >= 1) u.react = null;
     }
     if (u.kickT > 0) { // tiro o passaggio: rincorsa all'indietro, impatto, accompagnamento
       const q = 1 - u.kickT / 0.3, kl = u.kickLeft ? l0 : l1, pl = u.kickLeft ? l1 : l0, pw = u.kickPow;
@@ -173,6 +197,25 @@ export class TVRenderer {
   }
 
   /**
+   * Duello 1v1 deciso dalla simulazione (evento 'dribble', esito in e.ok): sceglie la finta dell'attaccante dallo spazio e dal Dribbling
+   * e la reazione del difensore piu' vicino davanti. Solo scena: l'esito e gli spostamenti restano quelli della simulazione.
+   */
+  duel(v, e) {
+    const p = v.players[e.player], m = this.meshes[e.player]; if (!p || !m) return;
+    let q = null, dq = 4; for (const o of v.players) { const d = Math.hypot(o.x - p.x, o.z - p.z); if (o.team !== p.team && !o.gk && !o.out && d < dq) { dq = d; q = o; } }
+    const skill = p.attr?.Dribbling ?? 13, r = Math.random(), dir = p.dribDir || 1;
+    const type = dq < 1.3 && r < 0.5 ? 'croqueta' : skill >= 15 && r < 0.3 ? 'roulette' : skill >= 12 && r < 0.65 ? 'stepover' : 'body';
+    m.userData.fk = { type, t: 0, dur: type === 'roulette' ? 0.45 : type === 'croqueta' ? 0.3 : 0.4, dir, ok: e.ok }; m.userData.feintT = 0;
+    if (q) this.meshes[q.id].userData.react = { t: 0, dur: e.ok ? 0.9 : 0.5, dir, ok: e.ok };
+    this.onDribble?.(type); return type;
+  }
+
+  /** Gommino nero dell'erba sintetica sollevato sul cambio di direzione. */
+  rubber(x, z) {
+    for (let i = 0; i < 9; i++) { const a = rnd(0, 6.28), s = rnd(0.5, 1.6); this.fx.emit(x + rnd(-0.15, 0.15), 0.05, z + rnd(-0.15, 0.15), Math.cos(a) * s, rnd(1, 2.4), Math.sin(a) * s, { life: rnd(0.35, 0.6), size: rnd(0.05, 0.08), color: 0x161616, alpha: 0.95, grav: 14, drag: 0.4 }); }
+  }
+
+  /**
    * Palla al piede, solo grafica: la simulazione la tiene a distanza fissa davanti al portatore; qui riceve un tocco a ogni ciclo del passo
    * (si stacca e viene ripresa: corta camminando o col dribbling alto, lunga in sprint), alterna destro e sinistro, e davanti a un avversario
    * da fermo resta sul piede forte con il corpo di profilo. Al primo controllo la palla arriva da dove era e viene ammortizzata (~0,18 s).
@@ -197,6 +240,7 @@ export class TVRenderer {
         const L = clamp((sp - 1) / 7, 0, 1) * (0.75 - 0.3 * skill), along = L * (Math.sin(Math.PI * s) - 0.35), lat = 0.07 * Math.cos(u.phase / 2) * clamp(sp / 3, 0, 1);
         tx = along * fx + lat * rx; tz = along * fz + lat * rz;
       }
+      if (u.fk?.type === 'croqueta') { const c = 0.22 * u.fk.dir * -Math.cos(Math.PI * clamp(u.fk.t / u.fk.dur, 0, 1)); tx += c * rx; tz += c * rz; } // la palla passa da un piede all'altro
     }
     d.owner = carry ? o.id : -1;
     const k = Math.min(1, dt * (d.recv > 0 ? 1 / 0.18 : carry ? 14 : 12)); d.x += (tx - d.x) * k; d.z += (tz - d.z) * k;

@@ -144,6 +144,10 @@ export class TVRenderer {
     } else if (p.throwT > 0 && p.throwT <= 0.5) { // lancio: braccia dal sopra la testa in avanti
       const q = 1 - p.throwT / 0.5; a0.rotation.z = a1.rotation.z = 2.9 - 2.4 * q; lean = -0.35 * Math.sin(Math.PI * Math.min(1, q * 1.4)); l0.hip.rotation.z = 0.35; l1.hip.rotation.z = -0.3; l0.knee.rotation.z = l1.knee.rotation.z = 0;
     }
+    if (u.recvT > 0) { // primo controllo: il piede va incontro alla palla e la ammortizza
+      u.recvT = Math.max(0, u.recvT - dt); const w = Math.sin(Math.PI * u.recvT / 0.18), l = p.foot === 'SX' ? l0 : l1;
+      l.hip.rotation.z += 0.55 * w; l.knee.rotation.z -= 0.35 * w; lean -= 0.06 * w;
+    }
     if (p.gk) { // portiere: posizione di attesa con braccia aperte, presa a petto, tuffo
       u.diveT = Math.max(0, u.diveT - dt);
       if (u.diveT > 0) {
@@ -166,6 +170,39 @@ export class TVRenderer {
     u.head.position.y = 1.7 + hy; u.hr.position.y = 1.72 + hy; u.neck.position.y = 1.56 + hy * 0.5;
     u.head.rotation.set(0, u.look, hp); u.hr.rotation.set(0, u.look, 0.25 + hp);
     if (p.stun > 0) b.rotation.x = Math.sin(u.phase * 2) * 0.15;
+  }
+
+  /**
+   * Palla al piede, solo grafica: la simulazione la tiene a distanza fissa davanti al portatore; qui riceve un tocco a ogni ciclo del passo
+   * (si stacca e viene ripresa: corta camminando o col dribbling alto, lunga in sprint), alterna destro e sinistro, e davanti a un avversario
+   * da fermo resta sul piede forte con il corpo di profilo. Al primo controllo la palla arriva da dove era e viene ammortizzata (~0,18 s).
+   * Restituisce la posizione da disegnare; la palla della simulazione non cambia.
+   */
+  dribbleBall(v, dt) {
+    const b = v.ball, o = b.owner >= 0 ? v.players[b.owner] : null, d = this.dv ??= { x: 0, z: 0, recv: 0, hop: 0, owner: -1 };
+    const carry = o && !o.gk && !o.out && !(o.throwT > 0) && b.y < 0.5 && this.meshes[o.id];
+    let tx = 0, tz = 0, prof = 0;
+    if (carry) {
+      const u = this.meshes[o.id].userData, sp = Math.hypot(o.vx, o.vz), fx = Math.cos(o.face), fz = Math.sin(o.face), rx = -fz, rz = fx;
+      if (d.owner !== o.id) { // primo controllo: continuita' dalla palla disegnata, piede incontro, rimbalzo se arriva forte o alta
+        const pb = this.pb, fast = pb && (Math.hypot(pb.vx, pb.vz) > 11 || pb.y > 0.4);
+        d.x = this.ball.position.x - b.x; d.z = this.ball.position.z - b.z; d.recv = 0.18; d.hop = fast ? 0.16 : 0; u.recvT = 0.18;
+        if (Math.hypot(d.x, d.z) > 2.5) d.x = d.z = 0; // salto lungo (rimessa, primo fotogramma): niente scivolata
+      }
+      const skill = clamp(((o.attr?.Dribbling ?? 13) - 10) / 10, -0.5, 1), s = ((u.phase / (2 * Math.PI)) % 1 + 1) % 1, foot = o.foot === 'SX' ? -1 : 1;
+      let near = 99; for (const q of v.players) if (q.team !== o.team && !q.out) near = Math.min(near, Math.hypot(q.x - o.x, q.z - o.z));
+      if (sp < 2 && near < 3.2) { // puntare l'uomo: palla sotto la suola del piede forte, busto di profilo
+        tx = -0.12 * fx + 0.14 * foot * rx; tz = -0.12 * fz + 0.14 * foot * rz; prof = 0.55 * foot;
+      } else {
+        const L = clamp((sp - 1) / 7, 0, 1) * (0.75 - 0.3 * skill), along = L * (Math.sin(Math.PI * s) - 0.35), lat = 0.07 * Math.cos(u.phase / 2) * clamp(sp / 3, 0, 1);
+        tx = along * fx + lat * rx; tz = along * fz + lat * rz;
+      }
+    }
+    d.owner = carry ? o.id : -1;
+    const k = Math.min(1, dt * (d.recv > 0 ? 1 / 0.18 : carry ? 14 : 12)); d.x += (tx - d.x) * k; d.z += (tz - d.z) * k;
+    let hy = 0; if (d.recv > 0) { d.recv = Math.max(0, d.recv - dt); hy = d.hop * Math.sin(Math.PI * (1 - d.recv / 0.18)); }
+    for (const m of this.meshes) { const u = m.userData, t = carry && m === this.meshes[o.id] ? prof : 0; u.prof = (u.prof ?? 0) + (t - (u.prof ?? 0)) * Math.min(1, dt * 8); if (Math.abs(u.prof) > 0.002) m.rotation.y -= u.prof; }
+    return { x: b.x + d.x, y: b.y + hy, z: b.z + d.z };
   }
 
   updateCamera(v, dt) {
@@ -294,8 +331,8 @@ export class TVRenderer {
       this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && bd < 30 && opp, near: clamp((24 - bd) / 18, 0, 1), rush: p.gk && bd < 9 && v.ball.owner < 0 && Math.hypot(p.vx, p.vz) > 3.5, look });
     });
     this.stepGhosts(dt); this.board.update(this.boardData, v);
-    const b = v.ball, sp = Math.hypot(b.vx, b.vz);
-    this.ball.position.set(b.x, Math.max(0.13, b.y + 0.02), b.z);
+    const b = v.ball, sp = Math.hypot(b.vx, b.vz), vb = this.dribbleBall(v, dt);
+    this.ball.position.set(vb.x, Math.max(0.13, vb.y + 0.02), vb.z);
     const roll = this.spin; // velocita' angolare (rad/s): a terra rotola senza slittare, in volo gira ancora e rallenta
     if (b.y < 0.06 || b.owner >= 0) roll.set(b.vz, 0, -b.vx).multiplyScalar(1 / 0.13);
     else { roll.multiplyScalar(Math.exp(-0.35 * dt)); if (roll.lengthSq() < 36 && sp > 3) roll.set(b.vz, 0, -b.vx).multiplyScalar(0.5 / 0.13); }
@@ -303,7 +340,7 @@ export class TVRenderer {
     if (dt > 0 && w > 0.01) this.ball.rotateOnWorldAxis(_ax.copy(roll).normalize(), Math.min(w, 45) * dt);
     this.clock += dt; this.fxStep(v, dt);
     for (const g of this.goals) for (const n of g.userData.nets) n.update(dt);
-    this.ballBlob.position.set(b.x + b.y * 0.25, 0.011, b.z - b.y * 0.15); this.ballBlob.scale.setScalar(clamp(0.45 - b.y * 0.05, 0.15, 0.45));
+    this.ballBlob.position.set(vb.x + b.y * 0.25, 0.011, vb.z - b.y * 0.15); this.ballBlob.scale.setScalar(clamp(0.45 - b.y * 0.05, 0.15, 0.45));
     const owner = b.owner >= 0 ? v.players[b.owner] : null;
     this.marker.visible = this.showMarker && !!owner && !owner.out;
     if (owner) {

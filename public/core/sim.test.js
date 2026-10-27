@@ -37,6 +37,14 @@ assert.ok(total > 0, 'goals happen');
   assert.ok(wet > dry * 1.2, `pioggia: la palla va piu' lontano (${wet.toFixed(1)} contro ${dry.toFixed(1)} m)`);
   assert.ok(snow < dry * 0.5, `neve: la palla si ferma prima (${snow.toFixed(1)} m)`);
   assert.ok(pud < 4.5, `pozza: la palla si pianta dentro (${pud.toFixed(1)} m)`);
+  const rollOn = surface => { const s = new Sim({ seed: 2, surface }), b = s.ball; s.state = 'play'; for (const p of s.players) { p.x = 0; p.z = 40; } Object.assign(b, { x: -10, z: 0, y: 0.11, vx: 10, vy: 0, vz: 0, owner: -1 }); for (let i = 0; i < 2000 && (b.vx || b.vz); i++) s.stepBall(); return b.x + 10; };
+  const dirt = rollOn('dirt'), syn = rollOn('synthetic'), grass = rollOn('grass');
+  assert.ok(dirt > syn && syn > grass, `manto: terra ${dirt.toFixed(1)} > sintetico ${syn.toFixed(1)} > erba ${grass.toFixed(1)} m`);
+  { // ghiaia: una palla rasoterra che esce veloce si ferma entro pochi decimetri dalla ghiaia
+    const s = new Sim({ seed: 2 }), b = s.ball; s.state = 'play'; for (const p of s.players) { p.x = 0; p.z = -40; }
+    Object.assign(b, { x: 0, z: s.pitch.hz + 2.1, y: 0.11, vx: 0, vy: 0, vz: 15, owner: -1 }); for (let i = 0; i < 60; i++) s.stepBall();
+    assert.ok(Math.hypot(b.vx, b.vz) < 0.5 && b.z < s.pitch.hz + 3, `ghiaia: palla ferma (z ${b.z.toFixed(2)}, v ${Math.hypot(b.vx, b.vz).toFixed(2)})`);
+  }
   assert.equal(new Sim({ seed: 2 }).puddles.length, 0);
   assert.ok(new Sim({ seed: 2, weather: 'storm' }).puddles.length >= 5, 'pozze con la pioggia intensa');
   assert.equal(new Sim({ seed: 2, weather: 'boh' }).weather, 'clear', 'meteo sconosciuto = sereno');

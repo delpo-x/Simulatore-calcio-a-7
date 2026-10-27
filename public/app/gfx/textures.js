@@ -3,24 +3,32 @@ import { RULES } from '../../core/sim.js';
 import { canvas, clamp, tex } from './util.js';
 
 /** Campo: strisce di taglio con pettinatura e grana dei fili d'erba, poi linee nitide, aree, area piccola, dischetto, archi d'angolo. Risoluzione alta (fino a 4096 px). */
-export function pitchTexture(P) {
-  const s = clamp(Math.floor(4096 / (P.hx * 2)), 20, 40), W = Math.round(P.hx * 2 * s), H = Math.round(P.hz * 2 * s), cx = W / 2, cz = H / 2;
+/** Colori per manto: fasce chiare/scure, usura (colore rgb) e intaso di gommino (solo sintetico). */
+const SURF = {
+  synthetic: { stripes: [[58, 156, 70], [50, 142, 62]], wear: '24,30,20', rubber: true, grain: [0.6, 1, 0.6] },
+  grass: { stripes: [[74, 140, 58], [62, 124, 48]], wear: '96,78,48', rubber: false, grain: [0.8, 1, 0.5] },
+  dirt: { stripes: [[156, 116, 78], [150, 111, 74]], wear: '92,64,40', rubber: false, grain: [1, 0.8, 0.6] },
+};
+
+export function pitchTexture(P, surface = 'synthetic') {
+  const S = SURF[surface] ?? SURF.synthetic, s = clamp(Math.floor(4096 / (P.hx * 2)), 20, 40), W = Math.round(P.hx * 2 * s), H = Math.round(P.hz * 2 * s), cx = W / 2, cz = H / 2;
   const [c, g] = canvas(W, H), n = Math.max(8, Math.round(P.hx * 2 / 5));
   for (let i = 0; i < n; i++) { // ogni fascia ha un lieve gradiente nel senso di taglio: da lontano si legge la direzione del rasaerba
-    const x0 = i * W / n, gr = g.createLinearGradient(x0, 0, x0 + W / n, 0), a = i % 2 ? [58, 156, 70] : [50, 142, 62];
+    const x0 = i * W / n, gr = g.createLinearGradient(x0, 0, x0 + W / n, 0), a = S.stripes[i % 2 ? 0 : 1];
     gr.addColorStop(0, `rgb(${a[0] - 4},${a[1] - 6},${a[2] - 4})`); gr.addColorStop(1, `rgb(${a[0] + 4},${a[1] + 6},${a[2] + 4})`);
     g.fillStyle = gr; g.fillRect(x0, 0, W / n + 1, H);
   }
   const img = g.getImageData(0, 0, W, H), d = img.data; // grana: ogni pixel varia, a macchie larghe e a puntini
   let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  for (let i = 0; i < d.length; i += 4) { const v = (rnd() - 0.5) * 16; d[i] += v * 0.6; d[i + 1] += v; d[i + 2] += v * 0.6; }
+  const [gr0, gr1, gr2] = S.grain, amp = surface === 'dirt' ? 30 : 16;
+  for (let i = 0; i < d.length; i += 4) { const v = (rnd() - 0.5) * amp; d[i] += v * gr0; d[i + 1] += v * gr1; d[i + 2] += v * gr2; }
   g.putImageData(img, 0, 0);
   for (let i = 0; i < W * H / 900; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,200' : '0,40,0'},${0.015 + rnd() * 0.025})`; g.beginPath(); g.ellipse(rnd() * W, rnd() * H, (2 + rnd() * 5) * s / 20, (1.5 + rnd() * 3) * s / 20, rnd() * 3, 0, 7); g.fill(); }
   const wear = (x, z, rx, rz, a) => { // usura del sintetico: erba schiacciata e intaso di gommino nero dove si gioca di piu'
     const px = cx + x * s, pz = cz + z * s, gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-    gr.addColorStop(0, `rgba(24,30,20,${a})`); gr.addColorStop(0.6, `rgba(30,40,24,${a * 0.5})`); gr.addColorStop(1, 'rgba(30,40,24,0)');
+    gr.addColorStop(0, `rgba(${S.wear},${a})`); gr.addColorStop(0.6, `rgba(${S.wear},${a * 0.5})`); gr.addColorStop(1, `rgba(${S.wear},0)`);
     g.save(); g.translate(px, pz); g.scale(rx * s, rz * s); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill(); g.restore();
-    for (let i = 0; i < rx * rz * 60 * a; i++) { const r = Math.sqrt(rnd()), t = rnd() * 6.28; g.fillStyle = `rgba(12,12,12,${0.25 + rnd() * 0.35})`; g.fillRect(px + Math.cos(t) * r * rx * s, pz + Math.sin(t) * r * rz * s, s * 0.06, s * 0.06); }
+    if (S.rubber) for (let i = 0; i < rx * rz * 60 * a; i++) { const r = Math.sqrt(rnd()), t = rnd() * 6.28; g.fillStyle = `rgba(12,12,12,${0.25 + rnd() * 0.35})`; g.fillRect(px + Math.cos(t) * r * rx * s, pz + Math.sin(t) * r * rz * s, s * 0.06, s * 0.06); }
   };
   for (const d of [-1, 1]) { wear(d * (P.hx - 2.5), 0, 3.5, 3.2, 0.3); wear(d * (P.hx - P.penaltySpot), 0, 1.6, 1.6, 0.28); wear(d * (P.hx - P.areaDepth * 0.6), 0, P.areaDepth * 0.5, P.areaWidth * 0.35, 0.12); wear(d * 8, -P.hz + 0.8, 5, 1.1, 0.2); }
   wear(0, 0, 3.2, 3.2, 0.2);

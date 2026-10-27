@@ -12,7 +12,8 @@ export { contrast } from './gfx/textures.js';
 
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
-  constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [] } = {}) {
+  constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [], surface = 'dirt' } = {}) {
+    this.surface = surface;
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? []; this.label = label;
     const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     setAnisotropy(r.capabilities.getMaxAnisotropy());
@@ -26,7 +27,7 @@ export class TVRenderer {
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
     const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
     const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;
-    const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch), roughness: 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: 1.4 }));
+    const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch, surface), roughness: surface === 'dirt' ? 0.95 : 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: surface === 'dirt' ? 0.6 : 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     this.flags = stadium(pitch, scene).flags;
     this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r }); this.wx.onThunder = () => this.onThunder?.();
@@ -137,6 +138,11 @@ export class TVRenderer {
       a0.rotation.x = 1.15 * w; a1.rotation.x = -1.15 * w; a0.rotation.z = a1.rotation.z = 0.5 * w;
       b.rotation.x = u.slipDir * 0.28 * w * Math.cos(q * 9); lean += 0.3 * w; drop += 0.1 * w;
     }
+    if (ctx.wall) { // in barriera: gambe strette, mani incrociate davanti al corpo; sul calcio salto a gambe unite
+      for (const l of u.legs) { l.hip.rotation.z = 0.04; l.knee.rotation.z = -0.06; }
+      a0.rotation.z = a1.rotation.z = 0.55; a0.rotation.x = -0.75; a1.rotation.x = 0.75; lean = 0.02; drop = 0;
+      if (ctx.wall.kicked && ctx.wall.t < 0.55) { const q = ctx.wall.t / 0.55, j = Math.sin(Math.PI * q); drop = 0.42 * j; for (const l of u.legs) l.knee.rotation.z = -0.5 * j; lean = 0.05 * j; }
+    }
     if (dribbling) { const k = Math.max(0, c); l1.hip.rotation.z += k * 0.35; l1.knee.rotation.z *= 0.5; a0.rotation.x = -0.3; a1.rotation.x = 0.3; } // tocchi corti: il piede accompagna la palla
     if (u.feintT > 0) { // finta con passo sopra la palla e peso sul lato opposto
       const q = 1 - u.feintT / 0.5, w = Math.sin(Math.PI * q), d = u.feintDir, over = d > 0 ? l0 : l1;
@@ -245,6 +251,7 @@ export class TVRenderer {
 
   /** Gommino nero dell'erba sintetica sollevato sul cambio di direzione. */
   rubber(x, z) {
+    if (this.surface !== 'synthetic') { for (let i = 0; i < 4; i++) this.fx.emit(x, 0.06, z, rnd(-0.6, 0.6), rnd(0.2, 0.6), rnd(-0.6, 0.6), { life: rnd(0.4, 0.7), size: 0.22, grow: 2.5, color: this.surface === 'dirt' ? 0xb08a62 : 0x5a7a3e, alpha: 0.35, drag: 2 }); return; } // terra: polvere; erba: zolle d'erba
     for (let i = 0; i < 9; i++) { const a = rnd(0, 6.28), s = rnd(0.5, 1.6); this.fx.emit(x + rnd(-0.15, 0.15), 0.05, z + rnd(-0.15, 0.15), Math.cos(a) * s, rnd(1, 2.4), Math.sin(a) * s, { life: rnd(0.35, 0.6), size: rnd(0.05, 0.08), color: 0x161616, alpha: 0.95, grav: 14, drag: 0.4 }); }
   }
 
@@ -435,7 +442,7 @@ export class TVRenderer {
         return;
       }
       m.position.set(p.x, 0, p.z); m.rotation.y = -p.face;
-      this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && bd < 30 && opp, near: clamp((24 - bd) / 18, 0, 1), rush: p.gk && bd < 9 && v.ball.owner < 0 && Math.hypot(p.vx, p.vz) > 3.5, look });
+      this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && bd < 30 && opp, near: clamp((24 - bd) / 18, 0, 1), rush: p.gk && bd < 9 && v.ball.owner < 0 && Math.hypot(p.vx, p.vz) > 3.5, look, wall: v.wall?.ids.includes(p.id) ? v.wall : null });
     });
     this.stepGhosts(dt); this.board.update(this.boardData, v);
     const b = v.ball, sp = Math.hypot(b.vx, b.vz), vb = this.dribbleBall(v, dt);

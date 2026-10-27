@@ -25,6 +25,8 @@ export const MOVE = {
 /** IA di squadra (ticket 07; specchio di config/params.json, sezione "ia"). Distanze di riferimento a 105 m, poi scalate. */
 export const AI = {
   hz: 10, reaction: 0.1, passError: 0.056, risk: 1.5,
+  // barriera sulle punizioni: entro wallRange m (scalato, al massimo 30) dalla porta; alta wallHeight m col salto; il battitore aspetta wallDelay s di gioco e scavalca con probabilita' wallOver, altrimenti a giro
+  wallRange: 42, wallHeight: 1.85, wallDelay: 1.0, wallOver: 0.45,
   pressTrigger: 16, secondPress: 12, mateGap: 11.5529, minScaled: 3, refLength: 105,
   shootRange: 42, shootEager: 0.95, shotAngle: 1, shotAnglePerM: 0.5, longBall: 0.002, longMin: 30, tackleEager: 0.056, markWeight: 0.7, containDist: 5, forceShot: 2, laneWidth: 1.6, shotMargin: 0.8039, shotFarPost: 0.9772, tackleDist: 1.6, sprintFree: 6, defenderLimit: -0.1,
   passSpeed0: 7, passBase: 0.7439, passPressed: 0.05, passMin: 0.4887, pressedDist: 3.7531, pressedErrMul: 6, decisionNoise: 1, formSpread: 0.15, cornerDelay: 1.6, throwDelay: 1.4, dribbleEager: 0.02, dribbleDist: 2.4, dribbleBase: 0.5, edgePenalty: 0.3, throwMiss: 0.3382, curveEager: 0.2147, headCorner: 0, curveRate: 0.7241, crossEager: 0.3, crossWide: 0.3855, crossRange: 26.5252, crossError: 0.3424, headShot: 0.4296, headReach: 1.1, parryCorner: 1, parryExtra: 0.9425, blockProb: 0.68, blockCorner: 1, width: 1.35, formSpeed: 0, formTackle: 1,
@@ -70,6 +72,9 @@ export const WEATHER = {
   clear: { name: 'Sereno', grip: 1 }, cloudy: { name: 'Nuvoloso', grip: 1 }, fog: { name: 'Nebbia', grip: 1 }, night: { name: 'Notturna', grip: 1 },
   rain: { name: 'Pioggia', grip: 0.7 }, storm: { name: 'Pioggia intensa', grip: 0.7, puddles: true }, snow: { name: 'Neve', grip: 3 },
 };
+
+/** Manto del campo: grip moltiplica l'attrito di rotolamento (si somma al meteo). Terra = riferimento, sintetico +15%, erba naturale +35%. */
+export const SURFACE = { dirt: { name: 'Terra', grip: 1 }, synthetic: { name: 'Sintetico', grip: 1.15 }, grass: { name: 'Erba', grip: 1.35 } };
 
 /** Pozze della pioggia intensa: 5-7 cerchi nel campo, mai sui dischetti ne' a ridosso delle porte; posizioni fisse per seme. */
 export function makePuddles(P, seed) {
@@ -138,9 +143,10 @@ export class Sim {
   clock(t = this.matchTime) { return t / this.pace; }
 
   /** `teams`: per squadra, null (giocatori neutri) oppure l'esito di pickLineup() (ticket 09). */
-  constructor({ perTeam = 7, seed = 1, halfLength = 90, pace, schemes, pitch, tactics, teams = [null, null], weather = 'clear' } = {}) {
+  constructor({ perTeam = 7, seed = 1, halfLength = 90, pace, schemes, pitch, tactics, teams = [null, null], weather = 'clear', surface = 'dirt' } = {}) {
     this.rand = rng(seed);
-    this.weather = WEATHER[weather] ? weather : 'clear'; this.grip = WEATHER[this.weather].grip;
+    this.weather = WEATHER[weather] ? weather : 'clear'; this.surface = SURFACE[surface] ? surface : 'dirt';
+    this.grip = WEATHER[this.weather].grip * SURFACE[this.surface].grip;
     this.time = 0; this.matchTime = 0;
     this.pace = pace ?? MATCH.pace; this.halfLengthClock = halfLength; this.halfLength = halfLength * this.pace; // halfLength: durata di un tempo sul cronometro; internamente si gioca this.halfLength secondi
     this.score = [0, 0]; this.state = 'kickoff'; this.stateT = 1.0; this.kickTeam = 0; this.events = [];
@@ -271,7 +277,7 @@ export class Sim {
       p.blueUntil = 0; p.out = false; const h = this.homePos(p); p.x = h.x; p.z = Math.sign(h.z || 1) * this.pitch.hz; p.vx = p.vz = 0; this.events.push({ t: 'blueEnd', team: p.team });
     }
     this.separate();
-    this.stepBall();
+    this.stepBall(); this.stepWall();
     for (let t = 0; t < 2; t++) this.prev[t] = inputs[t] ?? 0;
     this.rules();
   }
@@ -386,6 +392,8 @@ export class Sim {
     const owner = this.ball.owner >= 0 ? this.players[this.ball.owner] : null;
     if (p.gk) return this.aiKeeper(p, owner);
     if (this.setKind?.kind === 'corner' && this.setKind.taker !== p.id && owner?.id === this.setKind.taker) { const c = this.cornerSlot(p); if (c) return { tx: c.x, tz: c.z, sprint: dist(p.x, p.z, c.x, c.z) > 4 }; }
+    const ws = this.wall && !this.wall.kicked && this.wall.slots.find(s => s.id === p.id);
+    if (ws) return { tx: ws.x, tz: ws.z, sprint: false }; // in barriera: fermo al suo posto fino al calcio
     if (owner === p) return this.aiCarrier(p);
     if (owner && owner.team === p.team) return this.aiSupport(p, owner);
     return this.aiDefend(p, owner);
@@ -623,6 +631,11 @@ export class Sim {
       if (tgt) { if (box.includes(tgt)) this.crossTo(p, tgt); else this.passTo(p, tgt, false); return hold; }
       if (this.matchTime - k.t0 > 6) { const q = this.players.filter(q => q.team === p.team && q !== p && !q.gk && !q.out).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0]; if (q) this.passTo(p, q, false); }
       return hold;
+    }
+    if (this.wall && !this.wall.kicked && this.setKind?.taker === p.id) { // punizione con la barriera: si aspetta che sia in posizione, poi si calcia (o si passa, se indiretta o troppo angolata)
+      const k = this.setKind; k.t0 ??= this.matchTime;
+      if (this.matchTime - k.t0 < AI.wallDelay) return hold;
+      if (!this.indirect && dg < range && Math.abs(gx - p.x) > 4) { this.freeKick(p); return hold; }
     }
     if (!this.setKind && this.state === 'play' && p.kickCd === 0 && this.rand() < AI.dribbleEager) { // dribbling: salta l'avversario davanti; esito da Dribbling contro Contrasti
       const q = opps.filter(o => !o.gk && !o.shieldT && dist(o.x, o.z, p.x, p.z) < this.sc(AI.dribbleDist * p.k.dribRange) && (o.x - p.x) * d > 0).sort((a, c) => dist(a.x, a.z, p.x, p.z) - dist(c.x, c.z, p.x, p.z))[0];
@@ -1012,7 +1025,7 @@ export class Sim {
     if (b.y < 0.11) { b.y = 0.11; if (Math.abs(b.vy) > 1.5) { b.vy = -b.vy * BALL.restitution; b.vx *= 0.9; b.vz *= 0.9; } else b.vy = 0; } // ogni rimbalzo sull'erba toglie velocita' orizzontale
     const hx = this.pitch.hx, hz = this.pitch.hz;
     if (Math.abs(b.x) > hx + 2 || Math.abs(b.z) > hz + 2) { // la ghiaia parte a 2 m dal campo (prima c'e' erba): la palla rallenta di colpo e non va oltre 2 m di ghiaia
-      const f = Math.max(0, 1 - (b.y < 0.2 ? 40 : 0.5) * DT); // a terra la ghiaia la pianta quasi subito b.vx *= f; b.vz *= f;
+      const f = Math.max(0, 1 - (b.y < 0.2 ? 40 : 0.5) * DT); b.vx *= f; b.vz *= f; // a terra la ghiaia la pianta quasi subito
       if (Math.abs(b.x) > hx + 4) { b.x = Math.sign(b.x) * (hx + 4); b.vx = 0; } if (Math.abs(b.z) > hz + 4) { b.z = Math.sign(b.z) * (hz + 4); b.vz = 0; }
     }
     if (this.state === 'goal') { // gol segnato: la palla resta nella rete (profondita' come nel disegno 3D), non la attraversa
@@ -1175,8 +1188,9 @@ export class Sim {
     this.setKind = { kind, taker: taker.id, x, z, t: kind === 'throwin' ? 1.0 : 0 }; // rimessa: il battitore arriva gia' con la palla in mano, resta da sollevarla
     if (kind === 'throwin') { taker.throwT = 9; taker.shieldT = 9; taker.aiT = 1; this.throwWait = 0; this.indirect = { team, taker: taker.id }; } // la rimessa non vale come gol diretto; chi la batte non si contrasta
     const R = kind === 'free' || kind === 'indirect' ? RULES.wallDistance : kind === 'corner' ? RULES.cornerDistance : kind === 'throwin' ? 2 : 0, end = Math.sign(x), moved = [];
+    this.wall = kind === 'free' || kind === 'indirect' ? this.buildWall(team, x, z) : null;
     for (const p of this.players) {
-      if (p === taker || p.out) continue;
+      if (p === taker || p.out || this.wall?.ids.includes(p.id)) continue;
       if (R && p.team !== team) this.keepAway(p, x, z, R);
       const barred = kind === 'penalty' ? !(p.gk && p.team !== team) : kind === 'goalkick' && p.team !== team;
       if (barred && Math.abs(p.x) > pt.hx - pt.areaDepth && Math.sign(p.x) === end && Math.abs(p.z) < pt.areaWidth / 2) { p.x = end * (pt.hx - pt.areaDepth - 1); moved.push(p); }
@@ -1218,6 +1232,56 @@ export class Sim {
     this.subs[team]++;
     this.events.push({ t: 'sub', team, player: p.id, out, outNumber, reason });
     return true;
+  }
+
+  /**
+   * Barriera sulla punizione di chi attacca (team) da (x, z): solo in zona tiro (entro wallRange scalato dalla porta). 2 o 3 difensori di movimento,
+   * i piu' vicini, in fila a wallDistance sulla linea palla-palo vicino, spaziati di 0,55 m verso il centro della porta. null se lontano.
+   */
+  buildWall(team, x, z) {
+    const pt = this.pitch, gx = this.dir(team) * pt.hx, dg = dist(x, z, gx, 0);
+    if (dg > Math.min(this.sc(AI.wallRange), 30) || Math.abs(gx - x) < 3) return null;
+    const near = (Math.sign(z) || 1) * pt.goalHalf, ax = gx - x, az = near - z, l = mag(ax, az), ux = ax / l, uz = az / l;
+    const n = dg < this.sc(30) ? 3 : 2, mx = (gx - x) / dg - ux, mz = -z / dg - uz, side = Math.sign(-uz * mx + ux * mz) || 1; // la fila si allunga verso il centro della porta
+    const defs = this.players.filter(p => p.team !== team && !p.gk && !p.out).sort((a, c) => dist(a.x, a.z, x, z) - dist(c.x, c.z, x, z)).slice(0, n);
+    const cx = x + ux * RULES.wallDistance, cz = z + uz * RULES.wallDistance, px = -uz * side, pz = ux * side;
+    const slots = defs.map((p, i) => { const sx = cx + px * (i * 0.55 - 0.1), sz = cz + pz * (i * 0.55 - 0.1); p.x = sx; p.z = sz; p.vx = p.vz = 0; p.face = Math.atan2(z - sz, x - sx); return { id: p.id, x: sx, z: sz }; });
+    return slots.length ? { ids: slots.map(s => s.id), slots, x, z, dist: RULES.wallDistance, kicked: false, t: 0 } : null;
+  }
+
+  /** Barriera in campo: ferma i suoi uomini finche' non si batte, poi respinge un pallone basso che la colpisce. Si scioglie quando la palla l'ha superata o dopo 1,5 s. */
+  stepWall() {
+    const w = this.wall, b = this.ball, k = this.setKind;
+    if (!w) return;
+    if (!w.kicked) { if (b.owner < 0 && b.last === k?.taker) w.kicked = true; else if (k?.taker !== b.owner) { this.wall = null; return; } else return; }
+    w.t += DT;
+    if (w.t > 1.5 || dist(b.x, b.z, w.x, w.z) > w.dist + 1.5) { this.wall = null; return; }
+    for (const id of w.ids) {
+      const p = this.players[id]; if (p.out) continue;
+      if (dist(b.x, b.z, p.x, p.z) < 0.45 && b.y < AI.wallHeight) { // urto contro la barriera: la palla torna indietro e si impenna
+        const s = mag(b.vx, b.vz);
+        b.vx = -b.vx * 0.25 + (this.rand() - 0.5) * 0.3 * s; b.vz = -b.vz * 0.25 + (this.rand() - 0.5) * 0.3 * s; b.vy = 1 + this.rand() * 3;
+        b.shot = false; b.curve = 0; b.last = p.id; b.kicker = -1;
+        this.events.push({ t: 'wallBlock', team: p.team, player: p.id }); this.wall = null; return;
+      }
+    }
+  }
+
+  /** Punizione diretta con la barriera: tiro a scavalcarla che ricade sotto la traversa, oppure a giro sul palo che la barriera non copre. */
+  freeKick(p) {
+    const pt = this.pitch, w = this.wall, gx = this.dir(p.team) * pt.hx, dg = dist(p.x, p.z, gx, 0), near = (Math.sign(p.z) || 1) * pt.goalHalf;
+    const errK = this.errMul(p, p.k.freeKickErr), err = (this.rand() - 0.5) * 2 * (AI.shotAngle + AI.shotAnglePerM * dg) * errK * Math.PI / 180;
+    if (this.rand() < AI.wallOver) { // sopra la barriera: palla lenta e alta che scende in porta
+      const tz = near * (0.35 + this.rand() * 0.4), ax = gx - p.x, az = tz - p.z, d = mag(ax, az), sp = 14 + this.rand() * 3, tw = w.dist / sp, tg = d / sp;
+      const lift = (AI.wallHeight + 0.15 + 4.9 * tw * tw) / tw * (1 + (this.rand() - 0.5) * 0.25 * errK); // abbastanza per la barriera; l'errore la manda sulla barriera o sopra la traversa
+      const a = Math.atan2(az, ax) + err * 0.6;
+      this.kick(p, Math.cos(a), Math.sin(a), sp, Math.min(lift, (pt.goalH + 4.9 * tg * tg) / tg + 1.5)); this.ball.shot = true;
+      return;
+    }
+    const tz = -near * Math.max(0, 1 - AI.shotMargin / pt.goalHalf), power = 0.7 + this.rand() * 0.3, T = dg / ((22 + power * 10) * 0.9), base = Math.atan2(tz - p.z, gx - p.x);
+    const wa = Math.atan2(w.slots[0].z - p.z, w.slots[0].x - p.x), off = a => Math.abs(Math.atan2(Math.sin(a - wa), Math.cos(a - wa)));
+    let c = AI.curveRate * p.k.curve * (0.6 + 0.4 * this.rand()); if (off(base + c * T / 2) > off(base - c * T / 2)) c = -c; // a giro sul palo lontano: parte dal lato lontano dalla barriera e rientra
+    this.shoot(p, base + err - c * T / 2, power, true, false, c);
   }
 
   keepAway(p, x, z, R) {

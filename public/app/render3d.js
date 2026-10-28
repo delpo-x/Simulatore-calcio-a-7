@@ -57,7 +57,13 @@ export class TVRenderer {
     this.meshes = []; this.showMarker = true; this.w = 0; this.h = 0;
   }
 
-  setCamera(mode) { if (mode !== this.mode) { this.mode = mode; this.blend = 0; } }
+  setCamera(mode) { if (mode !== this.mode) { this.mode = mode; this.blend = 0; } this.cutK = null; }
+
+  /**
+   * Stacco di regia sulla camera TV, con taglio netto in entrata e in uscita: { kind: 'player', id, t } primo piano su un giocatore,
+   * { kind: 'fondo', dir, t } vista da dietro chi calcia (rigori), che si chiude poco dopo il tiro.
+   */
+  cut(c) { if (this.mode !== 'tv') return; this.cutK = c; this.snap = true; if (c.dir) this.camDir = this.lastDir = c.dir; }
 
   resize() {
     const w = this.canvas.clientWidth | 0, h = this.canvas.clientHeight | 0;
@@ -312,27 +318,41 @@ export class TVRenderer {
     let fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(64) / 2) / aspect) * 180 / Math.PI, 28, 78);
     if (this.snap) this.camDir = this.lastDir; // direzione d'attacco della camera di fondo: cambia solo se il possesso resta dall'altra parte per un po'
     else if (this.lastDir !== this.camDir) { if ((this.dirT += dt) > 1.4) { this.camDir = this.lastDir; this.dirT = 0; } } else this.dirT = 0;
-    if (this.mode === 'tattica') { // drone: vista alta inclinata sull'intero campo; in verticale la lunghezza del campo sale lungo lo schermo
+    const c = this.cutK, sp = Math.hypot(b.vx, b.vz);
+    if (c) {
+      if (c.kind === 'fondo' && sp > 10 && !c.kicked) { c.kicked = true; c.t = Math.min(c.t, 1.6); } // tiro partito: si resta sul volo della palla, poi si torna
+      if ((c.t -= dt) <= 0) { this.cutK = null; this.snap = true; }
+    }
+    const mode = this.cutK?.kind === 'fondo' ? 'fondo' : this.mode, cp = this.cutK?.kind === 'player' ? v.players[this.cutK.id] : null;
+    this.shotZ = (this.shotZ ?? 0) + ((owner == null && sp > 12 && Math.sign(b.vx) === Math.sign(b.x) && P.hx - Math.abs(b.x) < 30 ? 1 : 0) - (this.shotZ ?? 0)) * Math.min(1, dt * 3); // tiro in volo verso la porta vicina: la camera TV stringe
+    if (cp) { // primo piano: camera a 1,7 m, 5 m davanti al giocatore sul lato della tribuna principale, teleobiettivo sul busto
+      const ang = Math.PI / 2 + Math.sin(this.clock * 0.4) * 0.25;
+      pos.set(cp.x + Math.cos(ang) * 5, 1.7, cp.z + Math.sin(ang) * 5); look.set(cp.x, 1.35, cp.z); fov = aspect < 0.9 ? 40 : 24;
+    } else if (mode === 'tattica') { // drone: vista alta inclinata sull'intero campo; in verticale la lunghezza del campo sale lungo lo schermo
       const port = aspect < 0.9, el = THREE.MathUtils.degToRad(58), t = Math.tan(THREE.MathUtils.degToRad(fov = port ? 55 : 38) / 2);
       const W = (port ? P.hz : P.hx) + 3, H = ((port ? P.hx : P.hz) + 3) * Math.sin(el) + 1, D = Math.max(W / (t * aspect), H / t) * 1.03, cx = port ? 0 : clamp(b.x * 0.12, -3, 3);
       look.set(cx, 0, 0); pos.set(cx - (port ? D * Math.cos(el) : 0), D * Math.sin(el), port ? 0 : D * Math.cos(el));
-    } else if (this.mode === 'fondo') { // asse lungo del campo, dietro la porta di chi attacca: tutta l'azione verso la porta avversaria (rigori, punizioni)
+    } else if (mode === 'fondo') { // asse lungo del campo, dietro la porta di chi attacca: tutta l'azione verso la porta avversaria (rigori, punizioni)
       const d = this.camDir, u = clamp(b.x, -P.hx, P.hx) * d, pu = Math.max(0.5 * u - (0.9 * P.hx + 10), -(P.hx + 4.5)), lu = clamp(u * 0.7 + 8, -P.hx * 0.6, P.hx);
       fov = aspect < 0.9 ? 66 : 36; pos.set(d * pu, 10.5, b.z * 0.35); look.set(d * lu, 0.4, b.z * 0.55);
-    } else if (this.mode === 'replay') { // replay: angolo inverso dietro la linea di porta, basso, con zoom da teleobiettivo sulla palla (la rete resta di lato, non davanti)
+    } else if (mode === 'replay' && this.rangle === 1) { // replay alto dalla tribuna opposta, largo: si legge tutta l'azione
+      const bx = clamp(b.x, -P.hx, P.hx); pos.set(bx * 0.6, 16, -(P.hz + 14)); look.set(bx * 0.8, 0, b.z * 0.5); fov = aspect < 1 ? 60 : 34;
+    } else if (mode === 'replay' && this.rangle === 2) { // super slow: segue la palla a bordo campo, ad altezza d'uomo
+      const bx = clamp(b.x, -P.hx, P.hx); pos.set(bx - this.rdir * 7, 1.6, this.rside * (P.hz + 2)); look.set(bx, Math.max(0.6, b.y), b.z); fov = aspect < 1 ? 52 : 30;
+    } else if (mode === 'replay') { // replay: angolo inverso dietro la linea di porta, basso, con zoom da teleobiettivo sulla palla (la rete resta di lato, non davanti)
       const sx = this.rdir, bx = clamp(b.x, -P.hx, P.hx);
       pos.set(sx * (P.hx + 3.6), 2, this.rside * 7); look.set(bx * 0.9 + sx * P.hx * 0.1, Math.max(0.5, b.y * 0.8), b.z * 0.8);
       fov = clamp(2 * Math.atan(4.5 / Math.max(5, pos.distanceTo(look))) * 180 / Math.PI, 12, 50) * (aspect < 1 ? 1.5 : 1);
     } else {
       const port = aspect < 0.9; // telefono in verticale: inquadratura piu' dall'alto, cosi' il campo riempie lo schermo invece delle tribune
-      const ze = this.zoom * this.zoom * (3 - 2 * this.zoom), lead = clamp(this.cv.x * 0.45, -5, 5); // ze: 0 a centrocampo, 1 sulla linea di porta
+      const ze = this.zoom * this.zoom * (3 - 2 * this.zoom), lead = clamp(this.cv.x * 0.7, -8, 8); // ze: 0 a centrocampo, 1 sulla linea di porta
       const dist = Math.max(port ? 16 : 22, P.hz * (port ? 1.5 : 2.1)) * (1 - 0.14 * ze), hgt = Math.max(12, P.hz * (port ? 2 : 1.15)) * (1 - 0.12 * ze), k = P.hx * (port ? 0.1 : 0.22) * (1 - 0.4 * ze); // piu' vicina e piu' bassa verso la porta
-      fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(50) / 2) / aspect) * 180 / Math.PI, 24, 64) * (1 - 0.24 * ze); // zoom negli ultimi metri dell'area
+      fov = clamp(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(50) / 2) / aspect) * 180 / Math.PI, 24, 64) * (1 - 0.24 * ze) * (1 - 0.12 * this.shotZ); // zoom negli ultimi metri dell'area
       pos.set(clamp(b.x + lead * 0.4, -P.hx + k, P.hx - k), hgt, b.z * 0.3 + dist); look.set(pos.x + lead * 0.3, 0, b.z * 0.45 - 1); // anticipa leggermente la direzione del gioco
     }
     const k = this.snap ? 1 : 1 - Math.exp(-(this.blend < 1 ? 2.2 : 3.2) * dt);
     this.blend = Math.min(1, (this.blend ?? 1) + dt * 1.2); this.snap = false;
-    const kt = this.mode === 'replay' ? Math.max(k, 1 - Math.exp(-12 * dt)) : k; // il replay insegue la palla da vicino: niente ritardo con fov stretto
+    const kt = mode === 'replay' || cp ? Math.max(k, 1 - Math.exp(-12 * dt)) : k; // il replay insegue la palla da vicino: niente ritardo con fov stretto
     this.camPos.lerp(pos, k); this.camLook.lerp(look, kt);
     this.cam.fov += (fov - this.cam.fov) * kt; this.cam.updateProjectionMatrix();
     this.cam.position.copy(this.camPos);

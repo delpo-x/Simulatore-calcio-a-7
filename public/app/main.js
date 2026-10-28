@@ -201,6 +201,11 @@ function tick() {
     else if (e.t === 'half') A.whistle(2, 0.45);
     else if (e.t === 'full') A.whistle(3, 0.5);
   }
+  if (!G.skipping && !G.replay && G.speed <= 2) for (const e of s.events) { // regia: stacchi sui momenti chiave, solo a velocita' di visione
+    if (e.t === 'foul' && e.kind === 'penalty') R.cut({ kind: 'fondo', dir: e.victim === 0 ? 1 : -1, t: 9 });
+    else if (e.t === 'foul' && e.card) R.cut({ kind: 'player', id: e.player, t: 2.6 });
+    else if (e.t === 'sub') R.cut({ kind: 'player', id: e.player, t: 2.2 });
+  }
   if (items.length) onItems(items);
   const lines = G.cm.step();
   if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); }
@@ -354,7 +359,8 @@ function showLower(html, kind, secs = 3) {
 
 function playClips(clips, auto = false) {
   if (!clips.length) return;
-  G.queue = clips.slice(1); G.replay = new ReplayPlayer(clips[0]); G.replayAuto = auto;
+  if (clips[0].angle == null) clips = [0, 1, 2].map(angle => ({ ...clips[0], angle, frames: angle === 2 ? clips[0].frames.slice(75, 122) : clips[0].frames })).concat(clips.slice(1)); // ogni gol da tre angoli: dietro la porta, alto dalla tribuna, super slow a bordo campo
+  G.queue = clips.slice(1); G.replay = new ReplayPlayer(clips[0], clips[0].angle === 2 ? 0.3 : 0.65); G.replayAuto = auto; R.rangle = clips[0].angle;
   $('#end').hidden = true; $('#replay-tag').hidden = false; $('#match').classList.add('replaying'); hideBanner(); $('#lower').hidden = true; lowerT = 0;
   $('#rp-who').textContent = playerName(clips[0].item.player); $('#rp-min').textContent = `${clips[0].item.min}′`;
   R.rdir = clips[0].side ?? (clips[0].item.team === 0 ? 1 : -1); R.rside = -(clips[0].zs ?? 1); R.setCamera('replay'); R.snap = true; // angolo inverso dietro la porta del gol, taglio netto

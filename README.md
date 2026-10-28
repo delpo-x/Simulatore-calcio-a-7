@@ -2,6 +2,8 @@
 
 Simulatore di partite di calcio a 7 (clean-room, originale): due squadre IA si affrontano, senza controllo umano. Si guarda la partita in 3D con grafica televisiva, oppure nella vista di debug, e si misura il comportamento con test numerici.
 
+Piano di sviluppo verso una resa da gioco AAA: [docs/PIANO_AAA.md](docs/PIANO_AAA.md).
+
 Sotto c'è una shell browser con relay WebSocket (`pes-web-shell`), lasciata com'è: non fa parte del simulatore (ora in `shell.html`).
 
 ## Online

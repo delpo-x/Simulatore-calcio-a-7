@@ -17,7 +17,7 @@ const LOOK = {
 
 export class Weather {
   /** ctx: { sun, hemi, pitchMat, renderer } della scena gia' costruita; puddles dalla simulazione. */
-  constructor(scene, P, kind, puddles, { sun, hemi, pitchMat, renderer }) {
+  constructor(scene, P, kind, puddles, { sun, hemi, pitchMat, renderer, precip = 1 }) {
     this.kind = LOOK[kind] ? kind : 'clear'; const L = this.L = LOOK[this.kind];
     this.scene = scene; this.P = P; this.hemi = hemi; this.puddles = puddles ?? []; this.flash = 0; this.boltT = rnd(4, 10);
     this.wet = !!L.wet; this.snowy = this.kind === 'snow'; this.cold = this.snowy || this.kind === 'fog' || this.kind === 'night';
@@ -31,7 +31,7 @@ export class Weather {
     if (L.wet) { pitchMat.roughness = L.wet; pitchMat.color.setScalar(0.82); } // erba bagnata: piu' scura e lucida
     if (this.snowy) this.snowCover(scene, P);
     this.puddleMeshes(scene);
-    if (L.drops) this.rain(scene, L.drops); else if (L.flakes) this.snow(scene, L.flakes);
+    if (L.drops) this.rain(scene, Math.round(L.drops * precip)); else if (L.flakes) this.snow(scene, Math.round(L.flakes * precip)); // densita' dal preset di qualita'
   }
 
   /** Velo di neve sul campo: macchie bianche irregolari che lasciano intravedere le linee. */

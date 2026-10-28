@@ -2,6 +2,7 @@
 import { Sim, DT, SCHEMES, RULES, WEATHER } from '../core/sim.js';
 import { readTeam } from '../core/team.js';
 import { TVRenderer, contrast } from './render3d.js';
+import { autoQuality } from './gfx/quality.js';
 import { MatchStats } from './stats.js';
 import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
@@ -31,7 +32,7 @@ const ICON = {
 const MENU_KEY = 'calcio7.menu';
 function loadMenu() {
   let m = null; try { m = JSON.parse(localStorage.getItem(MENU_KEY)); } catch { /* niente */ }
-  return { perTeam: 7, half: 25, seed: '', weather: 'random', surface: 'dirt', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
+  return { perTeam: 7, half: 25, seed: '', weather: 'random', surface: 'dirt', quality: 'auto', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
 }
 function saveMenu() { try { localStorage.setItem(MENU_KEY, JSON.stringify(cfg)); } catch { /* niente */ } }
 
@@ -125,6 +126,8 @@ function initMenu() {
   $('#opt-seed').oninput = e => { cfg.seed = e.target.value.replace(/\D/g, '').slice(0, 9); e.target.value = cfg.seed; saveMenu(); };
   $('#opt-surface').value = cfg.surface;
   $('#opt-surface').onchange = e => { cfg.surface = e.target.value; saveMenu(); };
+  $('#opt-quality').value = cfg.quality;
+  $('#opt-quality').onchange = e => { cfg.quality = e.target.value; saveMenu(); };
   $('#opt-weather').value = cfg.weather;
   $('#opt-weather').onchange = e => { cfg.weather = e.target.value; saveMenu(); };
   $('#opt-replay').checked = cfg.autoReplay;
@@ -158,7 +161,7 @@ function startMatch(seed, ov = null) {
 
   $('#menu').hidden = true; $('#tour').hidden = true; $('#match').hidden = false; $('#end').hidden = true;
   if (R) R.dispose();
-  R = new TVRenderer($('#view'), sim.pitch, { weather: sim.weather, puddles: sim.puddles, surface: sim.surface, kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
+  R = new TVRenderer($('#view'), sim.pitch, { weather: sim.weather, puddles: sim.puddles, surface: sim.surface, quality: cfg.quality === 'auto' ? autoQuality() : cfg.quality, kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   R.onWood = (power, bar) => { if (sounds()) A.clang(power, bar); }; // palo/traversa: il suono parte insieme al tremolio della camera
   R.onNet = power => { if (sounds()) A.net(power); };
@@ -469,6 +472,7 @@ function initControls() {
   $('#e-menu').onclick = toMenu;
   $$('[data-open]').forEach(b => b.onclick = () => $(`#${b.dataset.open}`).showModal());
   addEventListener('keydown', e => {
+    if (e.key === 'F3' && G && !$('#match').hidden) { e.preventDefault(); $('#perf').hidden = !$('#perf').hidden; return; }
     if (!G || $('#match').hidden || e.target.closest?.('input,select,textarea,dialog')) return;
     const k = e.key.toLowerCase();
     if (k === ' ') { e.preventDefault(); if (G.replay) $('#rp-skip').click(); else $('#c-play').click(); }
@@ -487,8 +491,11 @@ function initControls() {
 
 // ---------------------------------------------------------------- ciclo
 
-let last = performance.now();
+let last = performance.now(), perfT = 0;
 function frame(now) {
+  if (R && !$('#perf').hidden && now - perfT > 250) { perfT = now; const p = R.stats(); $('#perf').textContent = `${p.fps.toFixed(0)} fps  ${p.ms.toFixed(1)} ms
+${p.calls} draw call  ${(p.tris / 1000).toFixed(0)}k tri
+qualita' ${p.quality}  risoluzione ${(p.scale * 100).toFixed(0)}%`; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (G && R && !G.skipping) {
     R.boardData = !G.replay && (G.tac === 'on' || (G.tac === 'auto' && G.paused)) ? boardData() : null;

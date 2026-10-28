@@ -6,31 +6,32 @@ import { buildPlayer, geo } from './gfx/player.js';
 import { ballTexture, blobTexture, nameTag, pitchTexture, skyTexture, turfRelief } from './gfx/textures.js';
 import { goal, stadium, stepFlags } from './gfx/stadium.js';
 import { Weather } from './gfx/weather.js';
+import { FrameGovernor, QUALITY } from './gfx/quality.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
 
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
-  constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [], surface = 'dirt' } = {}) {
-    this.surface = surface;
+  constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [], surface = 'dirt', quality = 'high' } = {}) {
+    this.surface = surface; const Q = this.Q = QUALITY[quality] ?? QUALITY.high; this.quality = QUALITY[quality] ? quality : 'high'; this.gov = new FrameGovernor(Q.minScale);
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? []; this.label = label;
-    const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: 'high-performance' });
     setAnisotropy(r.capabilities.getMaxAnisotropy());
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.outputColorSpace = THREE.SRGBColorSpace;
+    this.dpr = Math.min(window.devicePixelRatio || 1, Q.dpr); r.setPixelRatio(this.dpr); r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.enabled = true; r.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     const scene = this.scene = new THREE.Scene();
     scene.background = skyTexture(); scene.fog = new THREE.Fog(0xc9dcee, 120 + pitch.hx * 2, 320 + pitch.hx * 4);
     const hemi = new THREE.HemisphereLight(0xeaf4ff, 0x40603a, 1.25); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff3dd, 1.1); sun.position.set(-30, 60, 25); scene.add(sun);
-    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+    sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
     const sc = sun.shadow.camera; sc.left = -pitch.hx - 6; sc.right = pitch.hx + 6; sc.top = pitch.hz + 6; sc.bottom = -pitch.hz - 6; sc.near = 10; sc.far = 160;
     const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch, surface), roughness: surface === 'dirt' ? 0.95 : 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: surface === 'dirt' ? 0.6 : 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     this.flags = stadium(pitch, scene).flags;
-    this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r }); this.wx.onThunder = () => this.onThunder?.();
+    this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => this.onThunder?.();
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 18), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45, metalness: 0 }));
@@ -473,8 +474,12 @@ export class TVRenderer {
     } else { this.arrow.visible = false; this.tag.visible = false; }
     this.updateCamera(v, dt);
     this.trail.update(b, this.cam.position, dt, this.clock); this.fx.update(dt, this.r.domElement.height * 0.5 * this.cam.projectionMatrix.elements[5]);
+    if (this.gov.tick(performance.now())) this.r.setPixelRatio(this.dpr * this.gov.scale); // risoluzione dinamica
     this.r.render(this.scene, this.cam);
   }
+
+  /** Misure per il pannello prestazioni. */
+  stats() { const i = this.r.info.render; return { fps: this.gov.fps, ms: this.gov.ema, calls: i.calls, tris: i.triangles, scale: this.gov.scale, quality: this.Q.name }; }
 
   dispose() { this.r.dispose(); }
 }

@@ -1,11 +1,13 @@
-// SoundEngine: audio sintetizzato con Web Audio (nessun file esterno): pubblico, fischio dell'arbitro, calci, pali, rete, esultanza, "ooh".
+// SoundEngine: audio con Web Audio. Campioni reali CC0 (assets/audio, vedi CREDITS.txt) per pubblico, fischio, calci, pioggia ed esultanza;
+// finche' non sono caricati, o se mancano, ogni suono ricade sulla sintesi (pali, rete e tuono restano sempre sintetizzati).
 
 const KEY = 'calcio7.audio';
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const SAMPLES = ['crowd_bed', 'crowd_chant', 'crowd_goal', 'crowd_ooh', 'crowd_boo', 'crowd_applause', 'ref_whistle', 'ball_kick', 'ball_bounce', 'ball_bounce2', 'tackle', 'rain_loop'];
 
 export class SoundEngine {
   constructor() {
-    this.ctx = null; this.level = 0; this.boost = 0; this.boostT = 0; this.boostLen = 1;
+    this.ctx = null; this.buf = {}; this.level = 0; this.boost = 0; this.boostT = 0; this.boostLen = 1;
     try { this.muted = localStorage.getItem(KEY) === 'off'; } catch { this.muted = false; }
   }
 
@@ -19,16 +21,41 @@ export class SoundEngine {
       this.master.connect(lim).connect(c.destination);
       this.noise = this.pinkNoise(4);
       // pubblico: due strati di rumore rosa filtrato, il volume segue l'intensita' dell'azione e un lento respiro lo rende vivo
-      this.crowd = c.createGain(); this.crowd.gain.value = 0; this.crowd.connect(this.master);
+      this.crowd = c.createGain(); this.crowd.gain.value = 0; this.synth = c.createGain(); this.synth.connect(this.crowd); this.crowd.connect(this.master);
       for (const [type, f, q, g] of [['bandpass', 520, 0.7, 1], ['lowpass', 900, 0.5, 0.6]]) {
         const s = c.createBufferSource(); s.buffer = this.noise; s.loop = true; s.loopStart = Math.random();
         const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
-        const gn = c.createGain(); gn.gain.value = g; s.connect(fl).connect(gn).connect(this.crowd); s.start();
+        const gn = c.createGain(); gn.gain.value = g; s.connect(fl).connect(gn).connect(this.synth); s.start();
         if (type === 'bandpass') this.crowdFilter = fl;
       }
       const lfo = c.createOscillator(), depth = c.createGain(); lfo.frequency.value = 0.27; depth.gain.value = 0.012; lfo.connect(depth).connect(this.crowd.gain); lfo.start();
+      this.load();
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  /** Scarica e decodifica i campioni in parallelo; quando arriva il tappeto del pubblico prende il posto del rumore sintetizzato. */
+  load() {
+    const c = this.ctx; if (!c.decodeAudioData || typeof fetch !== 'function') return;
+    for (const n of SAMPLES) fetch(new URL(`../assets/audio/${n}.ogg`, import.meta.url)).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then(a => c.decodeAudioData(a)).then(b => {
+      this.buf[n] = b;
+      if (n === 'crowd_bed') { this.bed = this.loop(b, this.crowd, 2.2); this.synth.gain.setTargetAtTime(0, c.currentTime, 0.5); }
+      if (n === 'crowd_chant') { this.chantG = c.createGain(); this.chantG.gain.value = 0; this.chantG.connect(this.crowd); this.loop(b, this.chantG, 1.6); }
+      if (n === 'rain_loop' && this.rainKind) { const k = this.rainKind; this.rainKind = null; this.rainG = null; this.weather(k); }
+    }).catch(() => { /* resta la sintesi */ });
+  }
+
+  /** Sorgente in loop da un punto a caso verso dest con guadagno g. */
+  loop(b, dest, g) {
+    const c = this.ctx, s = c.createBufferSource(), gn = c.createGain(); s.buffer = b; s.loop = true; gn.gain.value = g;
+    s.connect(gn).connect(dest); s.start(0, Math.random() * b.duration); return s;
+  }
+
+  /** Suona un campione una volta: gain, rate (velocita' e intonazione), at (istante). Falso se il campione non c'e'. */
+  play(n, gain = 1, rate = 1, at = 0) {
+    const b = this.buf[n]; if (!b) return false;
+    const c = this.ctx, s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain;
+    s.connect(g).connect(this.master); s.start(at || c.currentTime); return true;
   }
 
   /** Rumore rosa (filtro di Paul Kellet): piu' naturale del bianco per un pubblico lontano. */
@@ -64,6 +91,7 @@ export class SoundEngine {
     const t = this.ctx.currentTime, k = this.boost ? clamp(1 - (t - this.boostT) / this.boostLen, 0, 1) : 0, y = clamp(x + k * this.boost, 0, 1.6);
     this.crowd.gain.setTargetAtTime(x <= 0 ? 0 : 0.05 + 0.13 * y, t, k > 0.5 ? 0.2 : 0.6);
     this.crowdFilter.frequency.setTargetAtTime(450 + 450 * y, t, k > 0.5 ? 0.2 : 0.6); // il filtro si apre: piu' acuti, piu' presenza
+    this.chantG?.gain.setTargetAtTime(x <= 0 ? 0 : clamp((y - 0.45) * 1.4, 0, 0.7), t, 1.2); // i cori salgono solo quando la partita si accende
   }
 
   /** Ondata del pubblico: sale in fretta e rientra in `secs` secondi (gol, occasione pericolosa). */
@@ -78,6 +106,7 @@ export class SoundEngine {
   whistle(blasts = 1, len = 0.28) {
     if (!this.on) return;
     const c = this.ctx; let t = c.currentTime + 0.02;
+    if (this.buf.ref_whistle) { for (let i = 0; i < blasts; i++, t += Math.max(len, 0.3) + 0.14) this.play('ref_whistle', 0.55, 0.97 + Math.random() * 0.06, t); return; }
     for (let i = 0; i < blasts; i++) {
       const base = 2850 + Math.random() * 250, o = c.createOscillator(), o2 = c.createOscillator(), trill = c.createOscillator(), tg = c.createGain(), g = c.createGain();
       o.type = 'sine'; o.frequency.value = base; o2.type = 'sine'; o2.frequency.value = base + 60;
@@ -92,7 +121,9 @@ export class SoundEngine {
   /** Calcio al pallone: tonfo con il tono che scende da 150 a 40 Hz e schiocco del cuoio; volume e brillantezza crescono con la velocita'. */
   kick(speed) {
     if (!this.on) return;
-    const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), v = clamp(speed / 30, 0, 1);
+    const v0 = clamp(speed / 30, 0, 1);
+    if (this.play('ball_kick', 0.25 + 0.75 * v0, 0.85 + 0.3 * v0 + Math.random() * 0.06)) return;
+    const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), v = v0;
     o.frequency.setValueAtTime(150 + 40 * v, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.1);
     g.gain.setValueAtTime(0.1 + 0.28 * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
     o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.13);
@@ -115,13 +146,22 @@ export class SoundEngine {
   touch() {
     if (!this.on) return;
     const t = this.ctx.currentTime;
+    if (this.buf.ball_bounce2) { this.play('ball_bounce', 0.35, 1.3, t); this.play('ball_bounce2', 0.28, 1.4, t + 0.09); return; }
     for (const [d, f] of [[0, 1300], [0.09, 1050]]) this.burst(t + d, 'bandpass', f, 1.2, 0.07, 0.03);
+  }
+
+  /** Contrasto: urto sordo dei corpi; senza campione un tonfo filtrato. */
+  tackle(power = 0.7) {
+    if (!this.on) return;
+    if (!this.play('tackle', 0.35 + 0.4 * clamp(power, 0, 1), 0.9 + Math.random() * 0.2)) this.burst(this.ctx.currentTime, 'lowpass', 300, 0.8, 0.25 * power, 0.15);
   }
 
   /** Fruscio continuo della pioggia (rumore filtrato in loop): 'rain' leggero, 'storm' forte, altro = silenzio. */
   weather(kind) {
     if (!this.ctx) return;
     const c = this.ctx, lvl = kind === 'storm' ? 0.16 : kind === 'rain' ? 0.08 : 0;
+    if (!this.buf.rain_loop) this.rainKind = kind; // se il campione arriva dopo, si ricomincia con quello
+    if (!this.rainG && lvl && this.buf.rain_loop) { this.rainG = c.createGain(); this.rainG.gain.value = 0; this.rainG.connect(this.master); this.loop(this.buf.rain_loop, this.rainG, 5); }
     if (!this.rainG && lvl) {
       const s = c.createBufferSource(), f = c.createBiquadFilter(); s.buffer = this.noise; s.loop = true; f.type = 'highpass'; f.frequency.value = 1400; f.Q.value = 0.4;
       this.rainG = c.createGain(); this.rainG.gain.value = 0; s.connect(f).connect(this.rainG).connect(this.master); s.start();
@@ -143,9 +183,12 @@ export class SoundEngine {
     this.burst(t, 'highpass', 1800, 0.5, 0.05 + 0.12 * v, 0.3);
   }
 
-  /** Ondata del pubblico: gol (lunga e forte) o occasione mancata ("ooh", breve). */
+  /** Ondata del pubblico: gol (lunga e forte), occasione mancata ("ooh", breve), fischi ('boo') o applausi ('applause'). */
   roar(kind = 'goal') {
     if (!this.on) return;
+    const n = { goal: 'crowd_goal', ooh: 'crowd_ooh', boo: 'crowd_boo', applause: 'crowd_applause' }[kind];
+    if (this.play(n, kind === 'goal' ? 1 : 0.7, 0.96 + Math.random() * 0.08)) return;
+    if (kind === 'boo' || kind === 'applause') kind = 'ooh';
     const c = this.ctx, t = c.currentTime, goal = kind === 'goal';
     const s = c.createBufferSource(); s.buffer = this.noise; s.loop = true;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = goal ? 0.6 : 2.2;

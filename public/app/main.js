@@ -590,6 +590,7 @@ qualita' ${p.quality}  risoluzione ${(p.scale * 100).toFixed(0)}%`; }
     }
     const s = G.sim;
     $('#sc0').textContent = s.score[0]; $('#sc1').textContent = s.score[1];
+    R.scoreboard(G.defs.map(d => d.name.slice(0, 3).toUpperCase()), G.kits.map(k => k.shirt), s.score, mmss(s.clock()));
     $('#period').textContent = s.state === 'full' ? 'FIN' : s.state === 'half' ? 'INT' : s.matchTime >= s.halfLength ? '2T' : '1T';
     if (bannerT > 0 && (bannerT -= dt) <= 0) $('#banner').hidden = true;
     if (lowerT > 0 && (lowerT -= dt) <= 0) $('#lower').hidden = true;

@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { clamp, setAnisotropy } from './gfx/util.js';
 import { buildPlayer, geo } from './gfx/player.js';
 import { ballTexture, blobTexture, nameTag, pitchTexture, skyTexture, turfRelief } from './gfx/textures.js';
-import { goal, stadium, stepFlags } from './gfx/stadium.js';
+import { drawScoreboard, goal, stadium, stepBoards, stepFlags } from './gfx/stadium.js';
 import { crowd } from './gfx/crowd.js';
 import { Weather } from './gfx/weather.js';
 import { FrameGovernor, QUALITY } from './gfx/quality.js';
@@ -38,7 +38,7 @@ export class TVRenderer {
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch, surface), roughness: surface === 'dirt' ? 0.95 : 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: surface === 'dirt' ? 0.6 : 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     this.grass = Q.grass && surface !== 'dirt' && weather !== 'snow' ? grass(scene, pitch, pm.material.map, Q.grass, surface === 'grass' ? 0.08 : 0.055) : null;
-    const st = stadium(pitch, scene, Q.crowd > 0); this.flags = st.flags;
+    const st = stadium(pitch, scene, Q.crowd > 0); this.flags = st.flags; this.boards = st.boards; this.sb = st.scoreboard; this.goalT = 0;
     this.crowd = Q.crowd > 0 ? crowd(scene, st.seats, st.flagSpots, kits, Q.crowd, pitch.hx) : null; // pubblico 3D dal preset Media in su
     this.refs = []; this.refP = [[0, -4], [pitch.hx / 2, pitch.hz + 0.9], [-pitch.hx / 2, -(pitch.hz + 0.9)], ...[-1, 1].flatMap(d => [-1, 1].map(e => [d * (pitch.hx + 2.6), e * pitch.hz * 0.4]))].map(([x, z]) => ({ x, z, vx: 0, vz: 0, face: Math.PI / 2, gk: false, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 0, stun: 0 })); // arbitro, due assistenti e quattro raccattapalle dietro le porte
     this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => { this.post?.flash(1.5); this.onThunder?.(); };
@@ -104,7 +104,7 @@ export class TVRenderer {
   }
 
   /** Gol: la squadra che ha segnato esulta (solo i giocatori con scheletro); il marcatore un po' piu' a lungo. */
-  celebrate(v, team, scorer) { this.crowd?.cheer(team, 1); this.meshes.forEach((m, i) => { const u = m.userData; if (u.rig && v.players[i]?.team === team && !v.players[i].gk) { u.celebT = i === scorer ? 4.5 : 3.2; u.scorer = i === scorer; } }); }
+  celebrate(v, team, scorer) { this.crowd?.cheer(team, 1); this.goalT = 6; this.meshes.forEach((m, i) => { const u = m.userData; if (u.rig && v.players[i]?.team === team && !v.players[i].gk) { u.celebT = i === scorer ? 4.5 : 3.2; u.scorer = i === scorer; } }); }
 
   /** Cambio: il giocatore id prende il numero inNum. Con instant = false l'uscente (copia con outNum) corre alla panchina sul lato lontano e l'entrante arriva di corsa dalla stessa zona; la simulazione ha gia' fatto il cambio, qui e' solo scena. */
   substitution(team, id, outNum, inNum, instant = false) {
@@ -481,7 +481,7 @@ export class TVRenderer {
       if (u && sp > 3) { u.kickT = 0.3; u.kickLeft = (from + Math.round(sp)) % 3 === 0; u.kickPow = clamp(sp / 22, 0.2, 1); u.kickLoft = v.ball.vy > 2; }
     }
     this.prevOwner = bo;
-    stepFlags(this.flags, v, dt);
+    stepFlags(this.flags, v, dt); this.goalT = Math.max(0, this.goalT - dt); stepBoards(this.boards, dt, this.goalT);
     v.players.forEach((p, i) => {
       const m = this.meshes[i]; m.visible = !p.out;
       if (p.out) return;
@@ -548,6 +548,9 @@ export class TVRenderer {
     const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTag('FUORIGIOCO'), depthTest: false, depthWrite: false })); tag.scale.set(4, 0.75, 1); tag.position.set(p.x, 2.6, -P.hz * 0.6); tag.renderOrder = 10; g.add(tag);
     this.scene.add(g); this.var = { g, t: 3 };
   }
+
+  /** Tabellone dello stadio: names sigle (3 lettere), cols colori, score [a, b], clock 'mm:ss'. */
+  scoreboard(names, cols, score, clock) { drawScoreboard(this.sb, names, cols, score, clock); }
 
   /** Scia di movimento 0..1 (replay al rallentatore); senza post-processing non fa nulla. */
   setTrail(k) { if (this.post) this.post.trail = k; }

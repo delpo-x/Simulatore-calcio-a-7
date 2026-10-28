@@ -73,6 +73,13 @@ export function boardTexture(len) {
   return tex(c, { repeat: [Math.max(1, len / 24), 1] });
 }
 
+/** Cartellone LED in modalita' gol: scritta ripetuta su fondo acceso (alterna due colori per il lampeggio). */
+export function goalBoardTexture(len, alt = false) {
+  const [c, g] = canvas(1024, 64);
+  for (let i = 0; i < 4; i++) { g.fillStyle = (i + alt) % 2 ? '#f9c80e' : '#e01e37'; g.fillRect(i * 256, 0, 256, 64); g.fillStyle = (i + alt) % 2 ? '#111' : '#fff'; g.font = 'italic 900 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('GOL!', i * 256 + 128, 34); }
+  return tex(c, { repeat: [Math.max(1, len / 24), 1] });
+}
+
 /** Pubblico: file di spettatori in colori spenti su gradinate scure, con poca variazione. */
 export function crowdTexture() {
   const [c, g] = canvas(512, 256), hues = [212, 8, 40, 190, 0], rnd = (() => { let t = 7; return () => (t = (t * 1664525 + 1013904223) >>> 0) / 4294967296; })();

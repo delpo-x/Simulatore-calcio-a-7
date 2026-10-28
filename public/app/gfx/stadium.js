@@ -1,6 +1,6 @@
 import * as THREE from '../../vendor/three.module.min.js';
 import { canvas, clamp } from './util.js';
-import { boardTexture, crowdTexture, fenceTexture, netTexture } from './textures.js';
+import { boardTexture, crowdTexture, fenceTexture, goalBoardTexture, netTexture } from './textures.js';
 
 const _nv = new THREE.Vector3(), _nl = new THREE.Vector3();
 /** Rete elastica: la griglia di vertici si sposta lungo la normale con onde smorzate che partono dal punto d'impatto; i bordi restano fissati a pali e traversa. */
@@ -70,13 +70,15 @@ export function stadium(P, scene, tiered = false) {
   strip.rotation.x = -Math.PI / 2; strip.position.y = -0.002; strip.receiveShadow = true; scene.add(strip);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * 6 + 300, Hz * 6 + 300), new THREE.MeshLambertMaterial({ color: 0x4d545c }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -0.03; scene.add(floor);
-  const board = (len, x, z, ry) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.12), [0, 0, 0, 0, 1, 1].map(i => i ? new THREE.MeshBasicMaterial({ map: boardTexture(len) }) : new THREE.MeshLambertMaterial({ color: 0x20262c })));
+  const boards = [];
+  const board = (len, x, z, ry) => { // cartelloni LED: la texture scorre, al gol diventa la scritta lampeggiante (vedi stepBoards)
+    const led = new THREE.MeshBasicMaterial({ map: boardTexture(len) }), b = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.12), [0, 0, 0, 0, 1, 1].map(i => i ? led : new THREE.MeshLambertMaterial({ color: 0x20262c })));
+    boards.push({ mat: led, ads: led.map, goal: [goalBoardTexture(len), goalBoardTexture(len, true)] });
     b.position.set(x, 0.45, z); b.rotation.y = ry; scene.add(b);
   };
   board(W + m * 2, 0, -P.hz - m, 0); // lato telecamera senza cartelloni: coprirebbero la linea laterale vicina
   for (const d of [-1, 1]) for (const e of [-1, 1]) board(P.hz - 4, d * (P.hx + m), e * (P.hz / 2 + 2.5), d * Math.PI / 2);
-  const crowd = new THREE.MeshLambertMaterial({ map: crowdTexture() }), roof = new THREE.MeshLambertMaterial({ color: 0x9aa3ad }), step = new THREE.MeshLambertMaterial({ color: 0x6d747c });
+  const crowd = new THREE.MeshLambertMaterial({ map: crowdTexture() }), roof = new THREE.MeshLambertMaterial({ color: 0x9aa3ad }), step = new THREE.MeshLambertMaterial({ color: 0x6d747c }), steel = new THREE.MeshStandardMaterial({ color: 0xc3c9d0, roughness: 0.4, metalness: 0.7 });
   const seats = [], flagSpots = [], _v = new THREE.Vector3();
   const stand = (len, depth, x, z, ry) => {
     const g = new THREE.Group(), rise = depth * 0.62, slope = Math.hypot(depth, rise);
@@ -92,6 +94,13 @@ export function stadium(P, scene, tiered = false) {
     } else { const s = new THREE.Mesh(new THREE.PlaneGeometry(len, slope), crowd); s.rotation.x = -Math.atan2(depth, rise); s.position.set(0, rise / 2, -depth / 2); g.add(s); }
     const back = new THREE.Mesh(new THREE.BoxGeometry(len, rise + 3, 0.6), roof); back.position.set(0, (rise + 3) / 2, -depth - 0.3); g.add(back);
     const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.4, depth * 0.55), roof); top.position.set(0, rise + 3, -depth * 0.75); g.add(top);
+    const nb = Math.max(2, Math.round(len / 5)), beams = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 6), steel, nb * 3), bm = new THREE.Matrix4(), b = new THREE.Vector3(), mid = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const beam = (i, p0, p1) => { mid.addVectors(p0, p1).multiplyScalar(0.5); b.subVectors(p1, p0); sc.set(1, b.length(), 1); q.setFromUnitVectors(Y, b.normalize()); beams.setMatrixAt(i, bm.compose(mid, q, sc)); };
+    for (let k = 0; k < nb; k++) { // capriate del tetto: montante sul muro di fondo, puntone verso il bordo anteriore, tirante orizzontale
+      const x = (k + 0.5 - nb / 2) * (len / nb), y0 = rise + 3.2, z0 = -depth - 0.3, z1 = -depth * 0.48;
+      beam(k * 3, V(x, y0, z0), V(x, y0 + 2.2, z0)); beam(k * 3 + 1, V(x, y0 + 2.2, z0), V(x, y0, z1)); beam(k * 3 + 2, V(x, y0 + 0.05, z0), V(x, y0 + 0.05, z1));
+    }
+    beams.castShadow = true; g.add(beams);
     scene.add(g);
   };
   const depth = Math.max(10, P.hz * 0.8);
@@ -108,8 +117,31 @@ export function stadium(P, scene, tiered = false) {
     floodGlow(scene, new THREE.Vector3(x, h + 1, z));
   }
   fence(P, m, scene); benches(P, scene);
+  const sc = canvas(512, 160), sbt = new THREE.CanvasTexture(sc[0]); sbt.colorSpace = THREE.SRGBColorSpace; // tabellone sopra la tribuna principale, aggiornato da drawScoreboard
+  const sbm = new THREE.Mesh(new THREE.BoxGeometry(11, 3.4, 0.4), [0, 0, 0, 0, 1, 0].map(i => i ? new THREE.MeshBasicMaterial({ map: sbt, toneMapped: false }) : new THREE.MeshLambertMaterial({ color: 0x1a1d21 })));
+  sbm.position.set(0, depth * 0.62 + 6, -P.hz - m - 1.5 - depth * 0.95); scene.add(sbm);
+  for (const e of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 0.3), new THREE.MeshLambertMaterial({ color: 0x3a3f46 })); leg.position.set(e * 4, depth * 0.62 + 3.5, sbm.position.z); scene.add(leg); }
   if (tiered) for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) seats.push({ x: sx * 8 + (k - 1) * 1.4, y: 0, z: -(P.hz + 1.5), ry: 0, fan: sx < 0 ? 0 : 1 }); // staff in piedi davanti alla panchina
-  return { flags: cornerFlags(P, scene), seats, flagSpots };
+  return { flags: cornerFlags(P, scene), seats, flagSpots, boards, scoreboard: { g: sc[1], tex: sbt, key: '' } };
+}
+
+/** Tabellone: sigle, colori e punteggio delle squadre, minuto. Ridisegna solo se cambia qualcosa. */
+export function drawScoreboard(sb, names, cols, score, clock) {
+  const key = `${names}|${score}|${clock}`; if (key === sb.key) return; sb.key = key;
+  const g = sb.g; g.fillStyle = '#05070a'; g.fillRect(0, 0, 512, 160);
+  g.textBaseline = 'middle'; g.textAlign = 'center';
+  for (const t of [0, 1]) { const x = t ? 384 : 128; g.fillStyle = cols[t]; g.fillRect(x - 100, 18, 200, 10); g.fillStyle = '#e8eef5'; g.font = 'bold 40px system-ui, sans-serif'; g.fillText(names[t], x, 62); g.fillStyle = '#ffd23f'; g.font = 'bold 64px ui-monospace, monospace'; g.fillText(score[t], x, 118); }
+  g.fillStyle = '#ffd23f'; g.font = 'bold 30px ui-monospace, monospace'; g.fillText(clock, 256, 118); g.fillStyle = '#8a96a3'; g.font = '22px system-ui, sans-serif'; g.fillText('-', 256, 62);
+  sb.tex.needsUpdate = true;
+}
+
+/** Cartelloni LED: pubblicita' che scorre; con goal > 0 (secondi rimasti) scritta GOL! che lampeggia. */
+export function stepBoards(boards, dt, goal) {
+  const blink = goal > 0 ? (Math.floor(goal * 4) % 2) : -1;
+  for (const b of boards) {
+    const map = blink < 0 ? b.ads : b.goal[blink]; if (b.mat.map !== map) { b.mat.map = map; b.mat.needsUpdate = true; }
+    map.offset.x = (map.offset.x + dt * (blink < 0 ? 0.03 : 0.25)) % 1;
+  }
 }
 
 let GLOW = null;

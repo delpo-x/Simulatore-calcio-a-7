@@ -210,6 +210,10 @@ const sounds = () => G && !G.skipping && !G.replay && G.speed <= 2;
 function tick() {
   const s = G.sim, before = s.state; s.step();
   const items = G.stats.step(); G.rec.step(s, items);
+  if ((G.hs = (G.hs ?? 0) + 1) % 8 === 0) { // heatmap di fine partita: griglia 16x10, ogni squadra vista mentre attacca verso destra
+    const P = s.pitch; G.heat ??= [new Float32Array(160), new Float32Array(160)];
+    for (const p of s.players) if (!p.out && !p.gk) { const gx = Math.min(15, Math.max(0, ((p.x * s.dir(p.team) / P.hx + 1) * 8) | 0)), gz = Math.min(9, Math.max(0, ((p.z / P.hz + 1) * 5) | 0)); G.heat[p.team][gz * 16 + gx]++; }
+  }
   if (!G.skipping && G.speed <= 4) for (const e of s.events) if (e.t === 'dribble') R.duel(s, e); else if (e.t === 'tackle') { R.tackle(s, e); if (sounds()) A.tackle(); } // finta e reazione del difensore: solo scena, l'esito e' della simulazione
   for (const e of s.events) if (e.t === 'sub') R.substitution(e.team, e.player, e.outNumber, s.players[e.player].number, G.skipping || G.speed > 4); // il cambio e' gia' nella simulazione: qui si aggiorna la maglia e, a velocita' normale, si vede la corsa
   if (sounds()) {
@@ -265,6 +269,7 @@ function onItems(items) {
     addFeed(it);
     if (G.skipping) continue;
     if (SAY[it.t]) speak(SAY[it.t](it), SAY_PRIO[it.t]);
+    if (it.t === 'offside' && !G.replay && G.speed <= 2) R.offsideLine(G.sim, G.sim.players[it.player].team, it.player);
     if (it.t === 'goal') showBanner(`<div class="b-kicker">${it.own ? 'Autogol' : 'Gol'}</div><div class="b-big">GOL!</div><div class="b-sub">${esc(playerName(it.player))}${it.own ? ' (aut.)' : ''} · ${esc(teamName(it.team))} · ${it.score[0]}-${it.score[1]}</div>`, it.team, 3);
     else if (it.t === 'yellow') showLower(`<span class="card yellow"></span>${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'card');
     else if (it.t === 'red') showLower(`<span class="card red"></span>${esc(playerName(it.player))} <small>${it.second ? 'seconda ammonizione' : it.lastMan ? 'giallo + azzurro da ultimo uomo' : 'espulso'}</small>`, 'card');
@@ -407,13 +412,14 @@ function playClips(clips, auto = false) {
   if (!clips.length) return;
   if (clips[0].angle == null) clips = [0, 1, 2].map(angle => ({ ...clips[0], angle, frames: angle === 2 ? clips[0].frames.slice(75, 122) : clips[0].frames })).concat(clips.slice(1)); // ogni gol da tre angoli: dietro la porta, alto dalla tribuna, super slow a bordo campo
   G.queue = clips.slice(1); G.replay = new ReplayPlayer(clips[0], clips[0].angle === 2 ? 0.3 : 0.65); G.replayAuto = auto; R.rangle = clips[0].angle;
+  R.setTrail(clips[0].angle === 2 ? 0.6 : 0.3); // scia di movimento, piu' marcata nel super slow
   $('#end').hidden = true; $('#replay-tag').hidden = false; $('#match').classList.add('replaying'); hideBanner(); $('#lower').hidden = true; lowerT = 0;
   $('#rp-who').textContent = playerName(clips[0].item.player); $('#rp-min').textContent = `${clips[0].item.min}′`;
   R.rdir = clips[0].side ?? (clips[0].item.team === 0 ? 1 : -1); R.rside = -(clips[0].zs ?? 1); R.setCamera('replay'); R.snap = true; // angolo inverso dietro la porta del gol, taglio netto
 }
 function endReplay() {
   if (G.queue.length) return playClips(G.queue);
-  G.replay = null; $('#replay-tag').hidden = true; $('#match').classList.remove('replaying');
+  G.replay = null; R.setTrail(0); $('#replay-tag').hidden = true; $('#match').classList.remove('replaying');
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
   if (G.ended) showEnd();
 }
@@ -445,6 +451,20 @@ function runToEnd() {
 
 // ---------------------------------------------------------------- fine partita
 
+/** Heatmap delle due squadre (portieri esclusi) disegnate su un campo stilizzato, attacco verso destra. */
+function heatmaps() {
+  const el = $('.end-heat'), H = G.heat; if (!H) { el.innerHTML = ''; return; }
+  el.innerHTML = [0, 1].map(t => `<figure><canvas width="320" height="200"></canvas><figcaption style="--c:${G.kits[t].shirt}">${esc(G.defs[t].name)} <small>attacco &rarr;</small></figcaption></figure>`).join('');
+  el.querySelectorAll('canvas').forEach((cv, t) => {
+    const g = cv.getContext('2d'), h = H[t], mx = Math.max(...h) || 1, cw = 20, ch = 20;
+    g.fillStyle = '#1f5e2c'; g.fillRect(0, 0, 320, 200); g.filter = 'blur(9px)';
+    for (let i = 0; i < 160; i++) if (h[i]) { const k = h[i] / mx; g.fillStyle = `hsla(${60 - 60 * k} 100% 50% / ${0.15 + 0.75 * k})`; g.fillRect((i % 16) * cw, ((i / 16) | 0) * ch, cw, ch); }
+    g.filter = 'none'; g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.5;
+    g.strokeRect(2, 2, 316, 196); g.beginPath(); g.moveTo(160, 2); g.lineTo(160, 198); g.stroke(); g.beginPath(); g.arc(160, 100, 26, 0, 6.283); g.stroke();
+    for (const x of [2, 318]) g.strokeRect(x === 2 ? 2 : 318 - 46, 52, 46, 96);
+  });
+}
+
 function showEnd() {
   if (!G || G.replay) return;
   const s = G.sim, tl = G.stats.timeline;
@@ -453,6 +473,7 @@ function showEnd() {
   $('.end-score').innerHTML = [0, 1].map(t => `<div class="es-team" style="--c:${G.kits[t].shirt}"><span class="es-name">${esc(G.defs[t].name)}</span><span class="es-goals">${s.score[t]}</span></div>`).join('<span class="es-dash">-</span>');
   $('.end-scorers').innerHTML = [0, 1].map(t => `<div>${scorers(t) || '&nbsp;'}</div>`).join('');
   const keep = ['Possesso', 'Tiri', 'Tiri in porta', 'Precisione passaggi', 'Falli', 'Ammonizioni'];
+  heatmaps();
   $('.end-stats').innerHTML = G.stats.rows().filter(r => keep.includes(r[0])).map(([l, a, b, u = '']) => `<div><b>${a}${u}</b><span>${l}</span><b>${b}${u}</b></div>`).join('');
   const bid = G.stats.best(), bp = s.players[bid], bx = G.stats.ps[bid], bv = G.stats.rating(bid);
   const facts = [bx.goals && `${bx.goals} gol`, bx.assists && `${bx.assists} assist`, bp.gk && `${bx.saves} parat${bx.saves === 1 ? 'a' : 'e'}`, !bp.gk && bx.recoveries && `${bx.recoveries} palloni recuperati`].filter(Boolean).slice(0, 3).join(' · ');

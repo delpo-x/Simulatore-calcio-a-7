@@ -364,3 +364,11 @@ dialog form { text-align: right; margin-top: 14px; }
 .hs-row em { display: block; width: var(--w); animation: hsBar .7s ease-out both; animation-delay: calc(.4s + var(--i) * .1s); }
 .hs-row em:first-child { margin-left: auto; }
 @keyframes hsBar { from { width: 0; } }
+
+/* heatmap di fine partita */
+.end-heat { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.end-heat figure { margin: 0; }
+.end-heat canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
+.end-heat figcaption { font-size: 12px; font-weight: 700; margin-top: 4px; border-left: 4px solid var(--c); padding-left: 6px; }
+.end-heat small { color: var(--muted); font-weight: 400; }
+@media (max-width: 520px) { .end-heat { grid-template-columns: 1fr; } }

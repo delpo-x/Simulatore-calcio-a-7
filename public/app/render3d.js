@@ -507,6 +507,7 @@ export class TVRenderer {
       m.position.set(p.x, 0, p.z); m.rotation.y = -p.face;
       this.animate(m, p, dt, { owns: v.ball.owner === p.id, alert: p.gk && bd < 30 && opp, near: clamp((24 - bd) / 18, 0, 1), rush: p.gk && bd < 9 && v.ball.owner < 0 && Math.hypot(p.vx, p.vz) > 3.5, look, wall: v.wall?.ids.includes(p.id) ? v.wall : null });
     });
+    if (this.var && (this.var.t -= dt) <= 0) { this.scene.remove(this.var.g); this.var = null; }
     this.stepGhosts(dt); this.stepOfficials(v, dt); this.board.update(this.boardData, v);
     const pr = clamp((Math.abs(v.ball.x) - this.P.hx * 0.55) / (this.P.hx * 0.45), 0, 1) * 0.3; this.crowd?.step(dt, [pr, pr]); // palla vicino a una porta: il pubblico si alza
     const b = v.ball, sp = Math.hypot(b.vx, b.vz), vb = this.dribbleBall(v, dt);
@@ -535,6 +536,21 @@ export class TVRenderer {
     this.r.info.reset(); // conta tutti i passaggi del frame (autoReset spento)
     if (this.post) this.post.render(this.scene, this.cam); else this.r.render(this.scene, this.cam);
   }
+
+  /** Grafica VAR del fuorigioco: linea rossa sull'attaccante, azzurra sul penultimo difensore, fascia tra le due; resta 3 s. Solo scena. */
+  offsideLine(v, team, id) {
+    const p = v.players[id]; if (!p) return;
+    const P = this.P, d = team === 0 ? 1 : -1, opp = v.players.filter(q => q.team !== team && !q.out).map(q => q.x * d).sort((a, b) => b - a), dx = (opp[1] ?? 0) * d;
+    if (this.var) this.scene.remove(this.var.g);
+    const g = new THREE.Group(), mat = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const strip = (x, w, m) => { const s = new THREE.Mesh(new THREE.PlaneGeometry(w, P.hz * 2), m); s.rotation.x = -Math.PI / 2; s.position.set(x, 0.05, 0); s.renderOrder = 6; g.add(s); };
+    strip(p.x, 0.12, mat(0xff3b3b, 0.95)); strip(dx, 0.12, mat(0x3bb4ff, 0.95)); if (Math.abs(p.x - dx) > 0.05) strip((p.x + dx) / 2, Math.abs(p.x - dx), mat(0xffffff, 0.16));
+    const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTag('FUORIGIOCO'), depthTest: false, depthWrite: false })); tag.scale.set(4, 0.75, 1); tag.position.set(p.x, 2.6, -P.hz * 0.6); tag.renderOrder = 10; g.add(tag);
+    this.scene.add(g); this.var = { g, t: 3 };
+  }
+
+  /** Scia di movimento 0..1 (replay al rallentatore); senza post-processing non fa nulla. */
+  setTrail(k) { if (this.post) this.post.trail = k; }
 
   /** Misure per il pannello prestazioni. */
   stats() { const i = this.r.info.render; return { fps: this.gov.fps, ms: this.gov.ema, calls: i.calls, tris: i.triangles, scale: this.gov.scale, quality: this.Q.name }; }

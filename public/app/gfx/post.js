@@ -27,6 +27,10 @@ const BLUR = `uniform sampler2D tSrc; uniform vec2 dir; varying vec2 vUv;
     c += (texture2D(tSrc, vUv + dir * 3.231).rgb + texture2D(tSrc, vUv - dir * 3.231).rgb) * 0.070;
     gl_FragColor = vec4(c, 1.0); }`;
 
+/** Scia di movimento del rallenty: il fotogramma nuovo si mescola con l'accumulo dei precedenti. */
+const ACC = `uniform sampler2D tSrc; uniform sampler2D tPrev; uniform float k; varying vec2 vUv;
+  void main() { gl_FragColor = vec4(mix(texture2D(tSrc, vUv).rgb, texture2D(tPrev, vUv).rgb, k), 1.0); }`;
+
 const FINAL = `uniform sampler2D tSrc; uniform sampler2D tBloom; uniform float bloom, sat, con, vig, aspect; uniform vec3 tint; varying vec2 vUv;
   void main() {
     vec3 c = texture2D(tSrc, vUv).rgb + texture2D(tBloom, vUv).rgb * bloom;
@@ -46,8 +50,10 @@ export class PostFX {
     const hdr = { type: THREE.HalfFloatType, depthBuffer: false };
     this.scene = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples });
     this.a = new THREE.WebGLRenderTarget(1, 1, hdr); this.b = new THREE.WebGLRenderTarget(1, 1, hdr);
+    this.h = [new THREE.WebGLRenderTarget(1, 1, hdr), new THREE.WebGLRenderTarget(1, 1, hdr)]; this.trail = 0; this.fresh = true; // accumulo a piena risoluzione per la scia (solo con trail > 0)
     const mat = (frag, u) => new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: frag, uniforms: u, depthTest: false, depthWrite: false, toneMapped: false });
     this.mBright = mat(BRIGHT, { tSrc: { value: null }, texel: { value: new THREE.Vector2() }, thr: { value: this.g.thr } });
+    this.mAcc = mat(ACC, { tSrc: { value: null }, tPrev: { value: null }, k: { value: 0 } });
     this.mBlur = mat(BLUR, { tSrc: { value: null }, dir: { value: new THREE.Vector2() } });
     this.mFinal = mat(FINAL, { tSrc: { value: this.scene.texture }, tBloom: { value: this.a.texture }, bloom: { value: this.g.bloom * bloomScale }, sat: { value: this.g.sat }, con: { value: this.g.con }, vig: { value: this.g.vig }, tint: { value: new THREE.Vector3(...this.g.tint) }, aspect: { value: 1 } });
     this.mFinal.toneMapped = true; // include ACES ed esposizione del renderer
@@ -63,12 +69,18 @@ export class PostFX {
   render(scene, cam) {
     const r = this.r; r.getDrawingBufferSize(this.size); const w = this.size.x, h = this.size.y;
     if (w !== this.scene.width || h !== this.scene.height) {
-      this.scene.setSize(w, h); const qw = Math.max(1, w >> 2), qh = Math.max(1, h >> 2); this.a.setSize(qw, qh); this.b.setSize(qw, qh);
+      this.scene.setSize(w, h); for (const t of this.h) t.setSize(w, h); this.fresh = true; const qw = Math.max(1, w >> 2), qh = Math.max(1, h >> 2); this.a.setSize(qw, qh); this.b.setSize(qw, qh);
       this.mBright.uniforms.texel.value.set(1 / w, 1 / h); this.mFinal.uniforms.aspect.value = w / h;
     }
     r.setRenderTarget(this.scene); r.render(scene, cam);
+    let src = this.scene.texture;
+    if (this.trail > 0) { // ping-pong: si scrive in w leggendo l'accumulo precedente r0; al primo fotogramma niente storia
+      const [w0, r0] = this.h, au = this.mAcc.uniforms; au.tSrc.value = src; au.tPrev.value = r0.texture; au.k.value = this.fresh ? 0 : this.trail;
+      this.pass(this.mAcc, w0); this.h = [r0, w0]; src = w0.texture; this.fresh = false;
+    } else this.fresh = true;
+    this.mFinal.uniforms.tSrc.value = src;
     const u = this.mBlur.uniforms, qw = this.a.width, qh = this.a.height;
-    this.mBright.uniforms.tSrc.value = this.scene.texture; this.pass(this.mBright, this.a);
+    this.mBright.uniforms.tSrc.value = src; this.pass(this.mBright, this.a);
     for (let i = 1; i <= 2; i++) { // due giri a raggio crescente: alone largo a costo basso
       u.tSrc.value = this.a.texture; u.dir.value.set(i / qw, 0); this.pass(this.mBlur, this.b);
       u.tSrc.value = this.b.texture; u.dir.value.set(0, i / qh); this.pass(this.mBlur, this.a);
@@ -77,5 +89,5 @@ export class PostFX {
     this.pass(this.mFinal, null);
   }
 
-  dispose() { for (const t of [this.scene, this.a, this.b]) t.dispose(); for (const m of [this.mBright, this.mBlur, this.mFinal]) m.dispose(); }
+  dispose() { for (const t of [this.scene, this.a, this.b, ...this.h]) t.dispose(); for (const m of [this.mBright, this.mBlur, this.mAcc, this.mFinal]) m.dispose(); }
 }

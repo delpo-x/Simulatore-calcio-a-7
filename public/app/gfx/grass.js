@@ -1,7 +1,7 @@
 // Fili d'erba in instancing sopra la texture del campo: ciuffi di tre lame, colore preso dal pixel della texture sotto (strisce del
 // rasaerba e linee bianche restano leggibili), oscillazione al vento nel vertex shader. Solo scena.
 import * as THREE from '../../vendor/three.module.min.js';
-import { rnd } from './effects.js';
+const rnd = Math.random; // valore uniforme 0..1 (rnd di effects.js vuole un intervallo)
 
 /** Ciuffo: tre lame triangolari a 120 gradi, alte h, colore piu' scuro alla base. */
 function tuft(h) {

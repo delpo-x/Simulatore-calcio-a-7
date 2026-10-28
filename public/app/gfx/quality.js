@@ -2,13 +2,13 @@
 
 /**
  * dpr: tetto del pixel ratio; aa: antialiasing del canvas (solo alla creazione); shadow: lato della shadow map, soft: ombre morbide (PCFSoft);
- * precip: densita' di pioggia e neve; post: bloom, grading e vignettatura (con MSAA nel buffer di scena); grass: ciuffi d'erba 3D (sintetico ed erba, non con la neve); minScale: risoluzione minima della scala dinamica.
+ * precip: densita' di pioggia e neve; post: bloom, grading e vignettatura (con MSAA nel buffer di scena); grass: ciuffi d'erba 3D (sintetico ed erba, non con la neve); crowd: quota di posti occupati dal pubblico 3D (0 = tribune con texture); minScale: risoluzione minima della scala dinamica.
  */
 export const QUALITY = {
-  low: { name: 'Bassa', dpr: 1, aa: false, shadow: 1024, soft: false, precip: 0.35, minScale: 0.5, post: false, grass: 0 },
-  medium: { name: 'Media', dpr: 1.25, aa: true, shadow: 1024, soft: true, precip: 0.6, minScale: 0.6, post: true, grass: 20000 },
-  high: { name: 'Alta', dpr: 1.5, aa: true, shadow: 2048, soft: true, precip: 1, minScale: 0.7, post: true, grass: 45000 },
-  ultra: { name: 'Ultra', dpr: 2, aa: true, shadow: 4096, soft: true, precip: 1.3, minScale: 0.8, post: true, grass: 90000 },
+  low: { name: 'Bassa', dpr: 1, aa: false, shadow: 1024, soft: false, precip: 0.35, minScale: 0.5, post: false, grass: 0, crowd: 0 },
+  medium: { name: 'Media', dpr: 1.25, aa: true, shadow: 1024, soft: true, precip: 0.6, minScale: 0.6, post: true, grass: 20000, crowd: 0.45 },
+  high: { name: 'Alta', dpr: 1.5, aa: true, shadow: 2048, soft: true, precip: 1, minScale: 0.7, post: true, grass: 45000, crowd: 0.75 },
+  ultra: { name: 'Ultra', dpr: 2, aa: true, shadow: 4096, soft: true, precip: 1.3, minScale: 0.8, post: true, grass: 90000, crowd: 1 },
 };
 
 /** Preset iniziale per 'auto': dalla GPU dichiarata e dai core, prudente (il governatore poi scende se serve). */

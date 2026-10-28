@@ -56,7 +56,8 @@ export function goal(dir, P) {
   return grp;
 }
 
-export function stadium(P, scene) {
+/** tiered: gradoni con posti per il pubblico 3D (altrimenti tribune piane con la texture della folla). */
+export function stadium(P, scene, tiered = false) {
   const W = P.hx * 2, Hz = P.hz * 2, m = Math.max(4, P.hz * 0.25);
   const run = new THREE.Mesh(new THREE.PlaneGeometry(W + m * 2 + 4, Hz + m * 2 + 4), new THREE.MeshLambertMaterial({ color: 0x2e7f36 }));
   run.rotation.x = -Math.PI / 2; run.position.y = -0.01; scene.add(run);
@@ -75,13 +76,23 @@ export function stadium(P, scene) {
   };
   board(W + m * 2, 0, -P.hz - m, 0); // lato telecamera senza cartelloni: coprirebbero la linea laterale vicina
   for (const d of [-1, 1]) for (const e of [-1, 1]) board(P.hz - 4, d * (P.hx + m), e * (P.hz / 2 + 2.5), d * Math.PI / 2);
-  const crowd = new THREE.MeshLambertMaterial({ map: crowdTexture() }), roof = new THREE.MeshLambertMaterial({ color: 0x9aa3ad });
+  const crowd = new THREE.MeshLambertMaterial({ map: crowdTexture() }), roof = new THREE.MeshLambertMaterial({ color: 0x9aa3ad }), step = new THREE.MeshLambertMaterial({ color: 0x6d747c });
+  const seats = [], flagSpots = [], _v = new THREE.Vector3();
   const stand = (len, depth, x, z, ry) => {
     const g = new THREE.Group(), rise = depth * 0.62, slope = Math.hypot(depth, rise);
-    const s = new THREE.Mesh(new THREE.PlaneGeometry(len, slope), crowd); s.rotation.x = -Math.atan2(depth, rise); s.position.set(0, rise / 2, -depth / 2); g.add(s);
+    g.position.set(x, 0, z); g.rotation.y = ry; g.updateMatrixWorld();
+    if (tiered) { // gradoni veri (una InstancedMesh per tribuna) e un posto ogni ~0,6 m per gli spettatori 3D
+      const rows = Math.max(6, Math.round(depth / 0.85)), rd = depth / rows, rh = rise / rows, box = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), step, rows), mm = new THREE.Matrix4();
+      for (let r = 0; r < rows; r++) {
+        const top = (r + 1) * rh, zc = -(r + 0.5) * rd; box.setMatrixAt(r, mm.makeScale(len, top, rd).setPosition(0, top / 2, zc));
+        for (let k = 0, nk = Math.floor(len / 0.62); k < nk; k++) { _v.set((k + 0.5 - nk / 2) * 0.62 + (r % 2) * 0.2, top, zc).applyMatrix4(g.matrixWorld); seats.push({ x: _v.x, y: _v.y, z: _v.z, ry }); }
+      }
+      box.receiveShadow = true; g.add(box);
+      for (let k = 0; k < 3; k++) { _v.set((k - 1) * len * 0.3, rise, -depth + 0.4).applyMatrix4(g.matrixWorld); flagSpots.push({ x: _v.x, y: _v.y, z: _v.z, ry }); }
+    } else { const s = new THREE.Mesh(new THREE.PlaneGeometry(len, slope), crowd); s.rotation.x = -Math.atan2(depth, rise); s.position.set(0, rise / 2, -depth / 2); g.add(s); }
     const back = new THREE.Mesh(new THREE.BoxGeometry(len, rise + 3, 0.6), roof); back.position.set(0, (rise + 3) / 2, -depth - 0.3); g.add(back);
     const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.4, depth * 0.55), roof); top.position.set(0, rise + 3, -depth * 0.75); g.add(top);
-    g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
+    scene.add(g);
   };
   const depth = Math.max(10, P.hz * 0.8);
   stand(W + m * 2 + 10, depth, 0, -P.hz - m - 1.5, 0);
@@ -97,7 +108,8 @@ export function stadium(P, scene) {
     floodGlow(scene, new THREE.Vector3(x, h + 1, z));
   }
   fence(P, m, scene); benches(P, scene);
-  return { flags: cornerFlags(P, scene) };
+  if (tiered) for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) seats.push({ x: sx * 8 + (k - 1) * 1.4, y: 0, z: -(P.hz + 1.5), ry: 0, fan: sx < 0 ? 0 : 1 }); // staff in piedi davanti alla panchina
+  return { flags: cornerFlags(P, scene), seats, flagSpots };
 }
 
 let GLOW = null;

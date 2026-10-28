@@ -1,0 +1,17 @@
+Audio samples: all from Freesound (https://freesound.org), all released under CC0 1.0 (public domain).
+Each file was cut, normalised and encoded to Ogg Vorbis for this project; loops have a crossfaded seam.
+
+crowd_bed.ogg       353418  "Football game in a big arena"            by ckater
+crowd_chant.ogg     239936  "Korea_baseball"                          by nikitralala
+crowd_goal.ogg      189821  "Goal"                                    by blaukreuz
+crowd_ooh.ogg       826789  "Ooh and ahhs, man impressed by something" by jeffjb91 (layered and detuned into a group)
+crowd_boo.ogg        25270  "to_be_booed2_ses1"                       by Freesound
+crowd_applause.ogg   39733  "noise01"                                 by huubjeroen
+ref_whistle.ogg     538422  "Referee whistle sound"                   by rosa-orenes256
+ball_kick.ogg       555042  "Soccer ball kick"                        by bittermelonheart
+ball_bounce.ogg,
+ball_bounce2.ogg    378355  "Bouncing football ball off the ground"   by 13GPanska_Lakota_Jan
+tackle.ogg          478384  "Pine forest WW2 soldier impacts twigs"   by elonen
+rain_loop.ogg       525046  "Rain slowly passing, treated loop"       by speakwithanimals
+
+Sound page: https://freesound.org/s/<id>/

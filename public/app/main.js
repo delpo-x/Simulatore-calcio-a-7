@@ -180,7 +180,25 @@ function startMatch(seed, ov = null) {
   setPanel(innerWidth >= 1100);
   hideBanner(); $('#lower').hidden = true;
   updateControls();
-  showLower(`${esc(defs[0].name)} <span class="vs-mini">contro</span> ${esc(defs[1].name)}`, 'intro', 3.5);
+  startIntro();
+}
+
+// ---------------------------------------------------------------- presentazione
+
+const WX_NAME = { clear: 'Sereno', cloudy: 'Nuvoloso', night: 'Notturna', fog: 'Nebbia', rain: 'Pioggia', storm: 'Pioggia intensa', snow: 'Neve' };
+const SURF_NAME = { dirt: 'Terra', synthetic: 'Sintetico', grass: 'Erba' };
+/** Prima del calcio d'inizio: giro della camera sullo stadio e formazioni che entrano riga per riga. Spazio, Esc o clic per saltare. */
+function startIntro() {
+  G.intro = 7.5; G.paused = true; R.setCamera('intro'); R.snap = true;
+  const side = t => `<div class="in-team" style="--c:${G.kits[t].shirt};--d:${t}"><div class="in-name">${esc(G.defs[t].name)}<small>${G.schemes[t]}</small></div><ol>${
+    G.sim.players.filter(p => p.team === t).map((p, i) => `<li style="--i:${i}"><b style="background:${p.gk ? G.kits[t].gk : G.kits[t].shirt};color:${contrast(p.gk ? G.kits[t].gk : G.kits[t].shirt)}">${p.number ?? G.info[p.id].num}</b>${esc(playerName(p.id))}<small>${G.info[p.id].role}</small></li>`).join('')}</ol></div>`;
+  $('#intro').innerHTML = `${side(0)}<div class="in-mid"><div class="in-vs">contro</div><div class="in-meta">${WX_NAME[G.sim.weather] ?? ''} · ${SURF_NAME[G.sim.surface] ?? ''}</div></div>${side(1)}<div class="in-skip">Spazio per iniziare</div>`;
+  $('#intro').hidden = false; $('#intro').onclick = endIntro; updateControls();
+}
+function endIntro() {
+  if (!G?.intro) return;
+  G.intro = 0; G.paused = false; $('#intro').hidden = true; R.setCamera(CAMS[G.cam][0]); R.snap = true; updateControls();
+  showLower(`${esc(G.defs[0].name)} <span class="vs-mini">contro</span> ${esc(G.defs[1].name)}`, 'intro', 3);
 }
 
 const A = new SoundEngine();
@@ -235,7 +253,7 @@ function onItems(items) {
     else if (it.t === 'injury') showLower(`Infortunio · ${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'info', 2.5);
     else if (it.t === 'sub') showLower(`Cambio ${esc(teamName(it.team))}: entra ${esc(playerName(it.player))}, esce ${esc(it.out)}`, 'info', 3);
     else if (it.t === 'penalty') showLower(`Calcio di rigore per ${esc(teamName(it.team))}`, 'info', 2.5);
-    else if (it.t === 'half') showBanner(`<div class="b-kicker">Intervallo</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div><div class="b-sub">Fine primo tempo</div>`, -1, 3);
+    else if (it.t === 'half') { showBanner(`<div class="b-kicker">Intervallo</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div><div class="b-sub">Fine primo tempo</div>`, -1, 3); setTimeout(showHalfStats, 3000); }
     else if (it.t === 'full') { showBanner(`<div class="b-kicker">Fischio finale</div><div class="b-big">${it.score[0]} - ${it.score[1]}</div>`, -1, 2.5); }
   }
   if (items.some(i => i.t === 'full')) { G.ended = true; updateControls(); if (!G.skipping) setTimeout(() => G?.ended && !G.replay && showEnd(), 2600); }
@@ -349,6 +367,13 @@ function showCaption(text) {
 function showBanner(html, team, secs) {
   const b = $('#banner'); b.innerHTML = html; b.hidden = false; b.style.setProperty('--c', team >= 0 ? G.kits[team].shirt : '#e8edf5');
   b.classList.remove('in'); void b.offsetWidth; b.classList.add('in'); bannerT = secs;
+}
+/** Grafica delle statistiche all'intervallo: le prime righe del pannello, con barre che si riempiono. */
+function showHalfStats() {
+  if (!G || G.skipping || G.replay) return;
+  const rows = G.stats.rows().slice(0, 6).map(([l, a, b, u = ''], i) => { const t = a + b || 1; return `<div class="hs-row" style="--i:${i}"><b>${a}${u}</b><span>${l}<i><em style="--w:${100 * a / t}%;background:${G.kits[0].shirt}"></em><em style="--w:${100 * b / t}%;background:${G.kits[1].shirt}"></em></i></span><b>${b}${u}</b></div>`; }).join('');
+  const h = $('#htstats'); h.innerHTML = `<div class="hs-head"><span style="--c:${G.kits[0].shirt}">${esc(G.defs[0].name)}</span><small>Primo tempo</small><span style="--c:${G.kits[1].shirt}">${esc(G.defs[1].name)}</span></div>${rows}`;
+  h.hidden = false; h.classList.remove('in'); void h.offsetWidth; h.classList.add('in'); clearTimeout(h._t); h._t = setTimeout(() => { h.hidden = true; }, 6500);
 }
 function hideBanner() { $('#banner').hidden = true; bannerT = 0; }
 function showLower(html, kind, secs = 3) {
@@ -482,6 +507,7 @@ function initControls() {
     if (e.key === 'F3' && G && !$('#match').hidden) { e.preventDefault(); $('#perf').hidden = !$('#perf').hidden; return; }
     if (!G || $('#match').hidden || e.target.closest?.('input,select,textarea,dialog')) return;
     const k = e.key.toLowerCase();
+    if (G.intro && (k === ' ' || k === 'escape')) { e.preventDefault(); endIntro(); return; }
     if (k === ' ') { e.preventDefault(); if (G.replay) $('#rp-skip').click(); else $('#c-play').click(); }
     else if (e.shiftKey && /^Digit[1-3]$/.test(e.code)) setCam(+e.code.slice(5) - 1);
     else if (k >= '1' && k <= '6') setSpeed(+k - 1);
@@ -516,7 +542,8 @@ qualita' ${p.quality}  risoluzione ${(p.scale * 100).toFixed(0)}%`; }
         for (let n = 0; G.acc >= DT && n < 1200; n++) { tick(); G.acc -= DT; if (G.replay || G.ended) { G.acc = 0; break; } }
         if (G.acc > DT * 4) G.acc = 0; // dispositivo lento: meglio rallentare che accumulare ritardo
       }
-      if (!G.replay) R.draw(G.sim, G.paused ? 0 : dt * Math.min(G.speed, 3));
+      if (G.intro && (G.intro -= dt) <= 0) endIntro();
+      if (!G.replay) R.draw(G.sim, G.paused && !G.intro ? 0 : dt * Math.min(G.speed, 3));
       $('#clock').textContent = mmss(G.sim.clock());
     }
     const s = G.sim;

@@ -59,7 +59,7 @@ export class TVRenderer {
     this.meshes = []; this.showMarker = true; this.w = 0; this.h = 0;
   }
 
-  setCamera(mode) { if (mode !== this.mode) { this.mode = mode; this.blend = 0; } this.cutK = null; }
+  setCamera(mode) { if (mode !== this.mode) { this.mode = mode; this.blend = 0; } this.cutK = null; if (mode === 'intro') this.introT0 = null; }
 
   /**
    * Stacco di regia sulla camera TV, con taglio netto in entrata e in uscita: { kind: 'player', id, t } primo piano su un giocatore,
@@ -331,7 +331,10 @@ export class TVRenderer {
     }
     const mode = this.cutK?.kind === 'fondo' ? 'fondo' : this.mode, cp = this.cutK?.kind === 'player' ? v.players[this.cutK.id] : null;
     this.shotZ = (this.shotZ ?? 0) + ((owner == null && sp > 12 && Math.sign(b.vx) === Math.sign(b.x) && P.hx - Math.abs(b.x) < 30 ? 1 : 0) - (this.shotZ ?? 0)) * Math.min(1, dt * 3); // tiro in volo verso la porta vicina: la camera TV stringe
-    if (cp) { // primo piano: camera a 1,7 m, 5 m davanti al giocatore sul lato della tribuna principale, teleobiettivo sul busto
+    if (mode === 'intro') { // presentazione: lento giro dall'alto attorno allo stadio, poi scende verso il centrocampo
+      const t = performance.now() / 1000 - (this.introT0 ??= performance.now() / 1000), a = -0.6 + t * 0.32, r = P.hx * (1.9 - Math.min(t, 7) * 0.08), h = 26 - Math.min(t, 7) * 1.8;
+      pos.set(Math.cos(a) * r, h, Math.sin(a) * r + P.hz * 0.4); look.set(0, 0, 0); fov = aspect < 0.9 ? 62 : 40;
+    } else if (cp) { // primo piano: camera a 1,7 m, 5 m davanti al giocatore sul lato della tribuna principale, teleobiettivo sul busto
       const ang = Math.PI / 2 + Math.sin(this.clock * 0.4) * 0.25;
       pos.set(cp.x + Math.cos(ang) * 5, 1.7, cp.z + Math.sin(ang) * 5); look.set(cp.x, 1.35, cp.z); fov = aspect < 0.9 ? 40 : 24;
     } else if (mode === 'tattica') { // drone: vista alta inclinata sull'intero campo; in verticale la lunghezza del campo sale lungo lo schermo

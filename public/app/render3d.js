@@ -9,6 +9,7 @@ import { Weather } from './gfx/weather.js';
 import { FrameGovernor, QUALITY } from './gfx/quality.js';
 import { PostFX } from './gfx/post.js';
 import { grass } from './gfx/grass.js';
+import { animateRig, buildRigged, loadRig } from './gfx/rig.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
@@ -36,6 +37,7 @@ export class TVRenderer {
     this.flags = stadium(pitch, scene).flags;
     this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => { this.post?.flash(1.5); this.onThunder?.(); };
     this.post = Q.post ? new PostFX(r, { samples: Q.aa ? 4 : 0, kind: weather }) : null; // con il post l'MSAA sta nel buffer di scena
+    if (Q.post) loadRig().then(ok => { if (ok) { this.useRig = true; this.rebuild = true; } }); // giocatori con scheletro dal preset Media in su; fino al caricamento restano quelli low-poly
     if (this.post && scene.background?.isTexture) { const pm = new THREE.PMREMGenerator(r), sky = scene.background.clone(); sky.mapping = THREE.EquirectangularReflectionMapping; scene.environment = pm.fromEquirectangular(sky).texture; scene.environmentIntensity = 0.35; pm.dispose(); } // riflessi del cielo su palla, maglie e pelle
     if (this.post) { const seen = new Set(); scene.traverse(o => { if (o.isMesh && o.geometry.type === 'ConeGeometry' && !seen.has(o.material)) { seen.add(o.material); o.material.opacity *= 0.35; } }); } // coni additivi: in HDR si sommano prima del tone mapping e risultano molto piu' chiari
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
@@ -78,7 +80,7 @@ export class TVRenderer {
   }
 
   mkMesh(team, gk, num, id, captain = false) {
-    const m = buildPlayer(this.kits[team], gk, num, id, this.blobMat, captain); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
+    const m = (this.useRig ? buildRigged : buildPlayer)(this.kits[team], gk, num, id, this.blobMat, captain); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
   }
 
   /** Cambio: il giocatore id prende il numero inNum. Con instant = false l'uscente (copia con outNum) corre alla panchina sul lato lontano e l'entrante arriva di corsa dalla stessa zona; la simulazione ha gia' fatto il cambio, qui e' solo scena. */
@@ -105,6 +107,7 @@ export class TVRenderer {
 
   /** Animazione procedurale (nessun dato di terzi): andatura camminata/corsa/scatto, conduzione, finta, tiro, colpo di testa, rimessa. */
   animate(m, p, dt, ctx = {}) {
+    if (m.userData.rig) return animateRig(m, p, dt, ctx);
     const u = m.userData, sp = Math.hypot(p.vx, p.vz), b = u.body;
     const gait = clamp((sp - 2) / 5.5, 0, 1), dribbling = !!ctx.owns && sp > 1; // 0 = cammina, 1 = scatto
     const heading = sp > 1.5 ? Math.atan2(p.vz, p.vx) : u.heading;
@@ -445,7 +448,7 @@ export class TVRenderer {
   /** v: { players, ball } (la simulazione stessa o un fotogramma di replay). */
   draw(v, dt) {
     this.resize();
-    if (this.meshes.length !== v.players.length) this.build(v.players);
+    if (this.rebuild || this.meshes.length !== v.players.length) { this.rebuild = false; this.build(v.players); }
     const bo = v.ball.owner, from = this.prevOwner;
     if (from >= 0 && bo < 0 && v.players[from] && !(v.players[from].throwT > 0)) { // palla appena lasciata dal giocatore: tiro o passaggio
       const sp = Math.hypot(v.ball.vx, v.ball.vz), u = this.meshes[from]?.userData;

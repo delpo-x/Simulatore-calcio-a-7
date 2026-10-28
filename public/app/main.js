@@ -163,6 +163,7 @@ function startMatch(seed, ov = null) {
   if (R) R.dispose();
   R = new TVRenderer($('#view'), sim.pitch, { weather: sim.weather, puddles: sim.puddles, surface: sim.surface, quality: cfg.quality === 'auto' ? autoQuality() : cfg.quality, kits, nums: info.map(i => i.num), label: id => `${G.sim.players[id].number ?? G.info[id].num}  ${playerName(id)}` });
   R.setCamera(CAMS[G.cam][0]); R.snap = true;
+  if (new URLSearchParams(location.search).has('debug')) window.__R = R; // ispezione dalla console
   R.onWood = (power, bar) => { if (sounds()) A.clang(power, bar); }; // palo/traversa: il suono parte insieme al tremolio della camera
   R.onNet = power => { if (sounds()) A.net(power); };
   R.onThunder = () => { if (sounds()) A.thunder(); };

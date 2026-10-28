@@ -1,8 +1,8 @@
 import * as THREE from '../../vendor/three.module.min.js';
 import { contrast, kitTrim, numberTexture, shirtTexture } from './textures.js';
 
-const SKINS = [0xf1c7a1, 0xe0ac7e, 0xc68a5c, 0x8d5a3b, 0x6b4129];
-const HAIRS = [0x2b1d14, 0x4a2f1b, 0x111111, 0x8a6236, 0xc9a35f];
+export const SKINS = [0xf1c7a1, 0xe0ac7e, 0xc68a5c, 0x8d5a3b, 0x6b4129];
+export const HAIRS = [0x2b1d14, 0x4a2f1b, 0x111111, 0x8a6236, 0xc9a35f];
 
 const GEO = {};
 export function geo() {
@@ -46,7 +46,7 @@ function fuse(parts) {
 }
 
 /** Un giocatore low-poly: gambe, braccia, busto, testa; avanti = +x. Stinco, scarpa e fascia sono una mesh sola, come braccio, mano, spalla e polsino. */
-const BOOTS = [0x111111, 0xf4f4f4, 0xff5a1f, 0x2fd4ff, 0xd7ff3a, 0xff2d8a, 0xffc21a, 0x111111];
+export const BOOTS = [0x111111, 0xf4f4f4, 0xff5a1f, 0x2fd4ff, 0xd7ff3a, 0xff2d8a, 0xffc21a, 0x111111];
 
 /** captain = fascia gialla sul braccio sinistro. Altezza e corporatura variano con l'id (il portiere un po' piu' alto). */
 export function buildPlayer(kit, gk, num, id, blobMat, captain = false) {

@@ -198,7 +198,7 @@ function tick() {
     if (s.events.some(e => WHISTLE.has(e.t))) A.whistle();
   }
   if (!G.skipping && !G.replay && G.speed <= 4) for (const e of s.events) {
-    if (e.t === 'goal') { A.roar('goal'); A.swell(1, 7); }
+    if (e.t === 'goal') { A.roar('goal'); A.swell(1, 7); R.celebrate(s, e.team, e.scorer); }
     else if (e.t === 'half') A.whistle(2, 0.45);
     else if (e.t === 'full') A.whistle(3, 0.5);
   }

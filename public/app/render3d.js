@@ -83,6 +83,9 @@ export class TVRenderer {
     const m = (this.useRig ? buildRigged : buildPlayer)(this.kits[team], gk, num, id, this.blobMat, captain); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.castShadow = true; o.receiveShadow = true; } }); m.userData.blob.visible = false; this.scene.add(m); return m;
   }
 
+  /** Gol: la squadra che ha segnato esulta (solo i giocatori con scheletro); il marcatore un po' piu' a lungo. */
+  celebrate(v, team, scorer) { this.meshes.forEach((m, i) => { const u = m.userData; if (u.rig && v.players[i]?.team === team && !v.players[i].gk) { u.celebT = i === scorer ? 4.5 : 3.2; u.scorer = i === scorer; } }); }
+
   /** Cambio: il giocatore id prende il numero inNum. Con instant = false l'uscente (copia con outNum) corre alla panchina sul lato lontano e l'entrante arriva di corsa dalla stessa zona; la simulazione ha gia' fatto il cambio, qui e' solo scena. */
   substitution(team, id, outNum, inNum, instant = false) {
     const old = this.meshes[id]; if (!old) return;

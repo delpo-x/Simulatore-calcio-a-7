@@ -4,7 +4,7 @@ import * as THREE from '../../vendor/three.module.min.js';
 import { GLTFLoader } from '../../vendor/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../../vendor/addons/utils/SkeletonUtils.js';
 import { contrast, numberTexture } from './textures.js';
-import { BOOTS, SKINS, geo } from './player.js';
+import { BOOTS, HAIRS, SKINS, geo } from './player.js';
 import { clamp } from './util.js';
 
 let SRC = null, LOAD = null;
@@ -46,7 +46,7 @@ function kitMaterial(cols) {
 export function buildRigged(kit, gk, num, id, blobMat, captain = false) {
   const S = SRC, model = SkeletonUtils.clone(S.root), root = new THREE.Group(), inner = new THREE.Group();
   const hs = (gk ? 1.05 : 0.95) + ((id * 37) % 11) / 100, ws = 0.93 + ((id * 53) % 15) / 100, k = 1.8 / S.height;
-  inner.rotation.y = Math.PI / 2; inner.scale.set(k * ws, k * hs, k * ws); inner.position.y = inner.userData.y = -S.minY * k * hs; inner.add(model); root.add(inner);
+  inner.rotation.order = 'YXZ'; inner.rotation.y = Math.PI / 2; inner.scale.set(k * ws, k * hs, k * ws); inner.position.y = inner.userData.y = -S.minY * k * hs; inner.add(model); root.add(inner);
   const c = x => new THREE.Color(x), skinC = SKINS[(id * 7 + 3) % SKINS.length], shirt = gk ? kit.gk : kit.shirt;
   const cols = [c(skinC), c(shirt), c(gk ? 0x1d1d1d : kit.shorts), c(gk ? kit.gk : kit.socks), c(BOOTS[(id * 3 + 2) % BOOTS.length]), c(gk ? shirt : skinC), c(gk ? 0xf0f0f0 : skinC)];
   const mat = kitMaterial(cols), bones = {};
@@ -58,8 +58,10 @@ export function buildRigged(kit, gk, num, id, blobMat, captain = false) {
   back.scale.setScalar(0.9); root.add(back);
   let band = null;
   if (captain) { band = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.07, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xffd400, side: THREE.DoubleSide })); root.add(band); }
+  const bald = (id * 11) % 9 === 0, hair = bald ? null : new THREE.Mesh(new THREE.SphereGeometry(0.118 * ws, 14, 8, 0, Math.PI * 2, 0, Math.PI * (0.4 + ((id * 13) % 5) * 0.03)), new THREE.MeshStandardMaterial({ color: HAIRS[(id * 5 + 1) % HAIRS.length], roughness: 0.9 })); // calotta di capelli, lunghezza variabile; qualcuno rasato
+  if (hair) { hair.castShadow = true; root.add(hair); }
   const blob = new THREE.Mesh(geo().blob, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; blob.visible = false; root.add(blob);
-  root.userData = { rig: true, blob, inner, bones, mixer, act, back, band, phase: ((id * 1.7) % 6.28) / 6.28, heading: undefined, prevSp: 0, lean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1, diveHigh: false, slideT: 0, pokeT: 0, stunW: 0, look: 0 };
+  root.userData = { rig: true, blob, inner, bones, mixer, act, back, band, hair, celebT: 0, scorer: false, phase: ((id * 1.7) % 6.28) / 6.28, heading: undefined, prevSp: 0, lean: 0, feintT: 0, feintDir: 1, kickT: 0, kickLeft: false, kickPow: 0.5, kickLoft: false, headT: 0, headCd: 0, diveT: 0, diveCd: 0, diveDir: 1, diveHigh: false, slideT: 0, pokeT: 0, stunW: 0, look: 0 };
   return root;
 }
 
@@ -74,7 +76,7 @@ function turn(bone, axis, ang) {
 /** Equivalente rigged di TVRenderer.animate: m gruppo, p giocatore della vista, ctx come per i giocatori low-poly. */
 export function animateRig(m, p, dt, ctx = {}) {
   const u = m.userData, A = u.act, sp = Math.hypot(p.vx, p.vz);
-  for (const k of ['feintT', 'kickT', 'headT', 'diveT', 'slideT', 'pokeT']) u[k] = Math.max(0, u[k] - dt);
+  for (const k of ['feintT', 'kickT', 'headT', 'diveT', 'slideT', 'pokeT', 'celebT']) u[k] = Math.max(0, u[k] - dt);
   // locomozione: pesi a triangolo tra le velocita' di riferimento, tutte le clip allineate alla stessa fase del passo
   const W = LOCO.map(([, v], i) => { const lo = LOCO[i - 1]?.[1], hi = LOCO[i + 1]?.[1]; return sp <= v ? (lo == null ? 1 : clamp((sp - lo) / (v - lo), 0, 1)) : (hi == null ? 1 : clamp((hi - sp) / (hi - v), 0, 1)); });
   let rate = 0, wsum = 0;
@@ -82,11 +84,13 @@ export function animateRig(m, p, dt, ctx = {}) {
   u.phase = (u.phase + dt * rate / Math.max(1e-3, wsum)) % 1;
   const stun = p.stun > 0; u.stunW += ((stun ? 1 : 0) - u.stunW) * Math.min(1, dt * 8);
   if (stun && !u.wasStun) A.Death01.reset().play(); u.wasStun = stun;
-  const crouch = p.gk && ctx.alert && sp < 1.2 ? 1 : 0, head = u.headT > 0 ? 1 : 0, free = 1 - Math.max(u.stunW, head);
+  u.celW = (u.celW ?? 0) + ((u.celebT > 0 && sp < 2.5 ? 1 : 0) - (u.celW ?? 0)) * Math.min(1, dt * 4); // esultanza: balla quando rallenta, poi torna a correre
+  const crouch = p.gk && ctx.alert && sp < 1.2 ? 1 : 0, head = u.headT > 0 ? 1 : 0, free = 1 - Math.max(u.stunW, head, u.celW);
   LOCO.forEach(([n], i) => { const a = A[n]; a.time = u.phase * a.getClip().duration; a.setEffectiveTimeScale(0); a.setEffectiveWeight(W[i] * free * (i === 0 ? 1 - crouch : 1)); });
   A.Crouch_Idle_Loop.setEffectiveTimeScale(1).setEffectiveWeight(crouch * W[0] * free);
   A.Death01.setEffectiveTimeScale(1.4).setEffectiveWeight(u.stunW);
   A.Jump_Loop.setEffectiveTimeScale(1).setEffectiveWeight(head * (1 - u.stunW));
+  A.Dance_Loop.setEffectiveTimeScale(u.scorer ? 1.2 : 1).setEffectiveWeight(u.celW * (1 - u.stunW) * (1 - head));
   u.mixer.update(dt);
   // corpo: inclinazione in curva e in accelerazione, tuffo del portiere, scivolata
   const heading = sp > 1.5 ? Math.atan2(p.vz, p.vx) : u.heading, turnRate = u.heading != null && heading != null && dt > 0 ? Math.atan2(Math.sin(heading - u.heading), Math.cos(heading - u.heading)) / dt : 0; u.heading = heading;
@@ -99,7 +103,7 @@ export function animateRig(m, p, dt, ctx = {}) {
   } else if (u.slideT > 0) { // scivolata: bacino giu' e busto indietro
     const t = 1 - u.slideT / 0.7, k = Math.sin(Math.min(1, t * 1.4) * Math.PI * 0.5) * (t > 0.8 ? (1 - t) / 0.2 : 1);
     I.rotation.x = -k * 1.05; I.position.y = baseY - k * 0.55;
-  } else { I.rotation.x = u.lean; I.rotation.z = bank; } // nel gruppo interno (ruotato di 90 gradi) x e' il beccheggio, z il rollio
+  } else { I.rotation.x = u.lean; I.rotation.z = bank; } // ordine YXZ: x e' il beccheggio e z il rollio attorno agli assi del modello
   m.updateMatrixWorld(true);
   m.getWorldQuaternion(_q); _f.set(1, 0, 0).applyQuaternion(_q); _s.set(0, 0, 1).applyQuaternion(_q);
   const B = u.bones, L = u.kickLeft ? '_l' : '_r';
@@ -114,5 +118,6 @@ export function animateRig(m, p, dt, ctx = {}) {
   // numero sulla schiena e fascia del capitano seguono le ossa
   const sp3 = B.spine_03 ?? B.spine_02;
   if (sp3) { sp3.getWorldPosition(_v); m.worldToLocal(_v); u.back.position.set(_v.x - 0.17, _v.y - 0.05, _v.z); u.back.rotation.set(0, -Math.PI / 2, 0); }
+  if (u.hair && B.Head) { B.Head.getWorldPosition(_v); m.worldToLocal(_v); u.hair.position.set(_v.x - 0.01, _v.y + 0.09, _v.z); }
   if (u.band && B.upperarm_l) { B.upperarm_l.getWorldPosition(_v); m.worldToLocal(_v); u.band.position.set(_v.x, _v.y - 0.12, _v.z); }
 }

@@ -545,6 +545,20 @@ function initControls() {
   $('#e-again').onclick = () => startMatch(cfg.seed ? +cfg.seed : undefined);
   $('#e-menu').onclick = toMenu;
   $$('[data-open]').forEach(b => b.onclick = () => $(`#${b.dataset.open}`).showModal());
+  // gesti touch sul campo: doppio tocco = pausa/salta (come Spazio), scorrimento orizzontale = telecamera, verso l'alto = pannello, pressione lunga = replay dell'ultimo gol
+  let tp = null, lastTap = 0;
+  const key = k => dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+  $('#match').addEventListener('pointerdown', e => { if (e.pointerType !== 'touch' || e.target.closest('button, input, select, a, dialog, #feed, #intro, [class*="panel"]')) return; /* sul campo e sulle scritte, non sui comandi */ tp = { x: e.clientX, y: e.clientY, t: performance.now(), long: setTimeout(() => { tp = null; key('r'); }, 650) }; });
+  $('#match').addEventListener('pointermove', e => { if (tp && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) > 12) clearTimeout(tp.long); });
+  const up = e => {
+    if (!tp || e.pointerType !== 'touch') return; clearTimeout(tp.long);
+    const dx = e.clientX - tp.x, dy = e.clientY - tp.y, dt = performance.now() - tp.t; tp = null;
+    if (dt < 500 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) key('c');
+    else if (dt < 500 && dy < -60 && Math.abs(dy) > Math.abs(dx) * 1.5) key('s');
+    else if (Math.hypot(dx, dy) < 12 && dt < 300) { const now = performance.now(); if (now - lastTap < 320) { key(' '); lastTap = 0; } else lastTap = now; }
+  };
+  $('#match').addEventListener('pointerup', up); $('#match').addEventListener('pointercancel', () => { if (tp) clearTimeout(tp.long); tp = null; });
+
   addEventListener('keydown', e => {
     if (e.key === 'F3' && G && !$('#match').hidden) { e.preventDefault(); $('#perf').hidden = !$('#perf').hidden; return; }
     if (!G || $('#match').hidden || e.target.closest?.('input,select,textarea,dialog')) return;

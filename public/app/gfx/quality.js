@@ -15,6 +15,8 @@ export const QUALITY = {
 export function autoQuality() {
   try {
     const g = document.createElement('canvas').getContext('webgl2'), e = g?.getExtension('WEBGL_debug_renderer_info'), gpu = (e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : '') || '';
+    const phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820; // telefono: schermo piccolo, batteria e calore contano piu' del dettaglio
+    if (phone) return /Apple GPU|Adreno \(TM\) [7-9]\d\d/i.test(gpu) ? 'medium' : 'low';
     if (/RTX|RX [67]\d{3}|Apple M[2-9]|Radeon Pro/i.test(gpu)) return 'ultra';
     if (/GTX 1[06-9]|GTX 16|RX 5\d{3}|Apple M1|Iris Xe/i.test(gpu)) return 'high';
     if (/Intel|GT 10|Mali|Adreno|PowerVR|SwiftShader|llvmpipe/i.test(gpu) || (navigator.hardwareConcurrency ?? 8) <= 4) return 'low';

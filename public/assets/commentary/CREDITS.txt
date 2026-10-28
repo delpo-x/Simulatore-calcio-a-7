@@ -1,0 +1,2 @@
+Commentary clips: synthesised with Chatterbox (audio.cpp) from a reference recording of the project author's own voice.
+lines.tsv-style phrases, no player or team names. index.json maps each phrase key to its number of variants (key_N.ogg).

@@ -233,7 +233,7 @@ function tick() {
   }
   if (items.length) onItems(items);
   const lines = G.cm.step();
-  if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); if (cfg.commentary) speak(l.text, l.prio); }
+  if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); if (cfg.commentary) speak(l.text, l.prio, l.key && [l.key]); }
 }
 
 /** Pubblico: piu' rumoroso quando la palla e' vicina a una porta, e ancora di piu' dentro l'area di rigore. */
@@ -249,7 +249,7 @@ const mmss = t => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.
 
 /** Voce della telecronaca: solo a velocita' di visione, fuori dai replay e con l'audio attivo. */
 const V = new Voice();
-function speak(text, prio) { if (cfg.voice && G && !G.skipping && !G.replay && G.speed <= 2 && !A.muted) V.say(text, prio); }
+function speak(text, prio, keys) { if (cfg.voice && G && !G.skipping && !G.replay && G.speed <= 2 && !A.muted) V.say(text, prio, keys); }
 const SAY = {
   goal: it => { const [a, b] = it.score, lead = it.team === 0 ? a - b : b - a;
     return `${it.own ? 'Autogol' : 'Gol'}! ${it.own ? `Sfortunato ${playerName(it.player)}` : `Gol di ${playerName(it.player)}`}! ${lead > 0 ? (lead === 1 ? `${teamName(it.team)} in vantaggio` : `${teamName(it.team)} allunga`) : lead === 0 ? 'Pareggio' : `${teamName(it.team)} accorcia`}, ${a} a ${b}.`; },
@@ -262,13 +262,15 @@ const SAY = {
   half: it => `Fine del primo tempo, ${it.score[0]} a ${it.score[1]}.`,
   full: it => `Finisce qui! ${it.score[0]} a ${it.score[1]}${it.score[0] === it.score[1] ? ', pareggio' : `, vince ${teamName(it.score[0] > it.score[1] ? 0 : 1)}`}.`,
 };
+/** Clip registrate per ogni episodio (senza nomi): il gol aggiunge come cambia il risultato. */
+const SAY_KEYS = it => it.t !== 'goal' ? [it.t] : (([a, b]) => { const l = it.team === 0 ? a - b : b - a; return [it.own ? 'own' : 'goal', l > 0 ? (l === 1 ? 'lead' : 'extend') : l === 0 ? 'level' : 'reduce']; })(it.score);
 const SAY_PRIO = { goal: 'top', red: 'high', penalty: 'high', full: 'high', half: 'high', yellow: 'mid', blue: 'mid', injury: 'mid', sub: 'low' };
 
 function onItems(items) {
   for (const it of items) {
     addFeed(it);
     if (G.skipping) continue;
-    if (SAY[it.t]) speak(SAY[it.t](it), SAY_PRIO[it.t]);
+    if (SAY[it.t]) speak(SAY[it.t](it), SAY_PRIO[it.t], SAY_KEYS(it));
     if (it.t === 'offside' && !G.replay && G.speed <= 2) R.offsideLine(G.sim, G.sim.players[it.player].team, it.player);
     if (it.t === 'goal') showBanner(`<div class="b-kicker">${it.own ? 'Autogol' : 'Gol'}</div><div class="b-big">GOL!</div><div class="b-sub">${esc(playerName(it.player))}${it.own ? ' (aut.)' : ''} · ${esc(teamName(it.team))} · ${it.score[0]}-${it.score[1]}</div>`, it.team, 3);
     else if (it.t === 'yellow') showLower(`<span class="card yellow"></span>${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'card');

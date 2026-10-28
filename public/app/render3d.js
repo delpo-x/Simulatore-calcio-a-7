@@ -8,6 +8,7 @@ import { goal, stadium, stepFlags } from './gfx/stadium.js';
 import { Weather } from './gfx/weather.js';
 import { FrameGovernor, QUALITY } from './gfx/quality.js';
 import { PostFX } from './gfx/post.js';
+import { grass } from './gfx/grass.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
@@ -31,9 +32,11 @@ export class TVRenderer {
     const relief = turfRelief(); relief.repeat.set(pitch.hx * 2 / 2.5, pitch.hz * 2 / 2.5); relief.wrapS = relief.wrapT = THREE.RepeatWrapping;
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch, surface), roughness: surface === 'dirt' ? 0.95 : 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: surface === 'dirt' ? 0.6 : 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
+    this.grass = Q.grass && surface !== 'dirt' && weather !== 'snow' ? grass(scene, pitch, pm.material.map, Q.grass, surface === 'grass' ? 0.08 : 0.055) : null;
     this.flags = stadium(pitch, scene).flags;
     this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => { this.post?.flash(1.5); this.onThunder?.(); };
     this.post = Q.post ? new PostFX(r, { samples: Q.aa ? 4 : 0, kind: weather }) : null; // con il post l'MSAA sta nel buffer di scena
+    if (this.post && scene.background?.isTexture) { const pm = new THREE.PMREMGenerator(r), sky = scene.background.clone(); sky.mapping = THREE.EquirectangularReflectionMapping; scene.environment = pm.fromEquirectangular(sky).texture; scene.environmentIntensity = 0.35; pm.dispose(); } // riflessi del cielo su palla, maglie e pelle
     if (this.post) { const seen = new Set(); scene.traverse(o => { if (o.isMesh && o.geometry.type === 'ConeGeometry' && !seen.has(o.material)) { seen.add(o.material); o.material.opacity *= 0.35; } }); } // coni additivi: in HDR si sommano prima del tone mapping e risultano molto piu' chiari
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
@@ -478,6 +481,7 @@ export class TVRenderer {
     this.updateCamera(v, dt);
     this.trail.update(b, this.cam.position, dt, this.clock); this.fx.update(dt, this.r.domElement.height * 0.5 * this.cam.projectionMatrix.elements[5]);
     if (this.gov.tick(performance.now())) this.r.setPixelRatio(this.dpr * this.gov.scale); // risoluzione dinamica
+    this.grass?.step(dt);
     this.r.info.reset(); // conta tutti i passaggi del frame (autoReset spento)
     if (this.post) this.post.render(this.scene, this.cam); else this.r.render(this.scene, this.cam);
   }

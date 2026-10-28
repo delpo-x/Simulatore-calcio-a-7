@@ -8,6 +8,7 @@ import { Recorder, Player as ReplayPlayer } from './replay.js';
 import { PRESETS, lineupFor, loadCustom, saveCustom } from './teams.js';
 import { SoundEngine } from './audio.js';
 import { Commentary } from './commentary.js';
+import { Voice } from './voice.js';
 import { summarize } from './headless.js';
 import { initTour } from './tourui.js';
 import { matchSeed } from './tournament.js';
@@ -32,7 +33,7 @@ const ICON = {
 const MENU_KEY = 'calcio7.menu';
 function loadMenu() {
   let m = null; try { m = JSON.parse(localStorage.getItem(MENU_KEY)); } catch { /* niente */ }
-  return { perTeam: 7, half: 25, seed: '', weather: 'random', surface: 'dirt', quality: 'auto', autoReplay: true, commentary: true, captions: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
+  return { perTeam: 7, half: 25, seed: '', weather: 'random', surface: 'dirt', quality: 'auto', autoReplay: true, commentary: true, captions: true, voice: true, teams: [clone(PRESETS[0]), clone(PRESETS[1])], ...m };
 }
 function saveMenu() { try { localStorage.setItem(MENU_KEY, JSON.stringify(cfg)); } catch { /* niente */ } }
 
@@ -228,7 +229,7 @@ function tick() {
   }
   if (items.length) onItems(items);
   const lines = G.cm.step();
-  if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); }
+  if (!G.skipping) for (const l of lines) { addFeed(l); if (cfg.captions && !G.replay) showCaption(l.text); if (cfg.commentary) speak(l.text, l.prio); }
 }
 
 /** Pubblico: piu' rumoroso quando la palla e' vicina a una porta, e ancora di piu' dentro l'area di rigore. */
@@ -242,10 +243,28 @@ const teamName = t => G.defs[t].name;
 const playerName = id => G.stats.name(id);
 const mmss = t => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
+/** Voce della telecronaca: solo a velocita' di visione, fuori dai replay e con l'audio attivo. */
+const V = new Voice();
+function speak(text, prio) { if (cfg.voice && G && !G.skipping && !G.replay && G.speed <= 2 && !A.muted) V.say(text, prio); }
+const SAY = {
+  goal: it => { const [a, b] = it.score, lead = it.team === 0 ? a - b : b - a;
+    return `${it.own ? 'Autogol' : 'Gol'}! ${it.own ? `Sfortunato ${playerName(it.player)}` : `Gol di ${playerName(it.player)}`}! ${lead > 0 ? (lead === 1 ? `${teamName(it.team)} in vantaggio` : `${teamName(it.team)} allunga`) : lead === 0 ? 'Pareggio' : `${teamName(it.team)} accorcia`}, ${a} a ${b}.`; },
+  yellow: it => `Cartellino giallo per ${playerName(it.player)}.`,
+  red: it => `Rosso! ${playerName(it.player)} espulso${it.second ? ', seconda ammonizione' : ''}.`,
+  blue: it => `Cartellino azzurro per ${playerName(it.player)}, fuori cinque minuti.`,
+  penalty: it => `Calcio di rigore per ${teamName(it.team)}!`,
+  injury: it => `Si ferma ${playerName(it.player)}, problema fisico.`,
+  sub: it => `Cambio per ${teamName(it.team)}: entra ${playerName(it.player)}.`,
+  half: it => `Fine del primo tempo, ${it.score[0]} a ${it.score[1]}.`,
+  full: it => `Finisce qui! ${it.score[0]} a ${it.score[1]}${it.score[0] === it.score[1] ? ', pareggio' : `, vince ${teamName(it.score[0] > it.score[1] ? 0 : 1)}`}.`,
+};
+const SAY_PRIO = { goal: 'top', red: 'high', penalty: 'high', full: 'high', half: 'high', yellow: 'mid', blue: 'mid', injury: 'mid', sub: 'low' };
+
 function onItems(items) {
   for (const it of items) {
     addFeed(it);
     if (G.skipping) continue;
+    if (SAY[it.t]) speak(SAY[it.t](it), SAY_PRIO[it.t]);
     if (it.t === 'goal') showBanner(`<div class="b-kicker">${it.own ? 'Autogol' : 'Gol'}</div><div class="b-big">GOL!</div><div class="b-sub">${esc(playerName(it.player))}${it.own ? ' (aut.)' : ''} · ${esc(teamName(it.team))} · ${it.score[0]}-${it.score[1]}</div>`, it.team, 3);
     else if (it.t === 'yellow') showLower(`<span class="card yellow"></span>${esc(playerName(it.player))} <small>${esc(teamName(it.team))}</small>`, 'card');
     else if (it.t === 'red') showLower(`<span class="card red"></span>${esc(playerName(it.player))} <small>${it.second ? 'seconda ammonizione' : it.lastMan ? 'giallo + azzurro da ultimo uomo' : 'espulso'}</small>`, 'card');
@@ -475,7 +494,7 @@ function showTab(name) {
   if (name === 'lineups') renderLineups(); else if (name === 'tactics') renderTactics(); else { if (name === 'bench') updateTac(); refreshPanel(); }
 }
 function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
-function toMenu() { const toTour = !!G?.ov; A.setCrowd(0); A.weather('clear'); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
+function toMenu() { V.stop(); const toTour = !!G?.ov; A.setCrowd(0); A.weather('clear'); A.suspend(); G = null; R?.dispose(); R = null; $('#match').hidden = true; $('#menu').hidden = toTour; $('#tour').hidden = !toTour; if (toTour) tour.open(); if (document.fullscreenElement) document.exitFullscreen(); teamCard(0); teamCard(1); }
 
 function initControls() {
   $('#c-full').innerHTML = ICON.full;
@@ -495,7 +514,8 @@ function initControls() {
   $('#rp-skip').onclick = () => { G.queue = []; endReplay(); };
   $$('#panel [data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   const cmOpt = () => { $('#feed').classList.toggle('no-cm', !cfg.commentary); if (!cfg.captions) $('#caption').hidden = true; saveMenu(); };
-  $('#opt-cm').checked = cfg.commentary; $('#opt-cap').checked = cfg.captions; cmOpt();
+  $('#opt-cm').checked = cfg.commentary; $('#opt-cap').checked = cfg.captions; $('#opt-voice').checked = cfg.voice; cmOpt();
+  $('#opt-voice').onchange = e => { cfg.voice = e.target.checked; if (!cfg.voice) V.stop(); saveMenu(); };
   $('#opt-cm').onchange = e => { cfg.commentary = e.target.checked; cmOpt(); };
   $('#opt-cap').onchange = e => { cfg.captions = e.target.checked; cmOpt(); };
   $('#e-replays').onclick = () => playClips(G.rec.clips);

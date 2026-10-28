@@ -122,7 +122,7 @@ export class SoundEngine {
   kick(speed) {
     if (!this.on) return;
     const v0 = clamp(speed / 30, 0, 1);
-    if (this.play('ball_kick', 0.25 + 0.75 * v0, 0.85 + 0.3 * v0 + Math.random() * 0.06)) return;
+    if (this.play('ball_kick', 0.35 + 1.05 * v0, 0.85 + 0.3 * v0 + Math.random() * 0.06)) return;
     const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), v = v0;
     o.frequency.setValueAtTime(150 + 40 * v, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.1);
     g.gain.setValueAtTime(0.1 + 0.28 * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);

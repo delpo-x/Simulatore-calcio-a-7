@@ -7,6 +7,7 @@ import { ballTexture, blobTexture, nameTag, pitchTexture, skyTexture, turfRelief
 import { goal, stadium, stepFlags } from './gfx/stadium.js';
 import { Weather } from './gfx/weather.js';
 import { FrameGovernor, QUALITY } from './gfx/quality.js';
+import { PostFX } from './gfx/post.js';
 import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/effects.js';
 
 export { contrast } from './gfx/textures.js';
@@ -16,9 +17,9 @@ export class TVRenderer {
   constructor(canvas, pitch, { kits, nums, label, weather = 'clear', puddles = [], surface = 'dirt', quality = 'high' } = {}) {
     this.surface = surface; const Q = this.Q = QUALITY[quality] ?? QUALITY.high; this.quality = QUALITY[quality] ? quality : 'high'; this.gov = new FrameGovernor(Q.minScale);
     this.canvas = canvas; this.P = pitch; this.kits = kits; this.nums = nums ?? []; this.label = label;
-    const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: 'high-performance' });
+    const r = this.r = new THREE.WebGLRenderer({ canvas, antialias: Q.aa && !Q.post, powerPreference: 'high-performance' });
     setAnisotropy(r.capabilities.getMaxAnisotropy());
-    this.dpr = Math.min(window.devicePixelRatio || 1, Q.dpr); r.setPixelRatio(this.dpr); r.outputColorSpace = THREE.SRGBColorSpace;
+    this.dpr = Math.min(window.devicePixelRatio || 1, Q.dpr); r.setPixelRatio(this.dpr); r.outputColorSpace = THREE.SRGBColorSpace; r.info.autoReset = false;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
     r.shadowMap.enabled = true; r.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     const scene = this.scene = new THREE.Scene();
@@ -31,7 +32,9 @@ export class TVRenderer {
     const pm = new THREE.Mesh(new THREE.PlaneGeometry(pitch.hx * 2, pitch.hz * 2), new THREE.MeshStandardMaterial({ map: pitchTexture(pitch, surface), roughness: surface === 'dirt' ? 0.95 : 0.85, metalness: 0, roughnessMap: relief, bumpMap: relief, bumpScale: surface === 'dirt' ? 0.6 : 1.4 }));
     pm.rotation.x = -Math.PI / 2; pm.receiveShadow = true; scene.add(pm);
     this.flags = stadium(pitch, scene).flags;
-    this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => this.onThunder?.();
+    this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => { this.post?.flash(1.5); this.onThunder?.(); };
+    this.post = Q.post ? new PostFX(r, { samples: Q.aa ? 4 : 0, kind: weather }) : null; // con il post l'MSAA sta nel buffer di scena
+    if (this.post) { const seen = new Set(); scene.traverse(o => { if (o.isMesh && o.geometry.type === 'ConeGeometry' && !seen.has(o.material)) { seen.add(o.material); o.material.opacity *= 0.35; } }); } // coni additivi: in HDR si sommano prima del tone mapping e risultano molto piu' chiari
     this.goals = [goal(1, pitch), goal(-1, pitch)]; scene.add(...this.goals);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 18), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45, metalness: 0 }));
@@ -475,12 +478,13 @@ export class TVRenderer {
     this.updateCamera(v, dt);
     this.trail.update(b, this.cam.position, dt, this.clock); this.fx.update(dt, this.r.domElement.height * 0.5 * this.cam.projectionMatrix.elements[5]);
     if (this.gov.tick(performance.now())) this.r.setPixelRatio(this.dpr * this.gov.scale); // risoluzione dinamica
-    this.r.render(this.scene, this.cam);
+    this.r.info.reset(); // conta tutti i passaggi del frame (autoReset spento)
+    if (this.post) this.post.render(this.scene, this.cam); else this.r.render(this.scene, this.cam);
   }
 
   /** Misure per il pannello prestazioni. */
   stats() { const i = this.r.info.render; return { fps: this.gov.fps, ms: this.gov.ema, calls: i.calls, tris: i.triangles, scale: this.gov.scale, quality: this.Q.name }; }
 
-  dispose() { this.r.dispose(); }
+  dispose() { this.post?.dispose(); this.r.dispose(); }
 }
 

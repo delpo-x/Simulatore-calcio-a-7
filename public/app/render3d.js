@@ -16,6 +16,7 @@ import { Particles, TURF, TacticBoard, Trail, _ax, _ip, _iv, rnd } from './gfx/e
 export { contrast } from './gfx/textures.js';
 
 const REF_KIT = { shirt: 0x17191d, shorts: 0x17191d, socks: 0x17191d, gk: 0x17191d }; // divisa nera degli ufficiali di gara
+const BOY_KIT = { shirt: 0xf3d22b, shorts: 0x23324a, socks: 0x23324a, gk: 0xf3d22b }; // pettorina gialla dei raccattapalle
 
 export class TVRenderer {
   /** kits: [{ shirt, shorts, socks, gk }] per squadra; nums: numero di maglia per id del giocatore. */
@@ -39,7 +40,7 @@ export class TVRenderer {
     this.grass = Q.grass && surface !== 'dirt' && weather !== 'snow' ? grass(scene, pitch, pm.material.map, Q.grass, surface === 'grass' ? 0.08 : 0.055) : null;
     const st = stadium(pitch, scene, Q.crowd > 0); this.flags = st.flags;
     this.crowd = Q.crowd > 0 ? crowd(scene, st.seats, st.flagSpots, kits, Q.crowd, pitch.hx) : null; // pubblico 3D dal preset Media in su
-    this.refs = []; this.refP = [[0, -4], [pitch.hx / 2, pitch.hz + 0.9], [-pitch.hx / 2, -(pitch.hz + 0.9)]].map(([x, z]) => ({ x, z, vx: 0, vz: 0, face: Math.PI / 2, gk: false, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 0, stun: 0 })); // arbitro e due assistenti
+    this.refs = []; this.refP = [[0, -4], [pitch.hx / 2, pitch.hz + 0.9], [-pitch.hx / 2, -(pitch.hz + 0.9)], ...[-1, 1].flatMap(d => [-1, 1].map(e => [d * (pitch.hx + 2.6), e * pitch.hz * 0.4]))].map(([x, z]) => ({ x, z, vx: 0, vz: 0, face: Math.PI / 2, gk: false, tackleT: 0, throwT: 0, pickT: 0, dribT: 0, dribDir: 0, stun: 0 })); // arbitro, due assistenti e quattro raccattapalle dietro le porte
     this.wx = new Weather(scene, pitch, weather, puddles, { sun, hemi, pitchMat: pm.material, renderer: r, precip: Q.precip }); this.wx.onThunder = () => { this.post?.flash(1.5); this.onThunder?.(); };
     this.post = Q.post ? new PostFX(r, { samples: Q.aa ? 4 : 0, kind: weather }) : null; // con il post l'MSAA sta nel buffer di scena
     if (Q.post) loadRig().then(ok => { if (ok) { this.useRig = true; this.rebuild = true; } }); // giocatori con scheletro dal preset Media in su; fino al caricamento restano quelli low-poly
@@ -83,14 +84,15 @@ export class TVRenderer {
     const capt = [0, 1].map(t => players.find(p => p.team === t && !p.gk)?.id); // capitano: primo giocatore di movimento di ogni squadra
     this.meshes = players.map(p => this.mkMesh(p.team, p.gk, this.nums[p.id] ?? p.id + 1, p.id, capt.includes(p.id)));
     for (const m of this.refs) this.scene.remove(m);
-    this.refs = this.refP.map((_, i) => { const m = (this.useRig ? buildRigged : buildPlayer)(REF_KIT, false, '', 90 + i, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) o.castShadow = o.receiveShadow = true; }); m.userData.blob.visible = false; this.scene.add(m); return m; });
+    this.refs = this.refP.map((_, i) => { const m = (this.useRig ? buildRigged : buildPlayer)(i < 3 ? REF_KIT : BOY_KIT, false, '', 90 + i, this.blobMat); m.traverse(o => { if (o.isMesh && o.material.isMeshStandardMaterial) o.castShadow = o.receiveShadow = true; }); m.userData.blob.visible = false; this.scene.add(m); return m; });
   }
 
-  /** Arbitro e assistenti, solo scena: l'arbitro segue l'azione in diagonale a qualche metro dalla palla, gli assistenti corrono lungo le linee laterali, ognuno nella sua meta' campo. */
+  /** Arbitro e assistenti, solo scena: l'arbitro segue l'azione in diagonale a qualche metro dalla palla, gli assistenti corrono lungo le linee laterali, ognuno nella sua meta' campo, i raccattapalle seguono la palla dietro le porte. */
   stepOfficials(v, dt) {
-    const b = v.ball, P = this.P, tg = [[clamp(b.x * 0.8, -P.hx + 4, P.hx - 4), clamp(b.z * 0.4 - 5, -P.hz + 1, P.hz - 1)], [clamp(b.x, 0, P.hx - 1), P.hz + 0.9], [clamp(b.x, -P.hx + 1, 0), -(P.hz + 0.9)]];
+    const b = v.ball, P = this.P, tg = [[clamp(b.x * 0.8, -P.hx + 4, P.hx - 4), clamp(b.z * 0.4 - 5, -P.hz + 1, P.hz - 1)], [clamp(b.x, 0, P.hx - 1), P.hz + 0.9], [clamp(b.x, -P.hx + 1, 0), -(P.hz + 0.9)],
+      ...[-1, 1].flatMap(d => [-1, 1].map(e => [d * (P.hx + 2.6), e * clamp(e * b.z * 0.7, P.hz * 0.15, P.hz * 0.75)]))]; // raccattapalle: ognuno copre un quarto di fondo campo e si sposta verso la palla
     this.refs.forEach((m, i) => {
-      const p = this.refP[i], dx = tg[i][0] - p.x, dz = tg[i][1] - p.z, d = Math.hypot(dx, dz) || 1, spd = d > 0.5 ? Math.min(i ? 6 : 7, d * 1.4) : 0, k = Math.min(1, dt * 3);
+      const p = this.refP[i], dx = tg[i][0] - p.x, dz = tg[i][1] - p.z, d = Math.hypot(dx, dz) || 1, spd = d > 0.5 ? Math.min(i > 2 ? 3.5 : i ? 6 : 7, d * 1.4) : 0, k = Math.min(1, dt * 3);
       p.vx += (dx / d * spd - p.vx) * k; p.vz += (dz / d * spd - p.vz) * k; p.x += p.vx * dt; p.z += p.vz * dt;
       p.face = Math.hypot(p.vx, p.vz) > 1.5 ? Math.atan2(p.vz, p.vx) : Math.atan2(b.z - p.z, b.x - p.x); // fermo guarda la palla
       m.position.set(p.x, 0, p.z); m.rotation.y = -p.face; this.animate(m, p, dt);
